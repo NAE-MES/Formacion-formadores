@@ -1,1 +1,67 @@
-function crearGoogleFormFdF_V2(){const ss=SpreadsheetApp.getActive(),sh=ss.getSheetByName("13_Formulario_Config"),d=sh.getDataRange().getValues(),form=FormApp.create("Formación de Formadores FdF 2026");form.setProgressBar(true);let sec="";d.slice(1).forEach(r=>{const [cod,s,p,t,o,u,req]=r;if(!p)return;if(s!==sec){sec=s;form.addPageBreakItem().setTitle("Sección "+s);}const required=String(req).toLowerCase()==="sí",ops=String(o||"").split(";").map(x=>x.trim()).filter(Boolean);let it;if(t==="Respuesta corta")it=form.addTextItem().setTitle(p).setRequired(required);else if(t==="Párrafo")it=form.addParagraphTextItem().setTitle(p).setRequired(required);else if(t==="Opción múltiple")it=form.addMultipleChoiceItem().setTitle(p).setChoiceValues(ops).setRequired(required);else if(t==="Casillas")it=form.addCheckboxItem().setTitle(p).setChoiceValues(ops).setRequired(required);else if(t==="Carga de archivo")it=form.addParagraphTextItem().setTitle("[CONFIGURAR CARGA DE ARCHIVO] "+p).setRequired(false);});form.setDestination(FormApp.DestinationType.SPREADSHEET,ss.getId());ss.getSheetByName("11_Config").getRange("E1:F4").setValues([["Recurso","Valor"],["Formulario_ID",form.getId()],["Edición",form.getEditUrl()],["Público",form.getPublishedUrl()]]);SpreadsheetApp.getUi().alert("Formulario V2 creado. Configure manualmente carta aval y CV como carga de archivo antes de publicar.");}
+function crearGoogleFormFdF_V2() {
+  const ss = SpreadsheetApp.getActive();
+  const formularioConfig = ss.getSheetByName("13_Formulario_Config");
+  const datos = formularioConfig.getDataRange().getValues();
+  const form = FormApp.create("Formación de Formadores FdF 2026");
+
+  form.setProgressBar(true);
+
+  let seccionActual = "";
+
+  datos.slice(1).forEach((fila) => {
+    const [, seccion, pregunta, tipo, opciones, , requerida] = fila;
+
+    if (!pregunta) {
+      return;
+    }
+
+    if (seccion !== seccionActual) {
+      seccionActual = seccion;
+      form.addPageBreakItem().setTitle("Sección " + seccion);
+    }
+
+    const esRequerida = String(requerida).toLowerCase() === "sí";
+    const valoresOpciones = String(opciones || "")
+      .split(";")
+      .map((opcion) => opcion.trim())
+      .filter(Boolean);
+
+    if (tipo === "Respuesta corta") {
+      form.addTextItem().setTitle(pregunta).setRequired(esRequerida);
+    } else if (tipo === "Párrafo") {
+      form.addParagraphTextItem().setTitle(pregunta).setRequired(esRequerida);
+    } else if (tipo === "Opción múltiple") {
+      form
+        .addMultipleChoiceItem()
+        .setTitle(pregunta)
+        .setChoiceValues(valoresOpciones)
+        .setRequired(esRequerida);
+    } else if (tipo === "Casillas") {
+      form
+        .addCheckboxItem()
+        .setTitle(pregunta)
+        .setChoiceValues(valoresOpciones)
+        .setRequired(esRequerida);
+    } else if (tipo === "Carga de archivo") {
+      form
+        .addParagraphTextItem()
+        .setTitle("[CONFIGURAR CARGA DE ARCHIVO] " + pregunta)
+        .setRequired(false);
+    }
+  });
+
+  form.setDestination(FormApp.DestinationType.SPREADSHEET, ss.getId());
+
+  ss.getSheetByName("11_Config")
+    .getRange("E1:F4")
+    .setValues([
+      ["Recurso", "Valor"],
+      ["Formulario_ID", form.getId()],
+      ["Edición", form.getEditUrl()],
+      ["Público", form.getPublishedUrl()],
+    ]);
+
+  SpreadsheetApp.getUi().alert(
+    "Formulario V2 creado. Configure manualmente carta aval y CV como carga de archivo antes de publicar."
+  );
+}
