@@ -1,0 +1,18 @@
+# OS/editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.tmp
+*.bak
+
+# Local environment and tool caches
+.env
+.env.*
+!.env.example
+.vscode/
+.idea/
+node_modules/
+
+# Generated logs
+*.log
