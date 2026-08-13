@@ -46,6 +46,7 @@ fdf-2026/
 │   │   ├── anexo-1-matriz-calificacion.pdf
 │   │   └── anexo-2-formulario-postulacion.pdf
 │   └── tecnico/
+│       └── analisis-cambios-documentos-aprobados-fdf.pdf
 ├── sheets/
 │   └── Sistema_FdF_2026_V2_OFICIAL.xlsx
 └── apps-script/

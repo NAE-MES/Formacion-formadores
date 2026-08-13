@@ -11,8 +11,8 @@
 Archivos necesarios:
 
 ``` text
-Sistema_FdF_2026_V2_OFICIAL.xlsx
-Crear_Sistema_FdF_2026_V2_OFICIAL.gs
+sheets/Sistema_FdF_2026_V2_OFICIAL.xlsx
+apps-script/Crear_Sistema_FdF_2026_V2_OFICIAL.gs
 ```
 
 ## 2. Crear estructura en Google Drive
@@ -37,7 +37,7 @@ No otorgar acceso público.
 
 ## 3. Subir y convertir la hoja
 
-Subir `Sistema_FdF_2026_V2_OFICIAL.xlsx` a Drive.
+Subir `sheets/Sistema_FdF_2026_V2_OFICIAL.xlsx` a Drive.
 
 Abrir y seleccionar:
 
@@ -101,7 +101,7 @@ Desde Google Sheets:
 
 Abrir `Código.gs`, eliminar su contenido y pegar el contenido de:
 
-`Crear_Sistema_FdF_2026_V2_OFICIAL.gs`
+`apps-script/Crear_Sistema_FdF_2026_V2_OFICIAL.gs`
 
 Guardar.
 
