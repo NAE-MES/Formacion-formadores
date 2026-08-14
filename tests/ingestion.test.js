@@ -87,6 +87,95 @@ function googleRowFromResponses(responses) {
   return row;
 }
 
+function fakeSpreadsheetWithRows(responseRows) {
+  const publicHeaders = [
+    'Código',
+    'Sección',
+    'Título de sección',
+    'Pregunta visible',
+    'Tipo en Google Forms',
+    'Opciones visibles',
+    'Obligatoria',
+    'Nota técnica NO visible',
+  ];
+  const publicRows = config.fields.map(field => [
+    field.code,
+    field.section,
+    field.section_title,
+    field.question,
+    field.type,
+    field.options.join('; '),
+    field.required ? 'Sí' : 'No',
+    field.technical_note || '',
+  ]);
+  const responseHeaders = Object.keys(config.google_sheet_column_map);
+  const responseValues = responseRows.map(row => responseHeaders.map(header => row[header] || ''));
+
+  return new FakeSpreadsheet({
+    '13_Formulario_Publico': [publicHeaders, ...publicRows],
+    '01_Esquema_Respuestas': [responseHeaders, ...responseValues],
+  });
+}
+
+class FakeSpreadsheet {
+  constructor(sheets) {
+    this.sheets = {};
+    for (const [name, values] of Object.entries(sheets)) {
+      this.sheets[name] = new FakeSheet(name, values);
+    }
+  }
+
+  getSheetByName(name) {
+    return this.sheets[name] || null;
+  }
+
+  insertSheet(name) {
+    const sheet = new FakeSheet(name, []);
+    this.sheets[name] = sheet;
+    return sheet;
+  }
+}
+
+class FakeSheet {
+  constructor(name, values) {
+    this.name = name;
+    this.values = values.map(row => row.slice());
+    this.cleared = false;
+  }
+
+  getDataRange() {
+    return {
+      getValues: () => this.values.map(row => row.slice()),
+    };
+  }
+
+  getLastColumn() {
+    return this.values[0] ? this.values[0].length : 0;
+  }
+
+  getRange(row, col, numRows, numCols) {
+    return {
+      getValues: () => this.values
+        .slice(row - 1, row - 1 + numRows)
+        .map(current => current.slice(col - 1, col - 1 + numCols)),
+      setValues: (newValues) => {
+        for (let r = 0; r < newValues.length; r++) {
+          const targetRow = row - 1 + r;
+          if (!this.values[targetRow]) this.values[targetRow] = [];
+          for (let c = 0; c < newValues[r].length; c++) {
+            this.values[targetRow][col - 1 + c] = newValues[r][c];
+          }
+        }
+      },
+    };
+  }
+
+  clearContents() {
+    this.values = [];
+    this.cleared = true;
+  }
+}
+
 test('imports a valid Google Forms/Sheets response', () => {
   const repo = ingestion.FdF_createIngestionRepository();
   const responses = validResponses();
@@ -377,4 +466,45 @@ test('creates a Google Sheets persistence plan without losing RAW or documents',
   assert.equal(plan['18_Submissions_RAW'].rows.length, 1);
   assert.equal(plan['20_Documentos'].rows.length, 2);
   assert.equal(plan['03_Admisibilidad'].rows[0][4], 'READY_FOR_TECHNICAL_REVIEW');
+});
+
+test('loads public config from spreadsheet and imports Google rows without persisting in preview mode', () => {
+  const row = googleRowFromResponses(validResponses({
+    'FDF-17': 'https://drive.example.test/carta.pdf',
+    'FDF-27': 'https://drive.example.test/cv.pdf',
+  }));
+  const spreadsheet = fakeSpreadsheetWithRows([row]);
+
+  const loadedConfig = ingestion.FdF_publicConfigFromSpreadsheet(spreadsheet);
+  const result = ingestion.FdF_importGoogleResponsesFromSpreadsheet(spreadsheet, {
+    persist: false,
+    eligibilityConfig,
+  });
+
+  assert.equal(loadedConfig.fields.length, 43);
+  assert.equal(result.summary.persisted, false);
+  assert.equal(result.summary.candidates, 1);
+  assert.equal(result.summary.documents, 2);
+  assert.equal(spreadsheet.getSheetByName('18_Submissions_RAW'), null);
+});
+
+test('persists imported Google rows into operational sheets when explicitly requested', () => {
+  const row = googleRowFromResponses(validResponses({
+    'FDF-17': 'https://drive.example.test/carta.pdf',
+    'FDF-27': 'https://drive.example.test/cv.pdf',
+  }));
+  const spreadsheet = fakeSpreadsheetWithRows([row]);
+
+  const result = ingestion.FdF_importGoogleResponsesFromSpreadsheet(spreadsheet, {
+    persist: true,
+    eligibilityConfig,
+  });
+
+  assert.equal(result.summary.persisted, true);
+  assert.ok(spreadsheet.getSheetByName('02_Postulantes'));
+  assert.ok(spreadsheet.getSheetByName('03_Admisibilidad'));
+  assert.ok(spreadsheet.getSheetByName('18_Submissions_RAW'));
+  assert.ok(spreadsheet.getSheetByName('20_Documentos'));
+  assert.equal(spreadsheet.getSheetByName('02_Postulantes').values.length, 2);
+  assert.equal(spreadsheet.getSheetByName('20_Documentos').values.length, 3);
 });

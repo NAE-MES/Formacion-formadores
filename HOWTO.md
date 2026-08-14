@@ -123,6 +123,25 @@ La configuracion preliminar de admisibilidad/documentos esta en:
 
 `config/fdf-2026-eligibility-baseline.json`
 
+## 6.1 Importación Sprint 2
+
+Antes de escribir hojas operativas, ejecutar:
+
+``` text
+FdF_previsualizarImportacionGoogleSprint2
+```
+
+Si el resumen es correcto, ejecutar:
+
+``` text
+FdF_ejecutarImportacionGoogleSprint2
+```
+
+Esta función escribe hojas técnicas de ingestión y admisibilidad
+preliminar (`18_Submissions_RAW`, `19_Candidate_Responses`,
+`20_Documentos`, `21_Normalization_Issues`, `22_Duplicate_Review` y
+actualiza `02_Postulantes`, `03_Admisibilidad`, `12_Log`).
+
 ## 7. Generar Google Forms
 
 Seleccionar la función:

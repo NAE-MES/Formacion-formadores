@@ -92,9 +92,16 @@ La base de Sprint 2 agrega:
 - configuración `config/fdf-2026-eligibility-baseline.json`;
 - evaluación preliminar de documentación/declaraciones;
 - plan de persistencia hacia hojas operativas;
+- lectura de configuración desde el spreadsheet activo;
+- importación controlada de filas Google Sheets;
 - estados operativos previos a decisión final del Equipo Técnico.
 
 No implementa ranking, cupos, notificaciones ni decisiones finales.
+
+Funciones Apps Script disponibles:
+
+- `FdF_previsualizarImportacionGoogleSprint2`
+- `FdF_ejecutarImportacionGoogleSprint2`
 
 ## Hojas del sistema
 

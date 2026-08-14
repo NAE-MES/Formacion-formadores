@@ -27,6 +27,9 @@ Casos cubiertos:
 - bloquear preliminarmente cuando faltan documentos requeridos;
 - marcar revision manual por vinculo institucional negativo sin rechazo final automatico;
 - generar plan de persistencia para hojas operativas sin perder RAW ni documentos.
+- leer configuracion desde un spreadsheet simulado;
+- previsualizar importacion sin escritura;
+- persistir explicitamente filas Google en hojas operativas simuladas.
 
 ## Fuera de alcance
 

@@ -53,3 +53,12 @@ La capa de ingestión puede producir un plan de persistencia para Google Sheets:
 - `22_Duplicate_Review`
 
 El RAW se conserva en una hoja tecnica separada y los logs no deben copiar contenido completo de documentos personales.
+
+## Flujo Apps Script
+
+Funciones disponibles:
+
+- `FdF_previsualizarImportacionGoogleSprint2`: lee el spreadsheet activo, importa a memoria y muestra un resumen sin escribir hojas.
+- `FdF_ejecutarImportacionGoogleSprint2`: lee el spreadsheet activo, importa a memoria, evalua admisibilidad preliminar y persiste las hojas operativas.
+
+La configuracion publica se reconstruye desde `13_Formulario_Publico` para evitar divergencia con el instrumento operativo.

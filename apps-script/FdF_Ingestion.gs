@@ -107,6 +107,231 @@ function FdF_registerOfflineManual(input, config, repository) {
   }, config, repository);
 }
 
+function FdF_previsualizarImportacionGoogleSprint2() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const result = FdF_importGoogleResponsesFromSpreadsheet(ss, {
+    persist: false,
+    actor: 'APPS_SCRIPT_PREVIEW',
+  });
+  SpreadsheetApp.getUi().alert(
+    'Previsualización Sprint 2\n\n' +
+    'Postulantes: ' + result.repository.candidates.length + '\n' +
+    'Postulaciones: ' + result.repository.submissions.length + '\n' +
+    'Incidencias: ' + result.repository.normalizationIssues.length + '\n' +
+    'Posibles duplicados: ' + result.repository.duplicateReviews.length + '\n' +
+    'Admisibilidad preliminar: ' + result.repository.eligibilityAssessments.length + '\n\n' +
+    'No se escribieron hojas operativas.'
+  );
+  return result.summary;
+}
+
+function FdF_ejecutarImportacionGoogleSprint2() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const result = FdF_importGoogleResponsesFromSpreadsheet(ss, {
+    persist: true,
+    actor: 'APPS_SCRIPT_IMPORT',
+  });
+  SpreadsheetApp.getUi().alert(
+    'Importación Sprint 2 ejecutada\n\n' +
+    'Postulantes: ' + result.repository.candidates.length + '\n' +
+    'Postulaciones: ' + result.repository.submissions.length + '\n' +
+    'Incidencias: ' + result.repository.normalizationIssues.length + '\n' +
+    'Posibles duplicados: ' + result.repository.duplicateReviews.length + '\n' +
+    'Admisibilidad preliminar: ' + result.repository.eligibilityAssessments.length + '\n\n' +
+    'Revise las hojas técnicas 18-22 y 03_Admisibilidad.'
+  );
+  return result.summary;
+}
+
+function FdF_importGoogleResponsesFromSpreadsheet(spreadsheet, options) {
+  const opts = options || {};
+  const config = FdF_publicConfigFromSpreadsheet(spreadsheet);
+  const eligibilityConfig = opts.eligibilityConfig || FdF_defaultEligibilityBaselineConfig();
+  const sheetName = opts.sheetName || '01_Esquema_Respuestas';
+  const sheet = spreadsheet.getSheetByName(sheetName);
+  if (!sheet) {
+    throw new Error('No existe la hoja de respuestas: ' + sheetName);
+  }
+
+  const values = sheet.getDataRange().getValues();
+  if (!values.length) {
+    return {
+      summary: FdF_importSummary_(FdF_createIngestionRepository(), false),
+      repository: FdF_createIngestionRepository(),
+    };
+  }
+
+  const headers = values[0].map(value => String(value || ''));
+  const repository = FdF_createIngestionRepository();
+  values.slice(1).forEach((row, index) => {
+    if (FdF_isBlankRow_(row)) return;
+
+    const rowObject = {};
+    headers.forEach((header, colIndex) => rowObject[header] = row[colIndex]);
+    const documents = FdF_googleDocumentsFromRow_(rowObject, config);
+    const imported = FdF_importGoogleSubmission({
+      headers,
+      row,
+      rowId: index + 2,
+      sourceReference: 'sheet:' + sheetName + ':row:' + (index + 2),
+      receivedAt: rowObject['Marca temporal'] || opts.receivedAt,
+      actor: opts.actor || 'GOOGLE_SHEET_IMPORTER',
+      documents,
+    }, config, repository);
+
+    if (imported.candidate) {
+      FdF_assessCandidateEligibility(
+        imported.candidate.candidate_id,
+        eligibilityConfig,
+        repository,
+        { actor: opts.actor || 'GOOGLE_SHEET_IMPORTER' }
+      );
+    }
+  });
+
+  if (opts.persist) {
+    FdF_persistRepositoryToSpreadsheet(spreadsheet, repository);
+  }
+
+  return {
+    summary: FdF_importSummary_(repository, !!opts.persist),
+    repository,
+  };
+}
+
+function FdF_publicConfigFromSpreadsheet(spreadsheet) {
+  const publicSheet = spreadsheet.getSheetByName('13_Formulario_Publico');
+  if (!publicSheet) {
+    throw new Error('No existe 13_Formulario_Publico.');
+  }
+  const rows = publicSheet.getDataRange().getValues();
+  const fields = rows.slice(1)
+    .filter(row => row[0])
+    .map(row => {
+      const options = row[5] && ['Opción múltiple', 'Casillas'].indexOf(row[4]) !== -1
+        ? String(row[5]).split(';').map(option => option.trim()).filter(Boolean)
+        : [];
+      return {
+        code: String(row[0]),
+        section: String(row[1]),
+        section_title: row[2],
+        question: row[3],
+        type: row[4],
+        required: String(row[6]).trim().toLowerCase() === 'sí',
+        options,
+        technical_note: row[7] || null,
+      };
+    });
+
+  const responseSheet = spreadsheet.getSheetByName('01_Esquema_Respuestas');
+  const googleSheetColumnMap = { 'Marca temporal': '__timestamp' };
+  if (responseSheet) {
+    const headers = responseSheet.getRange(1, 1, 1, responseSheet.getLastColumn()).getValues()[0];
+    const questionToCode = {};
+    fields.forEach(field => questionToCode[field.question] = field.code);
+    headers.forEach(header => {
+      if (questionToCode[header]) {
+        googleSheetColumnMap[header] = questionToCode[header];
+      }
+    });
+  }
+
+  return {
+    schema_version: 'FDF-2026-PUBLIC-SCHEMA-1',
+    offline_json_schema: 'FDF-2026-OFFLINE-1',
+    source_channels: [
+      FDF_SOURCE_CHANNELS.GOOGLE_FORM,
+      FDF_SOURCE_CHANNELS.OFFLINE_JSON,
+      FDF_SOURCE_CHANNELS.OFFLINE_MANUAL,
+    ],
+    document_types: [
+      FDF_DOCUMENT_TYPES.CARTA_AVAL,
+      FDF_DOCUMENT_TYPES.CURRICULUM_VITAE,
+      FDF_DOCUMENT_TYPES.FORMULARIO_OFFLINE,
+    ],
+    fields,
+    google_sheet_column_map: googleSheetColumnMap,
+  };
+}
+
+function FdF_defaultEligibilityBaselineConfig() {
+  return {
+    schema_version: 'FDF-2026-ELIGIBILITY-BASELINE-1',
+    assessment_scope: 'PRELIMINARY_OPERATIONAL_READINESS',
+    statuses: {
+      ready: 'READY_FOR_TECHNICAL_REVIEW',
+      blocked: 'BLOCKED_BY_MISSING_REQUIREMENTS',
+      requires_review: 'REQUIRES_MANUAL_REVIEW',
+    },
+    checks: [
+      {
+        check_id: 'CONSENT_ACCEPTED',
+        type: 'FIELD_EQUALS',
+        field_code: 'FDF-11',
+        expected: 'Sí',
+        severity: 'BLOCKING',
+        description: 'Consentimiento para uso de informacion en el proceso FdF.',
+      },
+      {
+        check_id: 'CARTA_AVAL_RECEIVED',
+        type: 'DOCUMENT_PRESENT',
+        document_type: FDF_DOCUMENT_TYPES.CARTA_AVAL,
+        accepted_statuses: ['RECEIVED', 'VALIDADO', 'VALIDATED'],
+        severity: 'BLOCKING',
+        description: 'Carta aval institucional recibida.',
+      },
+      {
+        check_id: 'CURRICULUM_RECEIVED',
+        type: 'DOCUMENT_PRESENT',
+        document_type: FDF_DOCUMENT_TYPES.CURRICULUM_VITAE,
+        accepted_statuses: ['RECEIVED', 'VALIDADO', 'VALIDATED'],
+        severity: 'BLOCKING',
+        description: 'Curriculum vitae recibido.',
+      },
+      {
+        check_id: 'VERACITY_CONFIRMED',
+        type: 'FIELD_EQUALS',
+        field_code: 'FDF-39',
+        expected: 'Sí',
+        severity: 'BLOCKING',
+        description: 'Confirmacion de veracidad de la informacion.',
+      },
+      {
+        check_id: 'VALIDATION_AUTHORIZED',
+        type: 'FIELD_EQUALS',
+        field_code: 'FDF-40',
+        expected: 'Sí',
+        severity: 'BLOCKING',
+        description: 'Autorizacion para validacion institucional.',
+      },
+      {
+        check_id: 'MULTIPLICATION_COMMITMENT_NOT_NEGATIVE',
+        type: 'FIELD_NOT_EQUALS',
+        field_code: 'FDF-30',
+        not_expected: 'No manifiesto compromiso de multiplicación posterior',
+        severity: 'BLOCKING',
+        description: 'Compromiso de multiplicacion no negativo.',
+      },
+      {
+        check_id: 'AVAILABILITY_NOT_NEGATIVE',
+        type: 'FIELD_NOT_EQUALS',
+        field_code: 'FDF-32',
+        not_expected: 'No cuento con disponibilidad suficiente para participar en el proceso',
+        severity: 'BLOCKING',
+        description: 'Disponibilidad no negativa.',
+      },
+      {
+        check_id: 'INSTITUTIONAL_LINK_REVIEW',
+        type: 'FIELD_NOT_EQUALS',
+        field_code: 'FDF-18',
+        not_expected: 'No acredito vínculo institucional activo con una estructura de apoyo a NAE',
+        severity: 'MANUAL_REVIEW',
+        description: 'Vinculo institucional declarado requiere revision si es negativo.',
+      },
+    ],
+  };
+}
+
 function FdF_importSubmission_(input, config, repository) {
   const repo = repository || FdF_createIngestionRepository();
   const receivedAt = input.receivedAt || FdF_nowIso_();
@@ -308,6 +533,58 @@ function FdF_googleSourceReference_(input) {
     return 'timestamp:' + input.row['Marca temporal'];
   }
   return FdF_hash_('google:' + FdF_canonicalJson_(input));
+}
+
+function FdF_googleDocumentsFromRow_(rowObject, config) {
+  const documents = [];
+  const map = config.google_sheet_column_map || {};
+  Object.keys(rowObject || {}).forEach(header => {
+    const code = map[header];
+    if (code !== 'FDF-17' && code !== 'FDF-27') return;
+    const value = rowObject[header];
+    if (!FdF_hasValue_(value)) return;
+
+    const documentType = code === 'FDF-17'
+      ? FDF_DOCUMENT_TYPES.CARTA_AVAL
+      : FDF_DOCUMENT_TYPES.CURRICULUM_VITAE;
+    String(value).split(/,\s*/).map(item => item.trim()).filter(Boolean).forEach((reference, index) => {
+      documents.push({
+        document_type: documentType,
+        original_name: FdF_documentOriginalName_(reference, documentType, index),
+        storage_reference: reference,
+        received_at: rowObject['Marca temporal'] || '',
+        status: 'RECEIVED',
+      });
+    });
+  });
+  return documents;
+}
+
+function FdF_documentOriginalName_(reference, documentType, index) {
+  const clean = String(reference || '').trim();
+  if (!clean) {
+    return documentType.toLowerCase() + '-' + (index + 1);
+  }
+  const parts = clean.split(/[\\/]/);
+  return parts[parts.length - 1] || clean;
+}
+
+function FdF_isBlankRow_(row) {
+  return (row || []).every(value => !FdF_hasValue_(value));
+}
+
+function FdF_importSummary_(repository, persisted) {
+  return {
+    persisted,
+    candidates: repository.candidates.length,
+    submissions: repository.submissions.length,
+    raw_records: repository.submissionRaws.length,
+    documents: repository.documents.length,
+    normalization_issues: repository.normalizationIssues.length,
+    duplicate_reviews: repository.duplicateReviews.length,
+    eligibility_assessments: repository.eligibilityAssessments.length,
+    audit_events: repository.auditEvents.length,
+  };
 }
 
 function FdF_validateResponses_(responses, config, documents) {
@@ -872,6 +1149,9 @@ if (typeof module !== 'undefined' && module.exports) {
     FdF_importGoogleSubmission,
     FdF_importOfflineJson,
     FdF_registerOfflineManual,
+    FdF_importGoogleResponsesFromSpreadsheet,
+    FdF_publicConfigFromSpreadsheet,
+    FdF_defaultEligibilityBaselineConfig,
     FdF_assessCandidateEligibility,
     FdF_createSheetPersistencePlan,
     FdF_persistRepositoryToSpreadsheet,
