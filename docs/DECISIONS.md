@@ -23,3 +23,11 @@ Decision: implementar Sprint 2 como evaluacion preliminar de completitud documen
 Justificacion: las reglas de subsanacion, revision cualitativa y aprobacion final no deben inventarse ni automatizarse sin decision oficial.
 
 Impacto: la implementacion prepara admisibilidad operativa y trazable, pero no emite una decision final `ADMISIBLE`/`NO_ADMISIBLE`.
+
+## 2026-08-14 - Google Form congelado y backend API como destino operativo
+
+Decision: no modificar el Google Form existente. La respuesta del formulario se enviara al backend API mediante un trigger Apps Script `onFormSubmit`.
+
+Justificacion: el formulario ya esta publicado/en uso y no debe alterarse. El backend permite trazabilidad, persistencia en base de datos y frontend de gestion sin depender del Google Sheet como sistema operativo.
+
+Impacto: Google Sheets queda como origen tecnico del evento/respaldo. La ingesta operativa sera `POST /api/submissions/google-form`. La variante offline conserva `POST /api/submissions/offline-json`.

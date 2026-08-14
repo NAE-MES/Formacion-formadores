@@ -67,7 +67,12 @@ fdf-2026/
 │   └── Sistema_FdF_2026_FINAL.xlsx
 ├── apps-script/
 │   ├── Crear_Sistema_FdF_2026_FINAL.gs
-│   └── FdF_Ingestion.gs
+│   ├── FdF_Ingestion.gs
+│   └── FdF_Api_Bridge.gs
+├── backend/
+│   ├── src/
+│   ├── db/
+│   └── tests/
 └── tests/
     └── ingestion.test.js
 ```
@@ -102,6 +107,17 @@ Funciones Apps Script disponibles:
 
 - `FdF_previsualizarImportacionGoogleSprint2`
 - `FdF_ejecutarImportacionGoogleSprint2`
+
+## Backend API
+
+El Google Form existente queda congelado. La ingesta operativa se mueve
+a un backend API:
+
+- `POST /api/submissions/google-form`
+- `POST /api/submissions/offline-json`
+
+El puente `apps-script/FdF_Api_Bridge.gs` escucha el evento de envio del
+formulario y envia la respuesta al API sin modificar el formulario.
 
 ## Hojas del sistema
 

@@ -14,6 +14,7 @@ Archivos necesarios:
 sheets/Sistema_FdF_2026_FINAL.xlsx
 apps-script/Crear_Sistema_FdF_2026_FINAL.gs
 apps-script/FdF_Ingestion.gs
+apps-script/FdF_Api_Bridge.gs
 config/fdf-2026-public-schema.json
 ```
 
@@ -141,6 +142,29 @@ Esta función escribe hojas técnicas de ingestión y admisibilidad
 preliminar (`18_Submissions_RAW`, `19_Candidate_Responses`,
 `20_Documentos`, `21_Normalization_Issues`, `22_Duplicate_Review` y
 actualiza `02_Postulantes`, `03_Admisibilidad`, `12_Log`).
+
+## 6.2 Puente al Backend API
+
+No modificar el Google Form existente.
+
+Configurar Script Properties:
+
+```text
+FDF_API_URL=https://TU_DOMINIO
+FDF_API_TOKEN=TOKEN_CONFIGURADO_EN_BACKEND
+```
+
+Instalar un trigger de envio de formulario para:
+
+```text
+FdF_onFormSubmitToApi
+```
+
+Ese trigger envia la respuesta al endpoint:
+
+```text
+POST /api/submissions/google-form
+```
 
 ## 7. Generar Google Forms
 

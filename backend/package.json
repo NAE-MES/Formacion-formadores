@@ -1,0 +1,19 @@
+{
+  "name": "fdf-2026-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "description": "Backend API for FdF 2026 submission ingestion.",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test tests/*.test.js",
+    "check": "node --check src/server.js && node --check src/app.js && node --check src/ingestion.js && node --check src/config.js && node --check src/repositories/memoryRepository.js && node --check src/repositories/postgresRepository.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "pg": "^8.12.0"
+  }
+}
