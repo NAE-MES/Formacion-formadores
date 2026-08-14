@@ -11,8 +11,8 @@
 Archivos necesarios:
 
 ``` text
-sheets/Sistema_FdF_2026_V2_OFICIAL.xlsx
-apps-script/Crear_Sistema_FdF_2026_V2_OFICIAL.gs
+sheets/Sistema_FdF_2026_FINAL.xlsx
+apps-script/Crear_Sistema_FdF_2026_FINAL.gs
 ```
 
 ## 2. Crear estructura en Google Drive
@@ -37,7 +37,7 @@ No otorgar acceso público.
 
 ## 3. Subir y convertir la hoja
 
-Subir `sheets/Sistema_FdF_2026_V2_OFICIAL.xlsx` a Drive.
+Subir `sheets/Sistema_FdF_2026_FINAL.xlsx` a Drive.
 
 Abrir y seleccionar:
 
@@ -51,7 +51,7 @@ Deben existir:
 
 ``` text
 00_Instrucciones
-01_Respuestas_Forms
+01_Esquema_Respuestas
 02_Postulantes
 03_Admisibilidad
 04_Evaluacion
@@ -63,8 +63,11 @@ Deben existir:
 10_Catalogos
 11_Config
 12_Log
-13_Formulario_Config
-14_Matriz_Oficial
+13_Formulario_Publico
+14_Mapeo_Puntuacion
+15_Matriz_Oficial
+16_Resumen_Equipo_Tecnico
+17_Control_Cambios
 ```
 
 ## 5. Revisar `11_Config`
@@ -101,7 +104,7 @@ Desde Google Sheets:
 
 Abrir `Código.gs`, eliminar su contenido y pegar el contenido de:
 
-`apps-script/Crear_Sistema_FdF_2026_V2_OFICIAL.gs`
+`apps-script/Crear_Sistema_FdF_2026_FINAL.gs`
 
 Guardar.
 
@@ -109,7 +112,7 @@ Guardar.
 
 Seleccionar la función:
 
-`crearGoogleFormFdF_V2`
+`crearGoogleFormFdF_FINAL`
 
 Pulsar **Ejecutar** y autorizar los permisos.
 
@@ -127,11 +130,11 @@ Abrir `Edición`.
 
 ## 8. Configurar carta aval
 
-El script deja un marcador:
+El script crea la pregunta FDF-17 como **Párrafo** en su posición
+correcta porque Apps Script no permite crear directamente preguntas de
+tipo **Carga de archivos**.
 
-`[CONFIGURAR CARGA DE ARCHIVO] Adjunte carta aval institucional`
-
-Reemplazarlo manualmente por una pregunta de tipo **Carga de archivos**.
+Cambiar manualmente la pregunta FDF-17 a **Carga de archivos**.
 
 Configurar como obligatoria, con un archivo máximo y los formatos
 admitidos según lo aprobado. Incorporar la orientación oficial sobre el
@@ -143,7 +146,20 @@ Repetir con:
 
 `Adjunte su currículum vitae actualizado`
 
-Configurar como **Carga de archivos** y obligatorio.
+Cambiar manualmente la pregunta FDF-27 a **Carga de archivos** y
+configurarla como obligatoria.
+
+No crear preguntas nuevas para FDF-17 ni FDF-27.
+
+## 9.1 Auditar formulario
+
+Después de configurar las dos cargas de archivo, ejecutar:
+
+``` text
+auditarGoogleFormFdF_FINAL
+```
+
+Corregir cualquier observación antes de publicar.
 
 ## 10. Comprobar la restricción de carga
 
@@ -171,7 +187,7 @@ Crear al menos tres postulaciones ficticias:
 
 ## 13. Verificar respuestas
 
-Comprobar `01_Respuestas_Forms`.
+Comprobar `01_Esquema_Respuestas`.
 
 No utilizar esta hoja para edición manual de expedientes.
 
@@ -310,7 +326,9 @@ Antes de publicar:
 5.  Verificar correo FdF.
 6.  Comprobar enlace público.
 7.  Realizar una última postulación de prueba.
-8.  Distribuir el enlace oficial.
+8.  Ejecutar `auditarGoogleFormFdF_FINAL`.
+9.  Ejecutar `publicarGoogleFormFdF_FINAL` cuando la auditoría no reporte errores.
+10. Distribuir el enlace oficial.
 
 ## 27. Fechas configuradas
 

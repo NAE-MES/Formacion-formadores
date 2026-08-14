@@ -44,19 +44,22 @@ fdf-2026/
 │   ├── oficiales/
 │   │   ├── proceso-convocatoria-seleccion.pdf
 │   │   ├── anexo-1-matriz-calificacion.pdf
-│   │   └── anexo-2-formulario-postulacion.pdf
+│   │   ├── anexo-2-formulario-postulacion.pdf
+│   │   ├── formulario-postulacion-via-offline.pdf
+│   │   └── formulario-postulacion-via-offline.html
 │   └── tecnico/
-│       └── analisis-cambios-documentos-aprobados-fdf.pdf
+│       ├── analisis-cambios-documentos-aprobados-fdf.pdf
+│       └── url-google-form.txt
 ├── sheets/
-│   └── Sistema_FdF_2026_V2_OFICIAL.xlsx
+│   └── Sistema_FdF_2026_FINAL.xlsx
 └── apps-script/
-    └── Crear_Sistema_FdF_2026_V2_OFICIAL.gs
+    └── Crear_Sistema_FdF_2026_FINAL.gs
 ```
 
 ## Hojas del sistema
 
 -   `00_Instrucciones`: reglas generales.
--   `01_Respuestas_Forms`: respuestas originales de Forms.
+-   `01_Esquema_Respuestas`: esquema/base de respuestas.
 -   `02_Postulantes`: expedientes normalizados.
 -   `03_Admisibilidad`: requisitos habilitantes y documentos.
 -   `04_Evaluacion`: matriz oficial de calificación.
@@ -68,8 +71,11 @@ fdf-2026/
 -   `10_Catalogos`: provincias, regiones y catálogos.
 -   `11_Config`: parámetros.
 -   `12_Log`: trazabilidad.
--   `13_Formulario_Config`: configuración del Forms.
--   `14_Matriz_Oficial`: representación del Anexo 1.
+-   `13_Formulario_Publico`: fuente del formulario público.
+-   `14_Mapeo_Puntuacion`: correspondencia entre respuestas y puntuación.
+-   `15_Matriz_Oficial`: representación del Anexo 1.
+-   `16_Resumen_Equipo_Tecnico`: resumen para revisión y aprobación.
+-   `17_Control_Cambios`: registro de control documental.
 
 ## Matriz oficial
 
@@ -172,5 +178,5 @@ No modificar unilateralmente reglas directamente en el código.
 
 ## Estado
 
-**Versión:** FdF 2026 V2 OFICIAL\
+**Versión:** FdF 2026 FINAL\
 **Base funcional:** documentos aprobados del 11/08/2026.
