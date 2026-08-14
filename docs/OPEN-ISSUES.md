@@ -1,0 +1,41 @@
+# Open Issues
+
+## OI-001 - Puntuacion de genero pendiente de cierre
+
+Fuentes: `README.md`, Anexo 1, Anexo 2.
+
+Conflicto: existe referencia a discrepancia entre la puntuacion de `Hombre` en Anexo 1 y Anexo 2.
+
+Impacto: motor de evaluacion de inclusion/genero. No afecta la ingestión Sprint 1.
+
+Estado: pendiente de decision del Equipo Tecnico.
+
+## OI-002 - Plazo exacto de subsanacion
+
+Fuentes: documentos oficiales y configuracion operativa.
+
+Conflicto: el plazo se describe como breve, pero no queda cerrado como parametro definitivo.
+
+Impacto: admisibilidad y gestion documental Sprint 2.
+
+Estado: pendiente de decision del Equipo Tecnico.
+
+## OI-003 - Codigos FDF en HTML offline
+
+Fuentes: regla funcional de no mostrar codigos al postulante y `docs/oficiales/formulario-postulacion-via-offline.html`.
+
+Observacion: los codigos `FDF-xx` aparecen como atributos tecnicos `data-code` y `name`. No se observan como texto visible principal, pero pueden verse inspeccionando el HTML.
+
+Impacto: no bloquea ingestión. Cualquier cambio al HTML offline esta fuera del alcance de Sprint 1.
+
+Estado: pendiente de criterio del Equipo Tecnico/operacional si se requiere ocultamiento tecnico adicional.
+
+## OI-004 - Errata visible en FDF-17
+
+Fuentes: `13_Formulario_Publico` y formulario offline.
+
+Observacion: el texto publico de FDF-17 contiene `carfo`.
+
+Impacto: instrumento publico. No se corrige en Sprint 1 porque implicaria cambiar texto funcional visible.
+
+Estado: pendiente de decision/correccion oficial.

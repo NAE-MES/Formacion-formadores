@@ -41,6 +41,17 @@ fdf-2026/
 ├── README.md
 ├── HOWTO.md
 ├── docs/
+│   ├── 00-Implementation-Roadmap.md
+│   ├── 01-Official-Sources.md
+│   ├── 02-Functional-Rules.md
+│   ├── 03-Data-Model.md
+│   ├── 04-Ingestion-Architecture.md
+│   ├── 05-Evaluation-Architecture.md
+│   ├── 06-Ranking-Architecture.md
+│   ├── 07-Audit-and-Traceability.md
+│   ├── 08-Test-Strategy.md
+│   ├── DECISIONS.md
+│   ├── OPEN-ISSUES.md
 │   ├── oficiales/
 │   │   ├── proceso-convocatoria-seleccion.pdf
 │   │   ├── anexo-1-matriz-calificacion.pdf
@@ -50,11 +61,29 @@ fdf-2026/
 │   └── tecnico/
 │       ├── analisis-cambios-documentos-aprobados-fdf.pdf
 │       └── url-google-form.txt
+├── config/
+│   └── fdf-2026-public-schema.json
 ├── sheets/
 │   └── Sistema_FdF_2026_FINAL.xlsx
-└── apps-script/
-    └── Crear_Sistema_FdF_2026_FINAL.gs
+├── apps-script/
+│   ├── Crear_Sistema_FdF_2026_FINAL.gs
+│   └── FdF_Ingestion.gs
+└── tests/
+    └── ingestion.test.js
 ```
+
+## Implementación Sprint 1
+
+La capa de ingestión converge tres canales al mismo modelo normalizado:
+
+- `GOOGLE_FORM`
+- `OFFLINE_JSON`
+- `OFFLINE_MANUAL`
+
+El archivo `apps-script/FdF_Ingestion.gs` conserva RAW, normaliza por
+codigos internos `FDF-xx`, registra incidencias, asocia documentos y
+detecta reimportaciones/posibles duplicados sin fusionarlos
+automaticamente.
 
 ## Hojas del sistema
 

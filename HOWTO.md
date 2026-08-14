@@ -13,6 +13,8 @@ Archivos necesarios:
 ``` text
 sheets/Sistema_FdF_2026_FINAL.xlsx
 apps-script/Crear_Sistema_FdF_2026_FINAL.gs
+apps-script/FdF_Ingestion.gs
+config/fdf-2026-public-schema.json
 ```
 
 ## 2. Crear estructura en Google Drive
@@ -107,6 +109,15 @@ Abrir `Código.gs`, eliminar su contenido y pegar el contenido de:
 `apps-script/Crear_Sistema_FdF_2026_FINAL.gs`
 
 Guardar.
+
+Si tambien se instala la capa de ingestión Sprint 1, crear otro archivo
+en Apps Script y pegar el contenido de:
+
+`apps-script/FdF_Ingestion.gs`
+
+La configuracion versionable de referencia esta en:
+
+`config/fdf-2026-public-schema.json`
 
 ## 7. Generar Google Forms
 

@@ -1,0 +1,615 @@
+{
+  "schema_version": "FDF-2026-PUBLIC-SCHEMA-1",
+  "offline_json_schema": "FDF-2026-OFFLINE-1",
+  "source_workbook": "sheets/Sistema_FdF_2026_FINAL.xlsx",
+  "source_sheet": "13_Formulario_Publico",
+  "source_channels": [
+    "GOOGLE_FORM",
+    "OFFLINE_JSON",
+    "OFFLINE_MANUAL"
+  ],
+  "document_types": [
+    "CARTA_AVAL",
+    "CURRICULUM_VITAE",
+    "FORMULARIO_OFFLINE"
+  ],
+  "fields": [
+    {
+      "code": "FDF-01",
+      "section": "1",
+      "section_title": "1. Identificación y consentimiento",
+      "question": "Escriba su primer nombre",
+      "type": "Respuesta corta",
+      "required": true,
+      "options": [],
+      "technical_note": null
+    },
+    {
+      "code": "FDF-02",
+      "section": "1",
+      "section_title": "1. Identificación y consentimiento",
+      "question": "Escriba su segundo nombre, si aplica",
+      "type": "Respuesta corta",
+      "required": false,
+      "options": [],
+      "technical_note": null
+    },
+    {
+      "code": "FDF-03",
+      "section": "1",
+      "section_title": "1. Identificación y consentimiento",
+      "question": "Escriba su primer apellido",
+      "type": "Respuesta corta",
+      "required": true,
+      "options": [],
+      "technical_note": null
+    },
+    {
+      "code": "FDF-04",
+      "section": "1",
+      "section_title": "1. Identificación y consentimiento",
+      "question": "Escriba su segundo apellido",
+      "type": "Respuesta corta",
+      "required": true,
+      "options": [],
+      "technical_note": null
+    },
+    {
+      "code": "FDF-05",
+      "section": "1",
+      "section_title": "1. Identificación y consentimiento",
+      "question": "Número de identificación",
+      "type": "Respuesta corta",
+      "required": true,
+      "options": [],
+      "technical_note": null
+    },
+    {
+      "code": "FDF-06",
+      "section": "1",
+      "section_title": "1. Identificación y consentimiento",
+      "question": "Teléfono celular",
+      "type": "Respuesta corta",
+      "required": true,
+      "options": [],
+      "technical_note": null
+    },
+    {
+      "code": "FDF-07",
+      "section": "1",
+      "section_title": "1. Identificación y consentimiento",
+      "question": "Correo electrónico",
+      "type": "Respuesta corta",
+      "required": true,
+      "options": [],
+      "technical_note": null
+    },
+    {
+      "code": "FDF-08",
+      "section": "1",
+      "section_title": "1. Identificación y consentimiento",
+      "question": "Región donde trabaja principalmente",
+      "type": "Opción múltiple",
+      "required": true,
+      "options": [
+        "Oriente",
+        "Centro",
+        "Occidente"
+      ],
+      "technical_note": null
+    },
+    {
+      "code": "FDF-09",
+      "section": "1",
+      "section_title": "1. Identificación y consentimiento",
+      "question": "Provincia donde trabaja principalmente",
+      "type": "Opción múltiple",
+      "required": true,
+      "options": [
+        "Pinar del Río",
+        "Artemisa",
+        "La Habana",
+        "Mayabeque",
+        "Matanzas",
+        "Isla de la Juventud",
+        "Villa Clara",
+        "Cienfuegos",
+        "Sancti Spíritus",
+        "Ciego de Ávila",
+        "Camagüey",
+        "Las Tunas",
+        "Holguín",
+        "Granma",
+        "Santiago de Cuba",
+        "Guantánamo"
+      ],
+      "technical_note": null
+    },
+    {
+      "code": "FDF-10",
+      "section": "1",
+      "section_title": "1. Identificación y consentimiento",
+      "question": "Municipio donde trabaja principalmente",
+      "type": "Respuesta corta",
+      "required": true,
+      "options": [],
+      "technical_note": null
+    },
+    {
+      "code": "FDF-11",
+      "section": "1",
+      "section_title": "1. Identificación y consentimiento",
+      "question": "¿Acepta que la información registrada sea utilizada exclusivamente para el proceso de selección del Programa FdF del Proyecto NAE?",
+      "type": "Opción múltiple",
+      "required": true,
+      "options": [
+        "Sí",
+        "No"
+      ],
+      "technical_note": null
+    },
+    {
+      "code": "FDF-12",
+      "section": "2",
+      "section_title": "2. Información institucional",
+      "question": "Nombre de la institución a la que pertenece",
+      "type": "Respuesta corta",
+      "required": true,
+      "options": [],
+      "technical_note": null
+    },
+    {
+      "code": "FDF-13",
+      "section": "2",
+      "section_title": "2. Información institucional",
+      "question": "Tipo de institución",
+      "type": "Opción múltiple",
+      "required": true,
+      "options": [
+        "Universidad",
+        "Centro Universitario Municipal —CUM—",
+        "Dirección de Desarrollo Provincial —DDP—",
+        "Dirección de Desarrollo Provincial —DDM—",
+        "Parque científico o tecnológico",
+        "ANEC",
+        "Centro especializado",
+        "MIPYME o PDL prestador de servicios de desarrollo empresarial",
+        "Otra"
+      ],
+      "technical_note": "INAENE eliminado por acuerdo del Equipo Técnico del 13/08/2026."
+    },
+    {
+      "code": "FDF-14",
+      "section": "2",
+      "section_title": "2. Información institucional",
+      "question": "Cargo o función actual",
+      "type": "Respuesta corta",
+      "required": true,
+      "options": [],
+      "technical_note": null
+    },
+    {
+      "code": "FDF-15",
+      "section": "2",
+      "section_title": "2. Información institucional",
+      "question": "Nivel principal de actuación de su institución",
+      "type": "Opción múltiple",
+      "required": true,
+      "options": [
+        "Nacional",
+        "Provincial",
+        "Municipal",
+        "Local/comunitario"
+      ],
+      "technical_note": null
+    },
+    {
+      "code": "FDF-16",
+      "section": "2",
+      "section_title": "2. Información institucional",
+      "question": "Describa brevemente las funciones que realiza en su institución",
+      "type": "Párrafo",
+      "required": true,
+      "options": [],
+      "technical_note": null
+    },
+    {
+      "code": "FDF-17",
+      "section": "3",
+      "section_title": "3. Pertinencia institucional y vinculación con el ecosistema NAE",
+      "question": "Adjunte carta aval institucional, que indique el tipo de institución que la emite, el carfo y breve descripción de los roles de la persona postulante, y si la institución que la emite respalda la participación de la persona postulante en el proceso de FdF\n(Campo obligatorio)",
+      "type": "Carga de archivo",
+      "required": true,
+      "options": [],
+      "technical_note": "ÚNICA carga documental #1: carta aval."
+    },
+    {
+      "code": "FDF-18",
+      "section": "3",
+      "section_title": "3. Pertinencia institucional y vinculación con el ecosistema NAE",
+      "question": "¿Qué tan directa es su vinculación institucional con el ecosistema de apoyo a los NAE?",
+      "type": "Opción múltiple",
+      "required": true,
+      "options": [
+        "Pertenezco a una estructura directamente vinculada al apoyo a NAE",
+        "Tengo vínculo institucional, pero mi relación con el ecosistema NAE es indirecta o requiere validación adicional",
+        "No acredito vínculo institucional activo con una estructura de apoyo a NAE"
+      ],
+      "technical_note": "Puntuación 10/5/0 oculta al postulante."
+    },
+    {
+      "code": "FDF-19",
+      "section": "3",
+      "section_title": "3. Pertinencia institucional y vinculación con el ecosistema NAE",
+      "question": "¿Su cargo o función actual le permite incidir en procesos de formación, asesoría, mentoría, desarrollo territorial o acompañamiento a NAE?",
+      "type": "Opción múltiple",
+      "required": true,
+      "options": [
+        "Sí, mi cargo o función incide directamente en esos procesos",
+        "Mi cargo o función tiene relación parcial, pero no evidencia incidencia directa",
+        "Mi cargo o función no guarda relación verificable con procesos de apoyo a NAE"
+      ],
+      "technical_note": "Puntuación 10/5/0 oculta al postulante."
+    },
+    {
+      "code": "FDF-20",
+      "section": "3",
+      "section_title": "3. Pertinencia institucional y vinculación con el ecosistema NAE",
+      "question": "¿La institución respalda su participación y facilitaría condiciones para una réplica posterior?",
+      "type": "Opción múltiple",
+      "required": true,
+      "options": [
+        "Sí, respalda explícitamente mi participación y facilitaría condiciones para la réplica",
+        "Avala mi participación, pero no precisa condiciones concretas para la réplica",
+        "No existe respaldo institucional verificable para la participación o la réplica"
+      ],
+      "technical_note": "Puntuación 10/5/0 oculta al postulante."
+    },
+    {
+      "code": "FDF-21",
+      "section": "4",
+      "section_title": "4. Capacidades formativas y experiencia técnica",
+      "question": "¿Tiene experiencia previa en capacitación, docencia, facilitación, formación de personas adultas o conducción de talleres?",
+      "type": "Opción múltiple",
+      "required": true,
+      "options": [
+        "Sí, evidencia experiencia previa en capacitación, docencia, facilitación o conducción de talleres",
+        "Tiene experiencia limitada o puntual en actividades formativas",
+        "No evidencia experiencia previa en formación, docencia o facilitación"
+      ],
+      "technical_note": "Puntuación 10/5/0 oculta al postulante."
+    },
+    {
+      "code": "FDF-22",
+      "section": "4",
+      "section_title": "4. Capacidades formativas y experiencia técnica",
+      "question": "Describa brevemente su experiencia en formación, docencia o facilitación.\nMencione títulos, cursos, diplomados.",
+      "type": "Párrafo",
+      "required": true,
+      "options": [],
+      "technical_note": "NO CARGA ARCHIVO. Respuesta en texto."
+    },
+    {
+      "code": "FDF-23",
+      "section": "4",
+      "section_title": "4. Capacidades formativas y experiencia técnica",
+      "question": "¿Tiene experiencia en acompañamiento empresarial, mentoría, diagnóstico empresarial, apoyo a MIPYMES, cooperativas, emprendimientos o desarrollo local?",
+      "type": "Opción múltiple",
+      "required": true,
+      "options": [
+        "Sí, evidencia experiencia directa en acompañamiento empresarial o desarrollo territorial",
+        "Tiene experiencia parcial o indirecta en acompañamiento empresarial o desarrollo territorial",
+        "No evidencia experiencia relacionada con acompañamiento empresarial o desarrollo territorial"
+      ],
+      "technical_note": "Puntuación 10/5/0 oculta al postulante."
+    },
+    {
+      "code": "FDF-24",
+      "section": "4",
+      "section_title": "4. Capacidades formativas y experiencia técnica",
+      "question": "Describa brevemente su experiencia en acompañamiento empresarial o desarrollo territorial",
+      "type": "Párrafo",
+      "required": true,
+      "options": [],
+      "technical_note": null
+    },
+    {
+      "code": "FDF-25",
+      "section": "4",
+      "section_title": "4. Capacidades formativas y experiencia técnica",
+      "question": "¿Cuál es su nivel de conocimiento del ecosistema NAE en Cuba?",
+      "type": "Opción múltiple",
+      "required": true,
+      "options": [
+        "Conozco el funcionamiento de MIPYMES, cooperativas no agropecuarias, emprendimientos, PDL u otros NAE en Cuba",
+        "Tengo conocimiento general del ecosistema NAE, pero limitada experiencia práctica",
+        "No evidencio conocimiento suficiente del ecosistema NAE"
+      ],
+      "technical_note": "Puntuación 10/5/0 oculta al postulante."
+    },
+    {
+      "code": "FDF-26",
+      "section": "4",
+      "section_title": "4. Capacidades formativas y experiencia técnica",
+      "question": "¿Ha utilizado metodologías participativas, herramientas de diagnóstico, guías, plantillas o materiales formativos replicables, o herramientas digitales (ofimática, formularios, plataformas)?",
+      "type": "Opción múltiple",
+      "required": true,
+      "options": [
+        "Sí, he utilizado metodologías activas y materiales formativos replicables y herramientas digitales",
+        "He utilizado herramientas formativas básicas, pero sin evidencia de adaptación metodológica",
+        "No evidencio manejo de metodologías o materiales formativos, ni herramientas digitales"
+      ],
+      "technical_note": "Puntuación 10/5/0 oculta al postulante."
+    },
+    {
+      "code": "FDF-27",
+      "section": "4",
+      "section_title": "4. Capacidades formativas y experiencia técnica",
+      "question": "Adjunte su currículum vitae actualizado",
+      "type": "Carga de archivo",
+      "required": true,
+      "options": [],
+      "technical_note": "ÚNICA carga documental #2: currículum vitae."
+    },
+    {
+      "code": "FDF-28",
+      "section": "5",
+      "section_title": "5. Potencial de réplica territorial",
+      "question": "¿Tiene capacidad para convocar, coordinar o articular actores provinciales o municipales para futuras acciones de multiplicación?",
+      "type": "Opción múltiple",
+      "required": true,
+      "options": [
+        "Sí, puedo convocar, coordinar o articular actores provinciales o municipales",
+        "Tengo capacidad parcial, dependiente de autorización o apoyo de terceros",
+        "No evidencio capacidad de convocatoria o articulación territorial"
+      ],
+      "technical_note": "Puntuación 10/5/0 oculta al postulante."
+    },
+    {
+      "code": "FDF-29",
+      "section": "5",
+      "section_title": "5. Potencial de réplica territorial",
+      "question": "¿Con qué actores podría articular una futura réplica territorial?",
+      "type": "Casillas",
+      "required": true,
+      "options": [
+        "Universidad",
+        "CUM",
+        "DDP",
+        "DDM",
+        "Gobierno local",
+        "ANEC",
+        "INAENE",
+        "Parque científico o tecnológico",
+        "MIPYMES",
+        "Cooperativas no agropecuarias",
+        "PDL",
+        "Otros"
+      ],
+      "technical_note": "INAENE se mantiene aquí: el acuerdo solo ordena eliminarlo de Tipo de institución en la sección 2."
+    },
+    {
+      "code": "FDF-30",
+      "section": "5",
+      "section_title": "5. Potencial de réplica territorial",
+      "question": "¿Se compromete a participar en acciones de multiplicación provincial o territorial luego de la formación?",
+      "type": "Opción múltiple",
+      "required": true,
+      "options": [
+        "Sí, expreso compromiso claro de ejecutar acciones de multiplicación",
+        "Manifiesto disposición general, pero sin precisar condiciones o compromiso claro de réplica",
+        "No manifiesto compromiso de multiplicación posterior"
+      ],
+      "technical_note": "Puntuación 10/5/0 oculta al postulante."
+    },
+    {
+      "code": "FDF-31",
+      "section": "5",
+      "section_title": "5. Potencial de réplica territorial",
+      "question": "Describa brevemente cómo podría aportar a la multiplicación provincial o territorial",
+      "type": "Párrafo",
+      "required": true,
+      "options": [],
+      "technical_note": null
+    },
+    {
+      "code": "FDF-32",
+      "section": "5",
+      "section_title": "5. Potencial de réplica territorial",
+      "question": "¿Tiene disponibilidad para participar en la jornada presencial, acciones sincrónicas, actividades asincrónicas y ejercicios de aplicación?",
+      "type": "Opción múltiple",
+      "required": true,
+      "options": [
+        "Sí, confirmo disponibilidad para toda la ruta formativa",
+        "Tengo disponibilidad parcial o condicionada",
+        "No cuento con disponibilidad suficiente para participar en el proceso"
+      ],
+      "technical_note": "Puntuación 10/5/0 oculta al postulante."
+    },
+    {
+      "code": "FDF-33",
+      "section": "5",
+      "section_title": "5. Potencial de réplica territorial",
+      "question": "¿Qué condiciones de comunicación tiene para recibir materiales, orientaciones y entregar evidencias?",
+      "type": "Opción múltiple",
+      "required": true,
+      "options": [
+        "Cuento con correo, teléfono, mensajería móvil u otro canal operativo",
+        "Cuento con canales limitados, pero puedo recibir materiales mediante apoyo institucional o mecanismos alternativos",
+        "No cuento con canales mínimos de comunicación o seguimiento"
+      ],
+      "technical_note": "Puntuación 10/5/0 oculta al postulante."
+    },
+    {
+      "code": "FDF-34",
+      "section": "5",
+      "section_title": "5. Potencial de réplica territorial",
+      "question": "Indique los canales por los cuales puede recibir información del proceso",
+      "type": "Casillas",
+      "required": true,
+      "options": [
+        "Correo electrónico",
+        "WhatsApp u otra mensajería móvil",
+        "Llamada telefónica",
+        "Entrega física coordinada",
+        "Memoria USB",
+        "Otro"
+      ],
+      "technical_note": null
+    },
+    {
+      "code": "FDF-35",
+      "section": "6",
+      "section_title": "6. Enfoque de inclusión, género o sostenibilidad",
+      "question": "Género",
+      "type": "Opción múltiple",
+      "required": true,
+      "options": [
+        "Mujer",
+        "Hombre",
+        "No aporta información"
+      ],
+      "technical_note": "Puntos ocultos. Contradicción interna pendiente: Anexo 1 Hombre=5 / Anexo 2 Hombre=10."
+    },
+    {
+      "code": "FDF-36",
+      "section": "6",
+      "section_title": "6. Enfoque de inclusión, género o sostenibilidad",
+      "question": "Rango de edad",
+      "type": "Opción múltiple",
+      "required": true,
+      "options": [
+        "de 18 a 35 años",
+        "36 años o más",
+        "No aporta información"
+      ],
+      "technical_note": "Puntuación oculta al postulante."
+    },
+    {
+      "code": "FDF-37",
+      "section": "6",
+      "section_title": "6. Enfoque de inclusión, género o sostenibilidad",
+      "question": "¿Tiene experiencia o interés en igualdad de género, inclusión, liderazgo femenino, juventudes o participación equilibrada?",
+      "type": "Opción múltiple",
+      "required": true,
+      "options": [
+        "Sí, evidencio experiencia o interés claro en género e inclusión",
+        "Manifiesto interés general, pero sin experiencia o evidencia concreta",
+        "No evidencio experiencia ni interés en enfoques de género o inclusión"
+      ],
+      "technical_note": "Puntuación 10/5/0 oculta al postulante."
+    },
+    {
+      "code": "FDF-38",
+      "section": "6",
+      "section_title": "6. Enfoque de inclusión, género o sostenibilidad",
+      "question": "Describa brevemente su experiencia o interés en género, inclusión, juventudes o liderazgo femenino",
+      "type": "Párrafo",
+      "required": false,
+      "options": [],
+      "technical_note": null
+    },
+    {
+      "code": "FDF-39",
+      "section": "7",
+      "section_title": "7. Cierre de postulación",
+      "question": "¿Confirma que la información registrada es verídica y puede ser verificada por el equipo responsable de selección?",
+      "type": "Opción múltiple",
+      "required": true,
+      "options": [
+        "Sí",
+        "No"
+      ],
+      "technical_note": null
+    },
+    {
+      "code": "FDF-40",
+      "section": "7",
+      "section_title": "7. Cierre de postulación",
+      "question": "¿Autoriza que su institución pueda ser contactada para validar la información registrada?",
+      "type": "Opción múltiple",
+      "required": true,
+      "options": [
+        "Sí",
+        "No"
+      ],
+      "technical_note": null
+    },
+    {
+      "code": "FDF-41",
+      "section": "7",
+      "section_title": "7. Cierre de postulación",
+      "question": "Nombre y cargo de la persona referente institucional para validación, si aplica",
+      "type": "Respuesta corta",
+      "required": false,
+      "options": [],
+      "technical_note": null
+    },
+    {
+      "code": "FDF-42",
+      "section": "7",
+      "section_title": "7. Cierre de postulación",
+      "question": "Teléfono o correo de la persona referente institucional para validación, si aplica",
+      "type": "Respuesta corta",
+      "required": false,
+      "options": [],
+      "technical_note": null
+    },
+    {
+      "code": "FDF-43",
+      "section": "7",
+      "section_title": "7. Cierre de postulación",
+      "question": "Comentarios adicionales que considere relevantes para su postulación",
+      "type": "Párrafo",
+      "required": false,
+      "options": [],
+      "technical_note": null
+    }
+  ],
+  "google_sheet_column_map": {
+    "Marca temporal": "__timestamp",
+    "Escriba su primer nombre": "FDF-01",
+    "Escriba su segundo nombre, si aplica": "FDF-02",
+    "Escriba su primer apellido": "FDF-03",
+    "Escriba su segundo apellido": "FDF-04",
+    "Número de identificación": "FDF-05",
+    "Teléfono celular": "FDF-06",
+    "Correo electrónico": "FDF-07",
+    "Región donde trabaja principalmente": "FDF-08",
+    "Provincia donde trabaja principalmente": "FDF-09",
+    "Municipio donde trabaja principalmente": "FDF-10",
+    "¿Acepta que la información registrada sea utilizada exclusivamente para el proceso de selección del Programa FdF del Proyecto NAE?": "FDF-11",
+    "Nombre de la institución a la que pertenece": "FDF-12",
+    "Tipo de institución": "FDF-13",
+    "Cargo o función actual": "FDF-14",
+    "Nivel principal de actuación de su institución": "FDF-15",
+    "Describa brevemente las funciones que realiza en su institución": "FDF-16",
+    "Adjunte carta aval institucional, que indique el tipo de institución que la emite, el carfo y breve descripción de los roles de la persona postulante, y si la institución que la emite respalda la participación de la persona postulante en el proceso de FdF\n(Campo obligatorio)": "FDF-17",
+    "¿Qué tan directa es su vinculación institucional con el ecosistema de apoyo a los NAE?": "FDF-18",
+    "¿Su cargo o función actual le permite incidir en procesos de formación, asesoría, mentoría, desarrollo territorial o acompañamiento a NAE?": "FDF-19",
+    "¿La institución respalda su participación y facilitaría condiciones para una réplica posterior?": "FDF-20",
+    "¿Tiene experiencia previa en capacitación, docencia, facilitación, formación de personas adultas o conducción de talleres?": "FDF-21",
+    "Describa brevemente su experiencia en formación, docencia o facilitación.\nMencione títulos, cursos, diplomados.": "FDF-22",
+    "¿Tiene experiencia en acompañamiento empresarial, mentoría, diagnóstico empresarial, apoyo a MIPYMES, cooperativas, emprendimientos o desarrollo local?": "FDF-23",
+    "Describa brevemente su experiencia en acompañamiento empresarial o desarrollo territorial": "FDF-24",
+    "¿Cuál es su nivel de conocimiento del ecosistema NAE en Cuba?": "FDF-25",
+    "¿Ha utilizado metodologías participativas, herramientas de diagnóstico, guías, plantillas o materiales formativos replicables, o herramientas digitales (ofimática, formularios, plataformas)?": "FDF-26",
+    "Adjunte su currículum vitae actualizado": "FDF-27",
+    "¿Tiene capacidad para convocar, coordinar o articular actores provinciales o municipales para futuras acciones de multiplicación?": "FDF-28",
+    "¿Con qué actores podría articular una futura réplica territorial?": "FDF-29",
+    "¿Se compromete a participar en acciones de multiplicación provincial o territorial luego de la formación?": "FDF-30",
+    "Describa brevemente cómo podría aportar a la multiplicación provincial o territorial": "FDF-31",
+    "¿Tiene disponibilidad para participar en la jornada presencial, acciones sincrónicas, actividades asincrónicas y ejercicios de aplicación?": "FDF-32",
+    "¿Qué condiciones de comunicación tiene para recibir materiales, orientaciones y entregar evidencias?": "FDF-33",
+    "Indique los canales por los cuales puede recibir información del proceso": "FDF-34",
+    "Género": "FDF-35",
+    "Rango de edad": "FDF-36",
+    "¿Tiene experiencia o interés en igualdad de género, inclusión, liderazgo femenino, juventudes o participación equilibrada?": "FDF-37",
+    "Describa brevemente su experiencia o interés en género, inclusión, juventudes o liderazgo femenino": "FDF-38",
+    "¿Confirma que la información registrada es verídica y puede ser verificada por el equipo responsable de selección?": "FDF-39",
+    "¿Autoriza que su institución pueda ser contactada para validar la información registrada?": "FDF-40",
+    "Nombre y cargo de la persona referente institucional para validación, si aplica": "FDF-41",
+    "Teléfono o correo de la persona referente institucional para validación, si aplica": "FDF-42",
+    "Comentarios adicionales que considere relevantes para su postulación": "FDF-43"
+  }
+}
