@@ -119,6 +119,18 @@ a un backend API:
 El puente `apps-script/FdF_Api_Bridge.gs` escucha el evento de envio del
 formulario y envia la respuesta al API sin modificar el formulario.
 
+Para Ubuntu 22.04 compartido, usar primero:
+
+```bash
+deploy/ubuntu/check-server.sh
+```
+
+La instalación idempotente está en:
+
+```bash
+deploy/ubuntu/install-api.sh
+```
+
 ## Hojas del sistema
 
 -   `00_Instrucciones`: reglas generales.
