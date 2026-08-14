@@ -21,6 +21,10 @@ vm.runInContext(ingestionSource, sandbox, { filename: 'FdF_Ingestion.gs' });
 
 const ingestion = sandbox.module.exports;
 const config = JSON.parse(fs.readFileSync(path.join(root, 'config', 'fdf-2026-public-schema.json'), 'utf8'));
+const eligibilityConfig = JSON.parse(fs.readFileSync(
+  path.join(root, 'config', 'fdf-2026-eligibility-baseline.json'),
+  'utf8',
+));
 
 function validResponses(overrides = {}) {
   const responses = {};
@@ -273,4 +277,104 @@ test('preserves RAW, associates documents and records normalization issues', () 
   assert.ok(repo.normalizationIssues.some(issue => issue.code === 'INVALID_OPTION'));
   assert.ok(repo.auditEvents.some(event => event.action === 'DOCUMENT_ASSOCIATED'));
   assert.ok(repo.auditEvents.some(event => event.action === 'NORMALIZATION_ISSUE_RECORDED'));
+});
+
+test('assesses candidate as ready for technical review when baseline checks pass', () => {
+  const repo = ingestion.FdF_createIngestionRepository();
+  const result = ingestion.FdF_importOfflineJson({
+    schema: 'FDF-2026-OFFLINE-1',
+    exportedAt: '2026-08-13T10:00:00.000Z',
+    respuestas: validResponses(),
+  }, config, repo, {
+    sourceReference: 'offline-json-ready',
+    documents: requiredDocuments(),
+  });
+
+  const assessment = ingestion.FdF_assessCandidateEligibility(
+    result.candidate.candidate_id,
+    eligibilityConfig,
+    repo,
+    { actor: 'UNIT_TEST' },
+  );
+
+  assert.equal(assessment.status, 'READY_FOR_TECHNICAL_REVIEW');
+  assert.equal(assessment.check_results.every(check => check.status === 'PASS'), true);
+  assert.ok(repo.auditEvents.some(event => event.action === 'ELIGIBILITY_ASSESSED'));
+});
+
+test('blocks preliminary eligibility when required documents are missing', () => {
+  const repo = ingestion.FdF_createIngestionRepository();
+  const result = ingestion.FdF_importOfflineJson({
+    schema: 'FDF-2026-OFFLINE-1',
+    exportedAt: '2026-08-13T10:00:00.000Z',
+    respuestas: validResponses(),
+  }, config, repo, {
+    sourceReference: 'offline-json-missing-docs',
+    documents: [],
+  });
+
+  const assessment = ingestion.FdF_assessCandidateEligibility(
+    result.candidate.candidate_id,
+    eligibilityConfig,
+    repo,
+  );
+
+  assert.equal(assessment.status, 'BLOCKED_BY_MISSING_REQUIREMENTS');
+  assert.ok(assessment.check_results.some(check =>
+    check.check_id === 'CARTA_AVAL_RECEIVED' && check.status === 'FAIL'
+  ));
+  assert.ok(assessment.check_results.some(check =>
+    check.check_id === 'CURRICULUM_RECEIVED' && check.status === 'FAIL'
+  ));
+});
+
+test('marks institutional link negative answer for manual review without final rejection', () => {
+  const repo = ingestion.FdF_createIngestionRepository();
+  const result = ingestion.FdF_importOfflineJson({
+    schema: 'FDF-2026-OFFLINE-1',
+    exportedAt: '2026-08-13T10:00:00.000Z',
+    respuestas: validResponses({
+      'FDF-18': 'No acredito vínculo institucional activo con una estructura de apoyo a NAE',
+    }),
+  }, config, repo, {
+    sourceReference: 'offline-json-review',
+    documents: requiredDocuments(),
+  });
+
+  const assessment = ingestion.FdF_assessCandidateEligibility(
+    result.candidate.candidate_id,
+    eligibilityConfig,
+    repo,
+  );
+
+  assert.equal(assessment.status, 'REQUIRES_MANUAL_REVIEW');
+  assert.ok(assessment.check_results.some(check =>
+    check.check_id === 'INSTITUTIONAL_LINK_REVIEW' &&
+    check.status === 'FAIL' &&
+    check.severity === 'MANUAL_REVIEW'
+  ));
+});
+
+test('creates a Google Sheets persistence plan without losing RAW or documents', () => {
+  const repo = ingestion.FdF_createIngestionRepository();
+  const result = ingestion.FdF_importOfflineJson({
+    schema: 'FDF-2026-OFFLINE-1',
+    exportedAt: '2026-08-13T10:00:00.000Z',
+    respuestas: validResponses(),
+  }, config, repo, {
+    sourceReference: 'offline-json-persistence',
+    documents: requiredDocuments(),
+  });
+  ingestion.FdF_assessCandidateEligibility(result.candidate.candidate_id, eligibilityConfig, repo);
+
+  const plan = ingestion.FdF_createSheetPersistencePlan(repo);
+
+  assert.ok(plan['02_Postulantes']);
+  assert.ok(plan['03_Admisibilidad']);
+  assert.ok(plan['18_Submissions_RAW']);
+  assert.ok(plan['20_Documentos']);
+  assert.equal(plan['02_Postulantes'].rows.length, 1);
+  assert.equal(plan['18_Submissions_RAW'].rows.length, 1);
+  assert.equal(plan['20_Documentos'].rows.length, 2);
+  assert.equal(plan['03_Admisibilidad'].rows[0][4], 'READY_FOR_TECHNICAL_REVIEW');
 });

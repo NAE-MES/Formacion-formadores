@@ -19,6 +19,15 @@ Casos cubiertos:
 - asociar documentos;
 - registrar incidencias de normalizacion.
 
+## Sprint 2
+
+Casos cubiertos:
+
+- evaluar una postulacion lista para revision tecnica;
+- bloquear preliminarmente cuando faltan documentos requeridos;
+- marcar revision manual por vinculo institucional negativo sin rechazo final automatico;
+- generar plan de persistencia para hojas operativas sin perder RAW ni documentos.
+
 ## Fuera de alcance
 
 - pruebas contra Google Forms real;

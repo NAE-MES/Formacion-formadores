@@ -85,6 +85,17 @@ codigos internos `FDF-xx`, registra incidencias, asocia documentos y
 detecta reimportaciones/posibles duplicados sin fusionarlos
 automaticamente.
 
+## Implementación Sprint 2
+
+La base de Sprint 2 agrega:
+
+- configuración `config/fdf-2026-eligibility-baseline.json`;
+- evaluación preliminar de documentación/declaraciones;
+- plan de persistencia hacia hojas operativas;
+- estados operativos previos a decisión final del Equipo Técnico.
+
+No implementa ranking, cupos, notificaciones ni decisiones finales.
+
 ## Hojas del sistema
 
 -   `00_Instrucciones`: reglas generales.

@@ -34,7 +34,6 @@ El modelo converge tres canales de entrada hacia un postulante unico:
 
 El modelo reserva extension para:
 
-- `EligibilityAssessment`
 - `CriterionEvaluation`
 - `EvaluationResult`
 - `RankingEntry`
@@ -42,3 +41,11 @@ El modelo reserva extension para:
 - `Notification`
 
 Estas entidades no se implementan funcionalmente en Sprint 1.
+
+## Extension Sprint 2
+
+Sprint 2 incorpora:
+
+- `EligibilityAssessment`: evaluacion preliminar de completitud documental y declaraciones habilitantes configuradas.
+
+Esta evaluacion usa el alcance `PRELIMINARY_OPERATIONAL_READINESS` y no representa una aprobacion final del Equipo Tecnico.

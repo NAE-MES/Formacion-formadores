@@ -27,6 +27,7 @@ function FdF_createIngestionRepository() {
     documents: [],
     normalizationIssues: [],
     duplicateReviews: [],
+    eligibilityAssessments: [],
     auditEvents: [],
   };
 }
@@ -494,6 +495,313 @@ function FdF_associateDocuments_(repo, documents, candidateId, sourceChannel, re
   });
 }
 
+function FdF_assessCandidateEligibility(candidateId, eligibilityConfig, repository, options) {
+  const repo = repository;
+  const opts = options || {};
+  const candidate = repo.candidates.find(c => c.candidate_id === candidateId);
+  if (!candidate) {
+    throw new Error('Candidate not found: ' + candidateId);
+  }
+
+  const responses = FdF_latestResponsesByCandidate_(repo, candidateId);
+  const documents = repo.documents.filter(doc => doc.candidate_id === candidateId);
+  const checkResults = (eligibilityConfig.checks || []).map(check => (
+    FdF_runEligibilityCheck_(check, responses, documents)
+  ));
+
+  const hasBlockingFail = checkResults.some(result =>
+    result.status === 'FAIL' && result.severity === 'BLOCKING'
+  );
+  const hasReviewFail = checkResults.some(result =>
+    result.status === 'FAIL' && result.severity === 'MANUAL_REVIEW'
+  );
+  const configuredStatuses = eligibilityConfig.statuses || {};
+  const status = hasBlockingFail
+    ? (configuredStatuses.blocked || 'BLOCKED_BY_MISSING_REQUIREMENTS')
+    : hasReviewFail
+      ? (configuredStatuses.requires_review || 'REQUIRES_MANUAL_REVIEW')
+      : (configuredStatuses.ready || 'READY_FOR_TECHNICAL_REVIEW');
+
+  const assessment = {
+    eligibility_assessment_id: FdF_hash_('eligibility|' + candidateId + '|' + FdF_canonicalJson_(checkResults)),
+    candidate_id: candidateId,
+    assessment_scope: eligibilityConfig.assessment_scope || 'PRELIMINARY_OPERATIONAL_READINESS',
+    rule_version: eligibilityConfig.schema_version || '',
+    status,
+    check_results: checkResults,
+    assessed_at: opts.assessedAt || FdF_nowIso_(),
+    assessed_by: opts.actor || 'ELIGIBILITY_ASSESSOR',
+  };
+
+  const existingIndex = repo.eligibilityAssessments.findIndex(item =>
+    item.eligibility_assessment_id === assessment.eligibility_assessment_id
+  );
+  if (existingIndex === -1) {
+    repo.eligibilityAssessments.push(assessment);
+  } else {
+    repo.eligibilityAssessments[existingIndex] = assessment;
+  }
+
+  FdF_audit_(repo, {
+    action: 'ELIGIBILITY_ASSESSED',
+    entityType: 'EligibilityAssessment',
+    entityId: assessment.eligibility_assessment_id,
+    sourceChannel: '',
+    actor: assessment.assessed_by,
+    newValue: {
+      candidate_id: assessment.candidate_id,
+      status: assessment.status,
+      rule_version: assessment.rule_version,
+    },
+  });
+
+  return assessment;
+}
+
+function FdF_runEligibilityCheck_(check, responses, documents) {
+  let pass = false;
+  let observed = null;
+
+  if (check.type === 'FIELD_EQUALS') {
+    observed = responses[check.field_code];
+    pass = FdF_normalizeIdentity_(observed) === FdF_normalizeIdentity_(check.expected);
+  } else if (check.type === 'FIELD_NOT_EQUALS') {
+    observed = responses[check.field_code];
+    pass = FdF_hasValue_(observed) &&
+      FdF_normalizeIdentity_(observed) !== FdF_normalizeIdentity_(check.not_expected);
+  } else if (check.type === 'DOCUMENT_PRESENT') {
+    const accepted = check.accepted_statuses || ['RECEIVED'];
+    const doc = documents.find(item =>
+      item.document_type === check.document_type &&
+      accepted.indexOf(item.status) !== -1
+    );
+    observed = doc ? { document_type: doc.document_type, status: doc.status } : null;
+    pass = !!doc;
+  } else {
+    observed = 'Unsupported check type: ' + check.type;
+    pass = false;
+  }
+
+  return {
+    check_id: check.check_id,
+    type: check.type,
+    severity: check.severity || 'BLOCKING',
+    status: pass ? 'PASS' : 'FAIL',
+    field_code: check.field_code || '',
+    document_type: check.document_type || '',
+    observed,
+    expected: check.expected || check.not_expected || check.document_type || '',
+    description: check.description || '',
+  };
+}
+
+function FdF_latestResponsesByCandidate_(repo, candidateId) {
+  const responses = {};
+  repo.candidateResponses
+    .filter(response => response.candidate_id === candidateId)
+    .forEach(response => {
+      responses[response.field_code] = response.value;
+    });
+  return responses;
+}
+
+function FdF_createSheetPersistencePlan(repository) {
+  const repo = repository;
+  return {
+    '02_Postulantes': {
+      headers: [
+        'candidate_id',
+        'first_name',
+        'second_name',
+        'first_surname',
+        'second_surname',
+        'identification_number',
+        'email',
+        'province',
+        'created_at',
+        'updated_at',
+      ],
+      rows: repo.candidates.map(candidate => [
+        candidate.candidate_id,
+        candidate.first_name,
+        candidate.second_name,
+        candidate.first_surname,
+        candidate.second_surname,
+        candidate.identification_number,
+        candidate.email,
+        candidate.province,
+        candidate.created_at,
+        candidate.updated_at,
+      ]),
+    },
+    '03_Admisibilidad': {
+      headers: [
+        'eligibility_assessment_id',
+        'candidate_id',
+        'assessment_scope',
+        'rule_version',
+        'status',
+        'check_results_json',
+        'assessed_at',
+        'assessed_by',
+      ],
+      rows: repo.eligibilityAssessments.map(assessment => [
+        assessment.eligibility_assessment_id,
+        assessment.candidate_id,
+        assessment.assessment_scope,
+        assessment.rule_version,
+        assessment.status,
+        FdF_canonicalJson_(assessment.check_results),
+        assessment.assessed_at,
+        assessment.assessed_by,
+      ]),
+    },
+    '12_Log': {
+      headers: [
+        'audit_event_id',
+        'action',
+        'entity_type',
+        'entity_id',
+        'occurred_at',
+        'source_channel',
+        'actor',
+        'previous_value_json',
+        'new_value_json',
+        'reason',
+      ],
+      rows: repo.auditEvents.map(event => [
+        event.audit_event_id,
+        event.action,
+        event.entity_type,
+        event.entity_id,
+        event.occurred_at,
+        event.source_channel,
+        event.actor,
+        event.previous_value ? FdF_canonicalJson_(event.previous_value) : '',
+        event.new_value ? FdF_canonicalJson_(event.new_value) : '',
+        event.reason,
+      ]),
+    },
+    '18_Submissions_RAW': {
+      headers: [
+        'submission_raw_id',
+        'submission_id',
+        'source_channel',
+        'raw_hash',
+        'raw_payload_json',
+        'received_at',
+      ],
+      rows: repo.submissionRaws.map(raw => [
+        raw.submission_raw_id,
+        raw.submission_id,
+        raw.source_channel,
+        raw.raw_hash,
+        FdF_canonicalJson_(raw.raw_payload),
+        raw.received_at,
+      ]),
+    },
+    '19_Candidate_Responses': {
+      headers: [
+        'candidate_response_id',
+        'candidate_id',
+        'submission_id',
+        'field_code',
+        'value_json',
+      ],
+      rows: repo.candidateResponses.map(response => [
+        response.candidate_response_id,
+        response.candidate_id,
+        response.submission_id,
+        response.field_code,
+        FdF_canonicalJson_(response.value),
+      ]),
+    },
+    '20_Documentos': {
+      headers: [
+        'document_id',
+        'candidate_id',
+        'document_type',
+        'source_channel',
+        'original_name',
+        'storage_reference',
+        'received_at',
+        'status',
+      ],
+      rows: repo.documents.map(documentRecord => [
+        documentRecord.document_id,
+        documentRecord.candidate_id,
+        documentRecord.document_type,
+        documentRecord.source_channel,
+        documentRecord.original_name,
+        documentRecord.storage_reference,
+        documentRecord.received_at,
+        documentRecord.status,
+      ]),
+    },
+    '21_Normalization_Issues': {
+      headers: [
+        'normalization_issue_id',
+        'submission_id',
+        'candidate_id',
+        'field_code',
+        'code',
+        'severity',
+        'message',
+        'created_at',
+      ],
+      rows: repo.normalizationIssues.map(issue => [
+        issue.normalization_issue_id,
+        issue.submission_id,
+        issue.candidate_id,
+        issue.field_code,
+        issue.code,
+        issue.severity,
+        issue.message,
+        issue.created_at,
+      ]),
+    },
+    '22_Duplicate_Review': {
+      headers: [
+        'duplicate_review_id',
+        'candidate_id',
+        'possible_candidate_id',
+        'submission_id',
+        'status',
+        'reason',
+        'created_at',
+      ],
+      rows: repo.duplicateReviews.map(review => [
+        review.duplicate_review_id,
+        review.candidate_id,
+        review.possible_candidate_id,
+        review.submission_id,
+        review.status,
+        review.reason,
+        review.created_at,
+      ]),
+    },
+  };
+}
+
+function FdF_persistRepositoryToSpreadsheet(spreadsheet, repository) {
+  const plan = FdF_createSheetPersistencePlan(repository);
+  Object.keys(plan).forEach(sheetName => {
+    const sheet = FdF_getOrCreateSheet_(spreadsheet, sheetName);
+    const table = plan[sheetName];
+    sheet.clearContents();
+    const values = [table.headers].concat(table.rows);
+    if (values.length > 0 && values[0].length > 0) {
+      sheet.getRange(1, 1, values.length, values[0].length).setValues(values);
+    }
+  });
+  return plan;
+}
+
+function FdF_getOrCreateSheet_(spreadsheet, sheetName) {
+  const existing = spreadsheet.getSheetByName(sheetName);
+  return existing || spreadsheet.insertSheet(sheetName);
+}
+
 function FdF_audit_(repo, event) {
   repo.auditEvents.push({
     audit_event_id: FdF_hash_('audit|' + repo.auditEvents.length + '|' + FdF_canonicalJson_(event)),
@@ -564,6 +872,9 @@ if (typeof module !== 'undefined' && module.exports) {
     FdF_importGoogleSubmission,
     FdF_importOfflineJson,
     FdF_registerOfflineManual,
+    FdF_assessCandidateEligibility,
+    FdF_createSheetPersistencePlan,
+    FdF_persistRepositoryToSpreadsheet,
     FdF_hash_,
     FdF_canonicalJson_,
   };

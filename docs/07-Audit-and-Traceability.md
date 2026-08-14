@@ -25,3 +25,4 @@ Los eventos no deben guardar CV, Carta Aval ni datos personales completos. Para 
 - `NORMALIZATION_ISSUE_RECORDED`
 - `DUPLICATE_REVIEW_CREATED`
 - `DOCUMENT_ASSOCIATED`
+- `ELIGIBILITY_ASSESSED`

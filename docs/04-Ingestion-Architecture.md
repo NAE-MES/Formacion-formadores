@@ -38,3 +38,18 @@ La validacion usa la configuracion versionable de la capa publica:
 - Reimportar el mismo origen no crea otra `Submission`.
 - Reimportar a la misma persona desde otro canal puede crear `DuplicateReview`.
 - No se fusionan automaticamente coincidencias debiles.
+
+## Persistencia Sprint 2
+
+La capa de ingestión puede producir un plan de persistencia para Google Sheets:
+
+- `02_Postulantes`
+- `03_Admisibilidad`
+- `12_Log`
+- `18_Submissions_RAW`
+- `19_Candidate_Responses`
+- `20_Documentos`
+- `21_Normalization_Issues`
+- `22_Duplicate_Review`
+
+El RAW se conserva en una hoja tecnica separada y los logs no deben copiar contenido completo de documentos personales.

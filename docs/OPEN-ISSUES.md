@@ -39,3 +39,13 @@ Observacion: el texto publico de FDF-17 contiene `carfo`.
 Impacto: instrumento publico. No se corrige en Sprint 1 porque implicaria cambiar texto funcional visible.
 
 Estado: pendiente de decision/correccion oficial.
+
+## OI-005 - Terminologia final de estados de admisibilidad
+
+Fuentes: roadmap tecnico, README/HOWTO y documentos oficiales.
+
+Observacion: Sprint 2 usa estados operativos preliminares para no sustituir la decision del Equipo Tecnico ni cerrar reglas de subsanacion.
+
+Impacto: antes de operar admisibilidad final debe aprobarse la nomenclatura definitiva y su efecto sobre evaluacion.
+
+Estado: pendiente de decision del Equipo Tecnico.

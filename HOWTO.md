@@ -119,6 +119,10 @@ La configuracion versionable de referencia esta en:
 
 `config/fdf-2026-public-schema.json`
 
+La configuracion preliminar de admisibilidad/documentos esta en:
+
+`config/fdf-2026-eligibility-baseline.json`
+
 ## 7. Generar Google Forms
 
 Seleccionar la función:

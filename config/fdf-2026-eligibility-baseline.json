@@ -1,0 +1,80 @@
+{
+  "schema_version": "FDF-2026-ELIGIBILITY-BASELINE-1",
+  "assessment_scope": "PRELIMINARY_OPERATIONAL_READINESS",
+  "notes": [
+    "This configuration supports Sprint 2 operational readiness checks.",
+    "It does not implement final Team Technical admission decisions.",
+    "Subsanacion deadlines and ambiguous criteria remain open issues until formally approved."
+  ],
+  "statuses": {
+    "ready": "READY_FOR_TECHNICAL_REVIEW",
+    "blocked": "BLOCKED_BY_MISSING_REQUIREMENTS",
+    "requires_review": "REQUIRES_MANUAL_REVIEW"
+  },
+  "checks": [
+    {
+      "check_id": "CONSENT_ACCEPTED",
+      "type": "FIELD_EQUALS",
+      "field_code": "FDF-11",
+      "expected": "Sí",
+      "severity": "BLOCKING",
+      "description": "Consentimiento para uso de informacion en el proceso FdF."
+    },
+    {
+      "check_id": "CARTA_AVAL_RECEIVED",
+      "type": "DOCUMENT_PRESENT",
+      "document_type": "CARTA_AVAL",
+      "accepted_statuses": ["RECEIVED", "VALIDADO", "VALIDATED"],
+      "severity": "BLOCKING",
+      "description": "Carta aval institucional recibida."
+    },
+    {
+      "check_id": "CURRICULUM_RECEIVED",
+      "type": "DOCUMENT_PRESENT",
+      "document_type": "CURRICULUM_VITAE",
+      "accepted_statuses": ["RECEIVED", "VALIDADO", "VALIDATED"],
+      "severity": "BLOCKING",
+      "description": "Curriculum vitae recibido."
+    },
+    {
+      "check_id": "VERACITY_CONFIRMED",
+      "type": "FIELD_EQUALS",
+      "field_code": "FDF-39",
+      "expected": "Sí",
+      "severity": "BLOCKING",
+      "description": "Confirmacion de veracidad de la informacion."
+    },
+    {
+      "check_id": "VALIDATION_AUTHORIZED",
+      "type": "FIELD_EQUALS",
+      "field_code": "FDF-40",
+      "expected": "Sí",
+      "severity": "BLOCKING",
+      "description": "Autorizacion para validacion institucional."
+    },
+    {
+      "check_id": "MULTIPLICATION_COMMITMENT_NOT_NEGATIVE",
+      "type": "FIELD_NOT_EQUALS",
+      "field_code": "FDF-30",
+      "not_expected": "No manifiesto compromiso de multiplicación posterior",
+      "severity": "BLOCKING",
+      "description": "Compromiso de multiplicacion no negativo."
+    },
+    {
+      "check_id": "AVAILABILITY_NOT_NEGATIVE",
+      "type": "FIELD_NOT_EQUALS",
+      "field_code": "FDF-32",
+      "not_expected": "No cuento con disponibilidad suficiente para participar en el proceso",
+      "severity": "BLOCKING",
+      "description": "Disponibilidad no negativa."
+    },
+    {
+      "check_id": "INSTITUTIONAL_LINK_REVIEW",
+      "type": "FIELD_NOT_EQUALS",
+      "field_code": "FDF-18",
+      "not_expected": "No acredito vínculo institucional activo con una estructura de apoyo a NAE",
+      "severity": "MANUAL_REVIEW",
+      "description": "Vinculo institucional declarado requiere revision si es negativo."
+    }
+  ]
+}
