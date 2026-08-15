@@ -56,12 +56,13 @@ function requiredDocuments() {
   ];
 }
 
-async function withServer(t, handler) {
+async function withServer(t, handler, configOverrides = {}) {
   const repository = new MemoryRepository();
   const config = {
     apiToken: 'test-token',
     publicSchema,
     eligibilityConfig,
+    ...configOverrides,
   };
   const app = createApp({ config, repository });
   await new Promise(resolve => app.listen(0, resolve));
@@ -109,6 +110,22 @@ test('rejects missing bearer token for ingestion endpoints', async (t) => {
     assert.equal(response.statusCode, 401);
     assert.equal(response.body.error, 'UNAUTHORIZED');
   });
+});
+
+test('rejects invalid bearer token for ingestion endpoints', async (t) => {
+  await withServer(t, async ({ port }) => {
+    const response = await request(port, 'POST', '/api/submissions/google-form', {}, 'wrong-token');
+    assert.equal(response.statusCode, 401);
+    assert.equal(response.body.error, 'UNAUTHORIZED');
+  });
+});
+
+test('fails closed when API token is not configured', async (t) => {
+  await withServer(t, async ({ port }) => {
+    const response = await request(port, 'POST', '/api/submissions/google-form', {}, 'any-token');
+    assert.equal(response.statusCode, 503);
+    assert.equal(response.body.error, 'SERVER_MISCONFIGURED');
+  }, { apiToken: '' });
 });
 
 test('ingests Google Form API payload and preserves raw data', async (t) => {

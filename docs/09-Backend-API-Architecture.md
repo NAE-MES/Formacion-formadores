@@ -64,6 +64,14 @@ Endpoints iniciales:
 Autenticacion:
 
 - Bearer token mediante `FDF_API_TOKEN`.
+- Los endpoints de ingesta fallan cerrado si `FDF_API_TOKEN` no esta
+  configurado en el backend.
+- El token no debe guardarse en Git ni en celdas visibles del Spreadsheet.
+- En Google Apps Script debe almacenarse como Script Property.
+- La publicacion externa debe hacerse por HTTPS a traves del proxy
+  institucional.
+- El firewall del servidor interno debe permitir el puerto de la API solo
+  desde el proxy autorizado.
 
 ## Apps Script bridge
 
@@ -79,3 +87,14 @@ Requiere Script Properties:
 - `FDF_API_TOKEN`
 
 Debe instalarse como trigger de envio de formulario. No modifica el Form.
+
+## Puesta en produccion del Form publicado
+
+La conexion con el Form publicado se hace sin modificar la encuesta:
+
+1. Mantener intactos preguntas, opciones, textos y cargas del Google Form.
+2. Configurar `FDF_API_URL` y `FDF_API_TOKEN` en Script Properties.
+3. Instalar un trigger de tipo `On form submit` hacia
+   `FdF_onFormSubmitToApi`.
+4. Ejecutar una prueba con una respuesta sintetica o controlada.
+5. Revisar `23_API_Bridge_Log` y el backend para confirmar ingestion.

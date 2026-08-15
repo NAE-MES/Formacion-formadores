@@ -1,4 +1,5 @@
 const http = require('node:http');
+const crypto = require('node:crypto');
 const { importGoogleFormSubmission, importOfflineJsonSubmission } = require('./ingestion');
 
 function createApp({ config, repository }) {
@@ -43,15 +44,32 @@ function createApp({ config, repository }) {
 }
 
 function authorize(req, config) {
-  if (!config.apiToken) return;
+  if (!config.apiToken) {
+    const error = new Error('API authentication is not configured.');
+    error.statusCode = 503;
+    error.code = 'SERVER_MISCONFIGURED';
+    throw error;
+  }
+
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice('Bearer '.length) : '';
-  if (token !== config.apiToken) {
+  if (!secureTokenEquals(token, config.apiToken)) {
     const error = new Error('Invalid or missing API token.');
     error.statusCode = 401;
     error.code = 'UNAUTHORIZED';
     throw error;
   }
+}
+
+function secureTokenEquals(received, expected) {
+  const receivedBuffer = Buffer.from(String(received || ''), 'utf8');
+  const expectedBuffer = Buffer.from(String(expected || ''), 'utf8');
+
+  if (receivedBuffer.length !== expectedBuffer.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(receivedBuffer, expectedBuffer);
 }
 
 function readJson(req) {
@@ -117,4 +135,5 @@ module.exports = {
   createApp,
   readJson,
   statusCodeFor,
+  secureTokenEquals,
 };
