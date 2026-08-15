@@ -174,6 +174,111 @@ class PostgresRepository {
     await this.pool.end();
   }
 
+  async ensureBootstrapAdminUser({ username, password, role }) {
+    const now = new Date().toISOString();
+    const adminUserId = `admin_${hash(`admin-user|${normalizeUsername(username)}`)}`;
+    const passwordHash = hashPassword(password);
+    await this.pool.query(
+      `insert into admin_users (
+        admin_user_id, username, password_hash, role, active, created_at, updated_at
+      ) values ($1,$2,$3,$4,true,$5,$5)
+      on conflict (username) do update set
+        password_hash = excluded.password_hash,
+        role = excluded.role,
+        active = true,
+        updated_at = excluded.updated_at`,
+      [adminUserId, normalizeUsername(username), passwordHash, role || 'ADMIN', now],
+    );
+  }
+
+  async findAdminUserByUsername(username) {
+    const result = await this.pool.query(
+      `select admin_user_id, username, password_hash, role, active
+       from admin_users where username = $1`,
+      [normalizeUsername(username)],
+    );
+    return result.rows[0] || null;
+  }
+
+  async createAdminSession(adminUserId, tokenHash, expiresAt) {
+    const now = new Date().toISOString();
+    const sessionId = `sess_${hash(`session|${adminUserId}|${tokenHash}|${now}`)}`;
+    await this.pool.query(
+      `insert into admin_sessions (
+        admin_session_id, admin_user_id, session_token_hash, created_at, expires_at
+      ) values ($1,$2,$3,$4,$5)`,
+      [sessionId, adminUserId, tokenHash, now, expiresAt],
+    );
+    await this.pool.query(
+      `insert into audit_events (
+        audit_event_id, action, entity_type, entity_id, occurred_at,
+        source_channel, actor, previous_value, new_value, reason
+      ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [
+        `audit_${hash(`ADMIN_LOGIN|${sessionId}|${now}`)}`,
+        'ADMIN_LOGIN',
+        'AdminSession',
+        sessionId,
+        now,
+        'ADMIN_UI',
+        adminUserId,
+        null,
+        JSON.stringify({ admin_user_id: adminUserId }),
+        '',
+      ],
+    );
+    return { admin_session_id: sessionId, admin_user_id: adminUserId, expires_at: expiresAt };
+  }
+
+  async findAdminSessionByTokenHash(tokenHash) {
+    const result = await this.pool.query(
+      `select
+        s.admin_session_id,
+        s.admin_user_id,
+        s.expires_at,
+        s.revoked_at,
+        u.username,
+        u.role,
+        u.active
+       from admin_sessions s
+       join admin_users u on u.admin_user_id = s.admin_user_id
+       where s.session_token_hash = $1`,
+      [tokenHash],
+    );
+    return result.rows[0] || null;
+  }
+
+  async revokeAdminSession(tokenHash, actor) {
+    const now = new Date().toISOString();
+    const updated = await this.pool.query(
+      `update admin_sessions
+       set revoked_at = $2
+       where session_token_hash = $1 and revoked_at is null
+       returning admin_session_id, admin_user_id`,
+      [tokenHash, now],
+    );
+    if (updated.rowCount === 0) return null;
+    await this.pool.query(
+      `insert into audit_events (
+        audit_event_id, action, entity_type, entity_id, occurred_at,
+        source_channel, actor, previous_value, new_value, reason
+      ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [
+        `audit_${hash(`ADMIN_LOGOUT|${updated.rows[0].admin_session_id}|${now}`)}`,
+        'ADMIN_LOGOUT',
+        'AdminSession',
+        updated.rows[0].admin_session_id,
+        now,
+        'ADMIN_UI',
+        actor || updated.rows[0].admin_user_id,
+        null,
+        JSON.stringify({ revoked_at: now }),
+        '',
+      ],
+    );
+    return updated.rows[0];
+  }
+
   async getAdminSummary() {
     const result = await this.pool.query(`
       select
@@ -444,6 +549,17 @@ function sanitizeIssueAuditValue(issue) {
 
 function hash(value) {
   return crypto.createHash('sha256').update(String(value)).digest('hex');
+}
+
+function normalizeUsername(username) {
+  return String(username || '').trim().toLowerCase();
+}
+
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const iterations = 210000;
+  const derived = crypto.pbkdf2Sync(String(password), salt, iterations, 32, 'sha256').toString('hex');
+  return `pbkdf2_sha256$${iterations}$${salt}$${derived}`;
 }
 
 module.exports = {

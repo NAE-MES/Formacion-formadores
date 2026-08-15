@@ -20,18 +20,49 @@ function createApp({ config, repository }) {
         return sendAdminAsset(res, relativePath);
       }
 
+      if (req.method === 'POST' && req.url === '/api/auth/login') {
+        const payload = await readJson(req);
+        const session = await loginAdmin(payload, repository);
+        res.setHeader('set-cookie', sessionCookie(session.token, session.expiresAt));
+        return sendJson(res, 200, {
+          user: {
+            username: session.user.username,
+            role: session.user.role,
+          },
+        });
+      }
+
+      if (req.method === 'GET' && req.url === '/api/auth/me') {
+        const admin = await authorizeAdmin(req, config, repository);
+        return sendJson(res, 200, {
+          user: {
+            username: admin.username,
+            role: admin.role,
+          },
+        });
+      }
+
+      if (req.method === 'POST' && req.url === '/api/auth/logout') {
+        const token = sessionTokenFromRequest(req);
+        if (token && repository.revokeAdminSession) {
+          await repository.revokeAdminSession(hash(token), 'ADMIN_UI');
+        }
+        res.setHeader('set-cookie', expiredSessionCookie());
+        return sendJson(res, 200, { status: 'ok' });
+      }
+
       if (req.method === 'GET' && req.url === '/api/admin/summary') {
-        authorizeAdmin(req, config);
+        await authorizeAdmin(req, config, repository);
         return sendJson(res, 200, await repository.getAdminSummary());
       }
 
       if (req.method === 'GET' && req.url === '/api/admin/submissions') {
-        authorizeAdmin(req, config);
+        await authorizeAdmin(req, config, repository);
         return sendJson(res, 200, { submissions: await repository.listAdminSubmissions() });
       }
 
       if (req.method === 'GET' && req.url.startsWith('/api/admin/submissions/')) {
-        authorizeAdmin(req, config);
+        await authorizeAdmin(req, config, repository);
         const submissionId = decodeURIComponent(req.url.slice('/api/admin/submissions/'.length));
         const detail = await repository.getAdminSubmissionDetail(submissionId);
         if (!detail) return sendJson(res, 404, { error: 'NOT_FOUND' });
@@ -39,25 +70,25 @@ function createApp({ config, repository }) {
       }
 
       if (req.method === 'PATCH' && req.url.startsWith('/api/admin/documents/') && req.url.endsWith('/status')) {
-        authorizeAdmin(req, config);
+        const admin = await authorizeAdmin(req, config, repository);
         const documentId = decodeURIComponent(req.url.slice('/api/admin/documents/'.length, -'/status'.length));
         const payload = await readJson(req);
         const document = await repository.updateDocumentStatus(documentId, {
           status: payload.status,
-          actor: payload.actor || 'ADMIN_UI',
+          actor: admin.username || payload.actor || 'ADMIN_UI',
           reason: payload.reason || '',
         });
         return sendJson(res, 200, { document });
       }
 
       if (req.method === 'PATCH' && req.url.startsWith('/api/admin/issues/') && req.url.endsWith('/review')) {
-        authorizeAdmin(req, config);
+        const admin = await authorizeAdmin(req, config, repository);
         const issueId = decodeURIComponent(req.url.slice('/api/admin/issues/'.length, -'/review'.length));
         const payload = await readJson(req);
         const issue = await repository.updateNormalizationIssueReview(issueId, {
           reviewStatus: payload.review_status,
           reviewNote: payload.review_note || '',
-          actor: payload.actor || 'ADMIN_UI',
+          actor: admin.username || payload.actor || 'ADMIN_UI',
           reason: payload.reason || '',
         });
         return sendJson(res, 200, { issue });
@@ -132,22 +163,29 @@ function authorize(req, config) {
   }
 }
 
-function authorizeAdmin(req, config) {
-  if (!config.adminToken) {
-    const error = new Error('Admin authentication is not configured.');
-    error.statusCode = 503;
-    error.code = 'SERVER_MISCONFIGURED';
-    throw error;
-  }
-
+async function authorizeAdmin(req, config, repository) {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice('Bearer '.length) : '';
-  if (!secureTokenEquals(token, config.adminToken)) {
-    const error = new Error('Invalid or missing admin token.');
-    error.statusCode = 401;
-    error.code = 'UNAUTHORIZED';
-    throw error;
+  if (config.adminToken && secureTokenEquals(token, config.adminToken)) {
+    return { username: 'ADMIN_TOKEN', role: 'ADMIN' };
   }
+
+  const sessionToken = sessionTokenFromRequest(req);
+  if (sessionToken && repository.findAdminSessionByTokenHash) {
+    const session = await repository.findAdminSessionByTokenHash(hash(sessionToken));
+    if (session && session.active && !session.revoked_at && new Date(session.expires_at).getTime() > Date.now()) {
+      return {
+        username: session.username,
+        role: session.role,
+        admin_user_id: session.admin_user_id,
+      };
+    }
+  }
+
+  const error = new Error('Invalid or missing admin session.');
+  error.statusCode = 401;
+  error.code = 'UNAUTHORIZED';
+  throw error;
 }
 
 function secureTokenEquals(received, expected) {
@@ -171,6 +209,87 @@ function sendStatic(res, filePath, contentType) {
     });
     res.end(data);
   });
+}
+
+async function loginAdmin(payload, repository) {
+  const username = String(payload.username || '').trim().toLowerCase();
+  const password = String(payload.password || '');
+  if (!username || !password || !repository.findAdminUserByUsername || !repository.createAdminSession) {
+    const error = new Error('Invalid username or password.');
+    error.statusCode = 401;
+    error.code = 'UNAUTHORIZED';
+    throw error;
+  }
+
+  const user = await repository.findAdminUserByUsername(username);
+  if (!user || !user.active || !verifyPassword(password, user.password_hash)) {
+    const error = new Error('Invalid username or password.');
+    error.statusCode = 401;
+    error.code = 'UNAUTHORIZED';
+    throw error;
+  }
+
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
+  await repository.createAdminSession(user.admin_user_id, hash(token), expiresAt);
+  return { token, expiresAt, user };
+}
+
+function verifyPassword(password, storedHash) {
+  if (String(storedHash || '').startsWith('plain:')) {
+    return secureTokenEquals(String(storedHash).slice('plain:'.length), password);
+  }
+
+  const parts = String(storedHash || '').split('$');
+  if (parts.length !== 4 || parts[0] !== 'pbkdf2_sha256') return false;
+  const iterations = Number(parts[1]);
+  const salt = parts[2];
+  const expected = parts[3];
+  if (!Number.isInteger(iterations) || !salt || !expected) return false;
+  const derived = crypto.pbkdf2Sync(String(password), salt, iterations, 32, 'sha256').toString('hex');
+  return secureTokenEquals(derived, expected);
+}
+
+function sessionTokenFromRequest(req) {
+  const cookies = parseCookies(req.headers.cookie || '');
+  return cookies.fdf_admin_session || '';
+}
+
+function parseCookies(cookieHeader) {
+  return String(cookieHeader || '').split(';').reduce((cookies, part) => {
+    const index = part.indexOf('=');
+    if (index === -1) return cookies;
+    const key = part.slice(0, index).trim();
+    const value = part.slice(index + 1).trim();
+    if (key) cookies[key] = decodeURIComponent(value);
+    return cookies;
+  }, {});
+}
+
+function sessionCookie(token, expiresAt) {
+  return [
+    `fdf_admin_session=${encodeURIComponent(token)}`,
+    'Path=/',
+    'HttpOnly',
+    'SameSite=Lax',
+    'Secure',
+    `Expires=${new Date(expiresAt).toUTCString()}`,
+  ].join('; ');
+}
+
+function expiredSessionCookie() {
+  return [
+    'fdf_admin_session=',
+    'Path=/',
+    'HttpOnly',
+    'SameSite=Lax',
+    'Secure',
+    'Expires=Thu, 01 Jan 1970 00:00:00 GMT',
+  ].join('; ');
+}
+
+function hash(value) {
+  return crypto.createHash('sha256').update(String(value)).digest('hex');
 }
 
 function readJson(req) {
@@ -238,4 +357,5 @@ module.exports = {
   statusCodeFor,
   secureTokenEquals,
   authorizeAdmin,
+  verifyPassword,
 };

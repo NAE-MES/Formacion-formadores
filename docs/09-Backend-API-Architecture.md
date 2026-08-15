@@ -70,7 +70,11 @@ Endpoints iniciales:
 Autenticacion:
 
 - Bearer token mediante `FDF_API_TOKEN`.
-- Bearer token administrativo separado mediante `FDF_ADMIN_TOKEN`.
+- Usuario y contrasena administrativos mediante `FDF_ADMIN_USERNAME` y
+  `FDF_ADMIN_PASSWORD`.
+- Sesion administrativa por cookie `HttpOnly`, `Secure`, `SameSite=Lax`.
+- Bearer token administrativo separado mediante `FDF_ADMIN_TOKEN` solo como
+  via tecnica de emergencia.
 - Los endpoints de ingesta fallan cerrado si `FDF_API_TOKEN` no esta
   configurado en el backend.
 - Los endpoints administrativos fallan cerrado si `FDF_ADMIN_TOKEN` no esta
@@ -129,7 +133,7 @@ Restricciones:
 - no permite modificar respuestas ni documentos en esta fase;
 - no convierte estados operativos en decisiones de admisibilidad,
   seleccion o ranking;
-- requiere `FDF_ADMIN_TOKEN` para leer datos.
+- requiere sesion administrativa activa para leer o modificar datos.
 
 Estados operativos de documentos:
 

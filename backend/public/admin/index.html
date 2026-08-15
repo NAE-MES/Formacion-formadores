@@ -18,9 +18,11 @@
 
       <section id="loginPanel" class="login-panel">
         <form id="loginForm" class="login-form">
-          <label for="adminToken">Token administrativo</label>
+          <label for="adminUsername">Usuario</label>
+          <input id="adminUsername" name="adminUsername" type="text" autocomplete="username" required>
+          <label for="adminPassword">Contrasena</label>
           <div class="token-row">
-            <input id="adminToken" name="adminToken" type="password" autocomplete="current-password" required>
+            <input id="adminPassword" name="adminPassword" type="password" autocomplete="current-password" required>
             <button type="submit">Entrar</button>
           </div>
           <p id="loginError" class="error" role="alert"></p>

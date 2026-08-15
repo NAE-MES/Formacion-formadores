@@ -66,6 +66,11 @@ async function withServer(t, handler, configOverrides = {}) {
     ...configOverrides,
   };
   const app = createApp({ config, repository });
+  await repository.ensureBootstrapAdminUser({
+    username: 'admin',
+    password: 'admin-password',
+    role: 'ADMIN',
+  });
   await new Promise(resolve => app.listen(0, resolve));
   t.after(() => new Promise(resolve => app.close(resolve)));
   const port = app.address().port;
@@ -73,6 +78,12 @@ async function withServer(t, handler, configOverrides = {}) {
 }
 
 function request(port, method, url, body, token = 'test-token') {
+  return requestWithHeaders(port, method, url, body, {
+    ...(token ? { authorization: `Bearer ${token}` } : {}),
+  });
+}
+
+function requestWithHeaders(port, method, url, body, extraHeaders = {}) {
   return new Promise((resolve, reject) => {
     const payload = body === undefined ? '' : JSON.stringify(body);
     const req = http.request({
@@ -82,13 +93,14 @@ function request(port, method, url, body, token = 'test-token') {
       headers: {
         'content-type': 'application/json',
         'content-length': Buffer.byteLength(payload),
-        ...(token ? { authorization: `Bearer ${token}` } : {}),
+        ...extraHeaders,
       },
     }, res => {
       let responseBody = '';
       res.on('data', chunk => responseBody += chunk);
       res.on('end', () => resolve({
         statusCode: res.statusCode,
+        headers: res.headers,
         body: responseBody ? JSON.parse(responseBody) : null,
       }));
     });
@@ -145,12 +157,50 @@ test('rejects admin API without admin token', async (t) => {
   });
 });
 
-test('fails closed when admin token is not configured', async (t) => {
+test('rejects admin API without session when emergency token is not configured', async (t) => {
   await withServer(t, async ({ port }) => {
     const response = await adminRequest(port, 'GET', '/api/admin/submissions', 'admin-token');
-    assert.equal(response.statusCode, 503);
-    assert.equal(response.body.error, 'SERVER_MISCONFIGURED');
+    assert.equal(response.statusCode, 401);
+    assert.equal(response.body.error, 'UNAUTHORIZED');
   }, { adminToken: '' });
+});
+
+test('admin login creates http-only session cookie and supports me/logout', async (t) => {
+  await withServer(t, async ({ port }) => {
+    const login = await request(port, 'POST', '/api/auth/login', {
+      username: 'admin',
+      password: 'admin-password',
+    }, '');
+    assert.equal(login.statusCode, 200);
+    assert.equal(login.body.user.username, 'admin');
+    assert.match(String(login.headers['set-cookie']), /HttpOnly/);
+    assert.match(String(login.headers['set-cookie']), /SameSite=Lax/);
+
+    const cookie = login.headers['set-cookie'][0].split(';')[0];
+    const me = await requestWithHeaders(port, 'GET', '/api/auth/me', undefined, { cookie });
+    assert.equal(me.statusCode, 200);
+    assert.equal(me.body.user.role, 'ADMIN');
+
+    const list = await requestWithHeaders(port, 'GET', '/api/admin/submissions', undefined, { cookie });
+    assert.equal(list.statusCode, 200);
+
+    const logout = await requestWithHeaders(port, 'POST', '/api/auth/logout', undefined, { cookie });
+    assert.equal(logout.statusCode, 200);
+
+    const afterLogout = await requestWithHeaders(port, 'GET', '/api/auth/me', undefined, { cookie });
+    assert.equal(afterLogout.statusCode, 401);
+  }, { adminToken: '' });
+});
+
+test('admin login rejects invalid credentials', async (t) => {
+  await withServer(t, async ({ port }) => {
+    const login = await request(port, 'POST', '/api/auth/login', {
+      username: 'admin',
+      password: 'wrong-password',
+    }, '');
+    assert.equal(login.statusCode, 401);
+    assert.equal(login.body.error, 'UNAUTHORIZED');
+  });
 });
 
 test('ingests Google Form API payload and preserves raw data', async (t) => {

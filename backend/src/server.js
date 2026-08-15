@@ -8,6 +8,13 @@ async function main() {
   const repository = config.databaseUrl
     ? new PostgresRepository(config.databaseUrl)
     : new MemoryRepository();
+  if (repository.ensureBootstrapAdminUser && config.adminUsername && config.adminPassword) {
+    await repository.ensureBootstrapAdminUser({
+      username: config.adminUsername,
+      password: config.adminPassword,
+      role: 'ADMIN',
+    });
+  }
   const app = createApp({ config, repository });
 
   app.listen(config.port, () => {

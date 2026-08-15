@@ -174,6 +174,18 @@ else
   warn "FDF_ADMIN_TOKEN no definida en este shell"
 fi
 
+if [ -n "${FDF_ADMIN_USERNAME:-}" ]; then
+  pass "FDF_ADMIN_USERNAME definida"
+else
+  warn "FDF_ADMIN_USERNAME no definida en este shell"
+fi
+
+if [ -n "${FDF_ADMIN_PASSWORD:-}" ]; then
+  pass "FDF_ADMIN_PASSWORD definida"
+else
+  warn "FDF_ADMIN_PASSWORD no definida en este shell"
+fi
+
 section "Resultado"
 if [ "$ok" = true ]; then
   pass "Verificacion completada sin fallos bloqueantes"

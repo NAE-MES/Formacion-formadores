@@ -1,12 +1,13 @@
-const tokenKey = 'fdf-admin-token';
 let submissions = [];
 let selectedId = '';
+let currentUser = null;
 
 const loginPanel = document.querySelector('#loginPanel');
 const appPanel = document.querySelector('#appPanel');
 const loginForm = document.querySelector('#loginForm');
 const loginError = document.querySelector('#loginError');
-const tokenInput = document.querySelector('#adminToken');
+const usernameInput = document.querySelector('#adminUsername');
+const passwordInput = document.querySelector('#adminPassword');
 const logoutButton = document.querySelector('#logoutButton');
 const stats = document.querySelector('#stats');
 const table = document.querySelector('#submissionsTable');
@@ -17,16 +18,29 @@ const refreshButton = document.querySelector('#refreshButton');
 
 loginForm.addEventListener('submit', async event => {
   event.preventDefault();
-  const token = tokenInput.value.trim();
-  if (!token) return;
-  sessionStorage.setItem(tokenKey, token);
-  await boot();
+  loginError.textContent = '';
+  try {
+    const response = await api('/api/auth/login', {
+      method: 'POST',
+      body: {
+        username: usernameInput.value.trim(),
+        password: passwordInput.value,
+      },
+      skipAuthRedirect: true,
+    });
+    currentUser = response.user;
+    passwordInput.value = '';
+    await boot();
+  } catch (error) {
+    loginError.textContent = error.message;
+  }
 });
 
-logoutButton.addEventListener('click', () => {
-  sessionStorage.removeItem(tokenKey);
+logoutButton.addEventListener('click', async () => {
+  await api('/api/auth/logout', { method: 'POST', skipAuthRedirect: true }).catch(() => {});
   selectedId = '';
   submissions = [];
+  currentUser = null;
   showLogin();
 });
 
@@ -37,8 +51,10 @@ statusFilter.addEventListener('change', renderTable);
 boot();
 
 async function boot() {
-  const token = sessionStorage.getItem(tokenKey);
-  if (!token) {
+  try {
+    const me = await api('/api/auth/me', { skipAuthRedirect: true });
+    currentUser = me.user;
+  } catch (error) {
     showLogin();
     return;
   }
@@ -60,7 +76,7 @@ function showLogin(message = '') {
   appPanel.hidden = true;
   logoutButton.hidden = true;
   loginError.textContent = message;
-  tokenInput.focus();
+  usernameInput.focus();
 }
 
 async function loadData() {
@@ -78,13 +94,17 @@ async function api(url, options = {}) {
   const response = await fetch(url, {
     method: options.method || 'GET',
     headers: {
-      Authorization: `Bearer ${sessionStorage.getItem(tokenKey) || ''}`,
       ...(options.body ? { 'content-type': 'application/json' } : {}),
     },
+    credentials: 'same-origin',
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
+    if (response.status === 401 && !options.skipAuthRedirect) {
+      currentUser = null;
+      showLogin('Sesion expirada o no autorizada.');
+    }
     throw new Error(body.message || body.error || `HTTP ${response.status}`);
   }
   return body;

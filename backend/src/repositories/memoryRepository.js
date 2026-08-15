@@ -7,6 +7,8 @@ class MemoryRepository {
     this.documents = new Map();
     this.issues = new Map();
     this.auditEvents = new Map();
+    this.adminUsers = new Map();
+    this.adminSessions = new Map();
   }
 
   async saveImportedSubmission(imported) {
@@ -32,6 +34,61 @@ class MemoryRepository {
       documents: this.documents.size,
       normalization_issues: this.issues.size,
     };
+  }
+
+  async ensureBootstrapAdminUser({ username, password, role }) {
+    const user = {
+      admin_user_id: `admin_${username.toLowerCase()}`,
+      username: username.toLowerCase(),
+      password_hash: `plain:${password}`,
+      role: role || 'ADMIN',
+      active: true,
+    };
+    this.adminUsers.set(user.username, user);
+  }
+
+  async findAdminUserByUsername(username) {
+    return this.adminUsers.get(String(username || '').toLowerCase()) || null;
+  }
+
+  async createAdminSession(adminUserId, tokenHash, expiresAt) {
+    const session = {
+      admin_session_id: `sess_${this.adminSessions.size + 1}`,
+      admin_user_id: adminUserId,
+      session_token_hash: tokenHash,
+      expires_at: expiresAt,
+      revoked_at: null,
+    };
+    this.adminSessions.set(tokenHash, session);
+    this.auditEvents.set(
+      `audit_${this.auditEvents.size + 1}`,
+      auditEvent('ADMIN_LOGIN', 'AdminSession', session.admin_session_id, adminUserId, null, { admin_user_id: adminUserId }, ''),
+    );
+    return session;
+  }
+
+  async findAdminSessionByTokenHash(tokenHash) {
+    const session = this.adminSessions.get(tokenHash);
+    if (!session) return null;
+    const user = Array.from(this.adminUsers.values()).find(item => item.admin_user_id === session.admin_user_id);
+    return {
+      ...session,
+      username: user?.username || '',
+      role: user?.role || '',
+      active: !!user?.active,
+    };
+  }
+
+  async revokeAdminSession(tokenHash, actor) {
+    const session = this.adminSessions.get(tokenHash);
+    if (!session || session.revoked_at) return null;
+    session.revoked_at = new Date().toISOString();
+    this.adminSessions.set(tokenHash, session);
+    this.auditEvents.set(
+      `audit_${this.auditEvents.size + 1}`,
+      auditEvent('ADMIN_LOGOUT', 'AdminSession', session.admin_session_id, actor || session.admin_user_id, null, { revoked_at: session.revoked_at }, ''),
+    );
+    return session;
   }
 
   async listAdminSubmissions() {

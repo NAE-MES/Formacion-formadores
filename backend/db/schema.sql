@@ -80,10 +80,31 @@ create table if not exists audit_events (
   reason text not null default ''
 );
 
+create table if not exists admin_users (
+  admin_user_id text primary key,
+  username text not null unique,
+  password_hash text not null,
+  role text not null,
+  active boolean not null default true,
+  created_at timestamptz not null,
+  updated_at timestamptz not null
+);
+
+create table if not exists admin_sessions (
+  admin_session_id text primary key,
+  admin_user_id text not null references admin_users(admin_user_id),
+  session_token_hash text not null unique,
+  created_at timestamptz not null,
+  expires_at timestamptz not null,
+  revoked_at timestamptz
+);
+
 create index if not exists idx_submissions_candidate_id on submissions(candidate_id);
 create index if not exists idx_candidate_responses_candidate_id on candidate_responses(candidate_id);
 create index if not exists idx_documents_candidate_id on documents(candidate_id);
 create index if not exists idx_normalization_issues_submission_id on normalization_issues(submission_id);
+create index if not exists idx_admin_sessions_token_hash on admin_sessions(session_token_hash);
+create index if not exists idx_admin_sessions_user_id on admin_sessions(admin_user_id);
 
 alter table documents add column if not exists reviewed_at timestamptz;
 alter table documents add column if not exists reviewed_by text not null default '';
