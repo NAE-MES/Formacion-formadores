@@ -171,6 +171,103 @@ class PostgresRepository {
   async close() {
     await this.pool.end();
   }
+
+  async getAdminSummary() {
+    const result = await this.pool.query(`
+      select
+        (select count(*)::int from candidates) as candidates,
+        (select count(*)::int from submissions) as submissions,
+        (select count(*)::int from documents) as documents,
+        (select count(*)::int from normalization_issues) as normalization_issues
+    `);
+    return result.rows[0];
+  }
+
+  async listAdminSubmissions() {
+    const result = await this.pool.query(`
+      select
+        s.submission_id,
+        s.candidate_id,
+        trim(concat_ws(' ',
+          c.first_name,
+          nullif(c.second_name, ''),
+          c.first_surname,
+          nullif(c.second_surname, '')
+        )) as full_name,
+        c.email,
+        c.province,
+        s.source_channel,
+        s.source_reference,
+        s.received_at,
+        s.normalization_status,
+        count(distinct ni.normalization_issue_id)::int as issue_count,
+        count(distinct d.document_id)::int as document_count
+      from submissions s
+      left join candidates c on c.candidate_id = s.candidate_id
+      left join normalization_issues ni on ni.submission_id = s.submission_id
+      left join documents d on d.candidate_id = s.candidate_id
+      group by
+        s.submission_id,
+        s.candidate_id,
+        c.first_name,
+        c.second_name,
+        c.first_surname,
+        c.second_surname,
+        c.email,
+        c.province,
+        s.source_channel,
+        s.source_reference,
+        s.received_at,
+        s.normalization_status
+      order by s.received_at desc
+      limit 500
+    `);
+    return result.rows;
+  }
+
+  async getAdminSubmissionDetail(submissionId) {
+    const submission = await this.pool.query(
+      `select * from submissions where submission_id = $1`,
+      [submissionId],
+    );
+    if (submission.rowCount === 0) return null;
+
+    const candidate = await this.pool.query(
+      `select * from candidates where candidate_id = $1`,
+      [submission.rows[0].candidate_id],
+    );
+    const responses = await this.pool.query(
+      `select candidate_response_id, candidate_id, submission_id, field_code, value
+       from candidate_responses
+       where submission_id = $1
+       order by field_code`,
+      [submissionId],
+    );
+    const documents = await this.pool.query(
+      `select document_id, candidate_id, document_type, source_channel,
+        original_name, storage_reference, received_at, status
+       from documents
+       where candidate_id = $1
+       order by received_at desc`,
+      [submission.rows[0].candidate_id],
+    );
+    const issues = await this.pool.query(
+      `select normalization_issue_id, submission_id, candidate_id, field_code,
+        code, severity, message, created_at
+       from normalization_issues
+       where submission_id = $1
+       order by created_at desc`,
+      [submissionId],
+    );
+
+    return {
+      submission: submission.rows[0],
+      candidate: candidate.rows[0] || {},
+      responses: responses.rows,
+      documents: documents.rows,
+      issues: issues.rows,
+    };
+  }
 }
 
 module.exports = {

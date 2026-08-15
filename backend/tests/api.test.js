@@ -60,6 +60,7 @@ async function withServer(t, handler, configOverrides = {}) {
   const repository = new MemoryRepository();
   const config = {
     apiToken: 'test-token',
+    adminToken: 'admin-token',
     publicSchema,
     eligibilityConfig,
     ...configOverrides,
@@ -96,6 +97,10 @@ function request(port, method, url, body, token = 'test-token') {
   });
 }
 
+function adminRequest(port, method, url, token = 'admin-token') {
+  return request(port, method, url, undefined, token);
+}
+
 test('health endpoint works without auth', async (t) => {
   await withServer(t, async ({ port }) => {
     const response = await request(port, 'GET', '/health', undefined, '');
@@ -128,6 +133,22 @@ test('fails closed when API token is not configured', async (t) => {
   }, { apiToken: '' });
 });
 
+test('rejects admin API without admin token', async (t) => {
+  await withServer(t, async ({ port }) => {
+    const response = await adminRequest(port, 'GET', '/api/admin/submissions', '');
+    assert.equal(response.statusCode, 401);
+    assert.equal(response.body.error, 'UNAUTHORIZED');
+  });
+});
+
+test('fails closed when admin token is not configured', async (t) => {
+  await withServer(t, async ({ port }) => {
+    const response = await adminRequest(port, 'GET', '/api/admin/submissions', 'admin-token');
+    assert.equal(response.statusCode, 503);
+    assert.equal(response.body.error, 'SERVER_MISCONFIGURED');
+  }, { adminToken: '' });
+});
+
 test('ingests Google Form API payload and preserves raw data', async (t) => {
   await withServer(t, async ({ port, repository }) => {
     const payload = {
@@ -142,6 +163,32 @@ test('ingests Google Form API payload and preserves raw data', async (t) => {
     assert.equal(repository.candidates.size, 1);
     assert.equal(repository.raws.size, 1);
     assert.equal(repository.documents.size, 2);
+  });
+});
+
+test('admin API lists and returns submission detail', async (t) => {
+  await withServer(t, async ({ port }) => {
+    const payload = {
+      sourceReference: 'google-response-admin-view',
+      responses: validResponses(),
+      documents: requiredDocuments(),
+    };
+    const imported = await request(port, 'POST', '/api/submissions/google-form', payload);
+    assert.equal(imported.statusCode, 201);
+
+    const list = await adminRequest(port, 'GET', '/api/admin/submissions');
+    assert.equal(list.statusCode, 200);
+    assert.equal(list.body.submissions.length, 1);
+    assert.equal(list.body.submissions[0].source_channel, 'GOOGLE_FORM');
+
+    const detail = await adminRequest(
+      port,
+      'GET',
+      `/api/admin/submissions/${list.body.submissions[0].submission_id}`,
+    );
+    assert.equal(detail.statusCode, 200);
+    assert.equal(detail.body.documents.length, 2);
+    assert.ok(detail.body.responses.length > 0);
   });
 });
 

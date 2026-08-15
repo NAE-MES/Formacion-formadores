@@ -1,5 +1,7 @@
 const http = require('node:http');
 const crypto = require('node:crypto');
+const fs = require('node:fs');
+const path = require('node:path');
 const { importGoogleFormSubmission, importOfflineJsonSubmission } = require('./ingestion');
 
 function createApp({ config, repository }) {
@@ -7,6 +9,33 @@ function createApp({ config, repository }) {
     try {
       if (req.method === 'GET' && req.url === '/health') {
         return sendJson(res, 200, { status: 'ok' });
+      }
+
+      if (req.method === 'GET' && (req.url === '/admin' || req.url === '/admin/')) {
+        return sendStatic(res, path.join(__dirname, '..', 'public', 'admin', 'index.html'), 'text/html; charset=utf-8');
+      }
+
+      if (req.method === 'GET' && req.url.startsWith('/admin/')) {
+        const relativePath = req.url.replace(/^\/admin\//, '') || 'index.html';
+        return sendAdminAsset(res, relativePath);
+      }
+
+      if (req.method === 'GET' && req.url === '/api/admin/summary') {
+        authorizeAdmin(req, config);
+        return sendJson(res, 200, await repository.getAdminSummary());
+      }
+
+      if (req.method === 'GET' && req.url === '/api/admin/submissions') {
+        authorizeAdmin(req, config);
+        return sendJson(res, 200, { submissions: await repository.listAdminSubmissions() });
+      }
+
+      if (req.method === 'GET' && req.url.startsWith('/api/admin/submissions/')) {
+        authorizeAdmin(req, config);
+        const submissionId = decodeURIComponent(req.url.slice('/api/admin/submissions/'.length));
+        const detail = await repository.getAdminSubmissionDetail(submissionId);
+        if (!detail) return sendJson(res, 404, { error: 'NOT_FOUND' });
+        return sendJson(res, 200, detail);
       }
 
       if (req.method === 'POST' && req.url === '/api/submissions/google-form') {
@@ -43,6 +72,23 @@ function createApp({ config, repository }) {
   return http.createServer(handle);
 }
 
+function sendAdminAsset(res, relativePath) {
+  if (relativePath.includes('..') || path.isAbsolute(relativePath)) {
+    return sendJson(res, 404, { error: 'NOT_FOUND' });
+  }
+
+  const basePath = path.join(__dirname, '..', 'public', 'admin');
+  const filePath = path.join(basePath, relativePath);
+  if (!filePath.startsWith(basePath)) return sendJson(res, 404, { error: 'NOT_FOUND' });
+
+  const contentType = relativePath.endsWith('.css')
+    ? 'text/css; charset=utf-8'
+    : relativePath.endsWith('.js')
+      ? 'text/javascript; charset=utf-8'
+      : 'application/octet-stream';
+  return sendStatic(res, filePath, contentType);
+}
+
 function authorize(req, config) {
   if (!config.apiToken) {
     const error = new Error('API authentication is not configured.');
@@ -61,6 +107,24 @@ function authorize(req, config) {
   }
 }
 
+function authorizeAdmin(req, config) {
+  if (!config.adminToken) {
+    const error = new Error('Admin authentication is not configured.');
+    error.statusCode = 503;
+    error.code = 'SERVER_MISCONFIGURED';
+    throw error;
+  }
+
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice('Bearer '.length) : '';
+  if (!secureTokenEquals(token, config.adminToken)) {
+    const error = new Error('Invalid or missing admin token.');
+    error.statusCode = 401;
+    error.code = 'UNAUTHORIZED';
+    throw error;
+  }
+}
+
 function secureTokenEquals(received, expected) {
   const receivedBuffer = Buffer.from(String(received || ''), 'utf8');
   const expectedBuffer = Buffer.from(String(expected || ''), 'utf8');
@@ -70,6 +134,18 @@ function secureTokenEquals(received, expected) {
   }
 
   return crypto.timingSafeEqual(receivedBuffer, expectedBuffer);
+}
+
+function sendStatic(res, filePath, contentType) {
+  fs.readFile(filePath, (error, data) => {
+    if (error) return sendJson(res, 404, { error: 'NOT_FOUND' });
+    res.writeHead(200, {
+      'content-type': contentType,
+      'content-length': data.length,
+      'cache-control': 'no-store',
+    });
+    res.end(data);
+  });
 }
 
 function readJson(req) {
@@ -136,4 +212,5 @@ module.exports = {
   readJson,
   statusCodeFor,
   secureTokenEquals,
+  authorizeAdmin,
 };

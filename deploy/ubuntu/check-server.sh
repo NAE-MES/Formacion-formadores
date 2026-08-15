@@ -168,6 +168,12 @@ else
   warn "FDF_API_TOKEN no definida en este shell"
 fi
 
+if [ -n "${FDF_ADMIN_TOKEN:-}" ]; then
+  pass "FDF_ADMIN_TOKEN definida"
+else
+  warn "FDF_ADMIN_TOKEN no definida en este shell"
+fi
+
 section "Resultado"
 if [ "$ok" = true ]; then
   pass "Verificacion completada sin fallos bloqueantes"

@@ -108,12 +108,14 @@ apply_schema() {
 write_env_file() {
   require_env DATABASE_URL
   require_env FDF_API_TOKEN
+  require_env FDF_ADMIN_TOKEN
 
   install -m 0750 -o "$APP_USER" -g "$APP_USER" -d /etc/fdf-2026
   cat > /etc/fdf-2026/api.env <<EOF
 PORT=${APP_PORT}
 DATABASE_URL=${DATABASE_URL}
 FDF_API_TOKEN=${FDF_API_TOKEN}
+FDF_ADMIN_TOKEN=${FDF_ADMIN_TOKEN}
 EOF
   chown "$APP_USER":"$APP_USER" /etc/fdf-2026/api.env
   chmod 0640 /etc/fdf-2026/api.env
@@ -147,6 +149,7 @@ main() {
   need_root
   require_env DATABASE_URL
   require_env FDF_API_TOKEN
+  require_env FDF_ADMIN_TOKEN
 
   "$(dirname "${BASH_SOURCE[0]}")/check-server.sh" || {
     echo "La verificacion detecto fallos. Revise el reporte antes de instalar." >&2

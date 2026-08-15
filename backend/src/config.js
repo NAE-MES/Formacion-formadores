@@ -15,6 +15,7 @@ function loadRuntimeConfig(env = process.env) {
   return {
     port: Number(env.PORT || 8080),
     apiToken: env.FDF_API_TOKEN || '',
+    adminToken: env.FDF_ADMIN_TOKEN || '',
     databaseUrl: env.DATABASE_URL || '',
     publicSchema: loadJson(publicSchemaPath),
     eligibilityConfig: loadJson(eligibilityPath),

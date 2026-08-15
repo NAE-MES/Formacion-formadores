@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FdF 2026 - Gestion</title>
+    <link rel="stylesheet" href="/admin/styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="topbar">
+        <div>
+          <h1>FdF 2026</h1>
+          <p>Sistema de postulaciones</p>
+        </div>
+        <button id="logoutButton" class="ghost" type="button" hidden>Cerrar sesion</button>
+      </section>
+
+      <section id="loginPanel" class="login-panel">
+        <form id="loginForm" class="login-form">
+          <label for="adminToken">Token administrativo</label>
+          <div class="token-row">
+            <input id="adminToken" name="adminToken" type="password" autocomplete="current-password" required>
+            <button type="submit">Entrar</button>
+          </div>
+          <p id="loginError" class="error" role="alert"></p>
+        </form>
+      </section>
+
+      <section id="appPanel" class="workspace" hidden>
+        <div class="stats" id="stats"></div>
+
+        <div class="toolbar">
+          <input id="searchInput" type="search" placeholder="Buscar por nombre, correo, provincia o ID">
+          <select id="statusFilter">
+            <option value="">Todos los estados</option>
+            <option value="NORMALIZED">NORMALIZED</option>
+            <option value="WITH_ISSUES">WITH_ISSUES</option>
+          </select>
+          <button id="refreshButton" type="button">Actualizar</button>
+        </div>
+
+        <section class="content-grid">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Recibido</th>
+                  <th>Postulante</th>
+                  <th>Provincia</th>
+                  <th>Origen</th>
+                  <th>Estado</th>
+                  <th>Docs</th>
+                  <th>Inc.</th>
+                </tr>
+              </thead>
+              <tbody id="submissionsTable"></tbody>
+            </table>
+          </div>
+
+          <aside class="detail" id="detailPanel">
+            <p class="muted">Seleccione una postulacion.</p>
+          </aside>
+        </section>
+      </section>
+    </main>
+    <script src="/admin/app.js"></script>
+  </body>
+</html>

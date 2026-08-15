@@ -60,11 +60,18 @@ Endpoints iniciales:
 - `GET /health`
 - `POST /api/submissions/google-form`
 - `POST /api/submissions/offline-json`
+- `GET /admin`
+- `GET /api/admin/summary`
+- `GET /api/admin/submissions`
+- `GET /api/admin/submissions/:submission_id`
 
 Autenticacion:
 
 - Bearer token mediante `FDF_API_TOKEN`.
+- Bearer token administrativo separado mediante `FDF_ADMIN_TOKEN`.
 - Los endpoints de ingesta fallan cerrado si `FDF_API_TOKEN` no esta
+  configurado en el backend.
+- Los endpoints administrativos fallan cerrado si `FDF_ADMIN_TOKEN` no esta
   configurado en el backend.
 - El token no debe guardarse en Git ni en celdas visibles del Spreadsheet.
 - En Google Apps Script debe almacenarse como Script Property.
@@ -98,3 +105,22 @@ La conexion con el Form publicado se hace sin modificar la encuesta:
    `FdF_onFormSubmitToApi`.
 4. Ejecutar una prueba con una respuesta sintetica o controlada.
 5. Revisar `23_API_Bridge_Log` y el backend para confirmar ingestion.
+
+## Panel administrativo inicial
+
+Ruta: `/admin`
+
+Alcance:
+
+- resumen de conteos;
+- listado de postulaciones recibidas;
+- busqueda y filtro por estado de normalizacion;
+- detalle de postulante, respuestas normalizadas, documentos asociados e
+  incidencias.
+
+Restricciones:
+
+- no expone el RAW completo en la UI inicial;
+- no implementa ranking, cupos ni decision final;
+- no permite modificar respuestas ni documentos en esta fase;
+- requiere `FDF_ADMIN_TOKEN` para leer datos.
