@@ -74,11 +74,14 @@ async function loadData() {
   if (selectedId) await selectSubmission(selectedId);
 }
 
-async function api(url) {
+async function api(url, options = {}) {
   const response = await fetch(url, {
+    method: options.method || 'GET',
     headers: {
       Authorization: `Bearer ${sessionStorage.getItem(tokenKey) || ''}`,
+      ...(options.body ? { 'content-type': 'application/json' } : {}),
     },
+    body: options.body ? JSON.stringify(options.body) : undefined,
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -164,6 +167,7 @@ async function selectSubmission(submissionId) {
     <h3>Respuestas</h3>
     ${renderResponses(detail.responses || [])}
   `;
+  bindDetailActions();
 }
 
 function renderIssues(issues) {
@@ -172,6 +176,14 @@ function renderIssues(issues) {
     <div class="item">
       <strong>${escapeHtml(issue.code)}</strong> ${escapeHtml(issue.field_code || '')}<br>
       <span class="muted">${escapeHtml(issue.severity)} - ${escapeHtml(issue.message)}</span>
+      <div class="action-row">
+        <select data-issue-status="${escapeHtml(issue.normalization_issue_id)}">
+          ${issueStatusOptions(issue.review_status || 'OPEN')}
+        </select>
+        <button type="button" data-issue-save="${escapeHtml(issue.normalization_issue_id)}">Guardar</button>
+      </div>
+      <input class="note-input" data-issue-note="${escapeHtml(issue.normalization_issue_id)}" type="text" value="${escapeHtml(issue.review_note || '')}" placeholder="Nota de revision">
+      <span class="muted">${escapeHtml(issue.reviewed_by || '')} ${issue.reviewed_at ? formatDate(issue.reviewed_at) : ''}</span>
     </div>
   `).join('')}</div>`;
 }
@@ -183,8 +195,58 @@ function renderDocuments(documents) {
       <strong>${escapeHtml(document.document_type)}</strong><br>
       ${escapeHtml(document.original_name || document.storage_reference || '')}<br>
       <span class="muted">${escapeHtml(document.status)} - ${formatDate(document.received_at)}</span>
+      <div class="action-row">
+        <select data-document-status="${escapeHtml(document.document_id)}">
+          ${documentStatusOptions(document.status)}
+        </select>
+        <button type="button" data-document-save="${escapeHtml(document.document_id)}">Guardar</button>
+      </div>
+      <span class="muted">${escapeHtml(document.reviewed_by || '')} ${document.reviewed_at ? formatDate(document.reviewed_at) : ''}</span>
     </div>
   `).join('')}</div>`;
+}
+
+function bindDetailActions() {
+  detailPanel.querySelectorAll('[data-document-save]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const documentId = button.dataset.documentSave;
+      const select = detailPanel.querySelector(`[data-document-status="${cssEscape(documentId)}"]`);
+      await api(`/api/admin/documents/${encodeURIComponent(documentId)}/status`, {
+        method: 'PATCH',
+        body: { status: select.value, reason: 'Admin document status update' },
+      });
+      await loadData();
+    });
+  });
+
+  detailPanel.querySelectorAll('[data-issue-save]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const issueId = button.dataset.issueSave;
+      const select = detailPanel.querySelector(`[data-issue-status="${cssEscape(issueId)}"]`);
+      const note = detailPanel.querySelector(`[data-issue-note="${cssEscape(issueId)}"]`);
+      await api(`/api/admin/issues/${encodeURIComponent(issueId)}/review`, {
+        method: 'PATCH',
+        body: {
+          review_status: select.value,
+          review_note: note.value,
+          reason: 'Admin normalization issue review update',
+        },
+      });
+      await loadData();
+    });
+  });
+}
+
+function documentStatusOptions(selected) {
+  return ['RECEIVED', 'VALIDATED', 'REJECTED', 'NEEDS_REVIEW']
+    .map(status => `<option value="${status}" ${status === selected ? 'selected' : ''}>${status}</option>`)
+    .join('');
+}
+
+function issueStatusOptions(selected) {
+  return ['OPEN', 'ACKNOWLEDGED', 'RESOLVED', 'NEEDS_SOURCE_REVIEW']
+    .map(status => `<option value="${status}" ${status === selected ? 'selected' : ''}>${status}</option>`)
+    .join('');
 }
 
 function renderResponses(responses) {
@@ -245,4 +307,9 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+function cssEscape(value) {
+  if (window.CSS && CSS.escape) return CSS.escape(value);
+  return String(value).replace(/"/g, '\\"');
 }

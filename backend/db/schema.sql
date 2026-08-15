@@ -47,7 +47,9 @@ create table if not exists documents (
   original_name text not null default '',
   storage_reference text not null default '',
   received_at timestamptz not null,
-  status text not null
+  status text not null,
+  reviewed_at timestamptz,
+  reviewed_by text not null default ''
 );
 
 create table if not exists normalization_issues (
@@ -58,7 +60,11 @@ create table if not exists normalization_issues (
   code text not null,
   severity text not null,
   message text not null,
-  created_at timestamptz not null
+  created_at timestamptz not null,
+  review_status text not null default 'OPEN',
+  review_note text not null default '',
+  reviewed_at timestamptz,
+  reviewed_by text not null default ''
 );
 
 create table if not exists audit_events (
@@ -78,3 +84,10 @@ create index if not exists idx_submissions_candidate_id on submissions(candidate
 create index if not exists idx_candidate_responses_candidate_id on candidate_responses(candidate_id);
 create index if not exists idx_documents_candidate_id on documents(candidate_id);
 create index if not exists idx_normalization_issues_submission_id on normalization_issues(submission_id);
+
+alter table documents add column if not exists reviewed_at timestamptz;
+alter table documents add column if not exists reviewed_by text not null default '';
+alter table normalization_issues add column if not exists review_status text not null default 'OPEN';
+alter table normalization_issues add column if not exists review_note text not null default '';
+alter table normalization_issues add column if not exists reviewed_at timestamptz;
+alter table normalization_issues add column if not exists reviewed_by text not null default '';

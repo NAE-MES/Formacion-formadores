@@ -256,6 +256,18 @@ tbody tr.selected {
   overflow-wrap: anywhere;
 }
 
+.action-row {
+  display: grid;
+  grid-template-columns: minmax(170px, 1fr) auto;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.note-input {
+  width: 100%;
+  margin-top: 8px;
+}
+
 @media (max-width: 980px) {
   .stats,
   .toolbar,
@@ -266,5 +278,9 @@ tbody tr.selected {
   .table-wrap,
   .detail {
     max-height: none;
+  }
+
+  .action-row {
+    grid-template-columns: 1fr;
   }
 }

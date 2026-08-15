@@ -80,6 +80,112 @@ class MemoryRepository {
 
     return { submission, candidate, responses, documents, issues };
   }
+
+  async updateDocumentStatus(documentId, { status, actor, reason }) {
+    const allowed = new Set(['RECEIVED', 'VALIDATED', 'REJECTED', 'NEEDS_REVIEW']);
+    if (!allowed.has(status)) {
+      const error = new Error('Invalid document status.');
+      error.statusCode = 400;
+      error.code = 'INVALID_DOCUMENT_STATUS';
+      throw error;
+    }
+
+    const current = this.documents.get(documentId);
+    if (!current) {
+      const error = new Error('Document not found.');
+      error.statusCode = 404;
+      error.code = 'NOT_FOUND';
+      throw error;
+    }
+
+    const previousValue = sanitizeDocumentAuditValue(current);
+    const updated = {
+      ...current,
+      status,
+      reviewed_at: new Date().toISOString(),
+      reviewed_by: actor || 'ADMIN',
+    };
+    this.documents.set(documentId, updated);
+    this.auditEvents.set(
+      `audit_${this.auditEvents.size + 1}`,
+      auditEvent('DOCUMENT_STATUS_UPDATED', 'Document', documentId, actor, previousValue, sanitizeDocumentAuditValue(updated), reason),
+    );
+    return updated;
+  }
+
+  async updateNormalizationIssueReview(issueId, { reviewStatus, reviewNote, actor, reason }) {
+    const allowed = new Set(['OPEN', 'ACKNOWLEDGED', 'RESOLVED', 'NEEDS_SOURCE_REVIEW']);
+    if (!allowed.has(reviewStatus)) {
+      const error = new Error('Invalid issue review status.');
+      error.statusCode = 400;
+      error.code = 'INVALID_ISSUE_STATUS';
+      throw error;
+    }
+
+    const current = this.issues.get(issueId);
+    if (!current) {
+      const error = new Error('Normalization issue not found.');
+      error.statusCode = 404;
+      error.code = 'NOT_FOUND';
+      throw error;
+    }
+
+    const previousValue = sanitizeIssueAuditValue(current);
+    const updated = {
+      ...current,
+      review_status: reviewStatus,
+      review_note: String(reviewNote || ''),
+      reviewed_at: new Date().toISOString(),
+      reviewed_by: actor || 'ADMIN',
+    };
+    this.issues.set(issueId, updated);
+    this.auditEvents.set(
+      `audit_${this.auditEvents.size + 1}`,
+      auditEvent('NORMALIZATION_ISSUE_REVIEW_UPDATED', 'NormalizationIssue', issueId, actor, previousValue, sanitizeIssueAuditValue(updated), reason),
+    );
+    return updated;
+  }
+}
+
+function auditEvent(action, entityType, entityId, actor, previousValue, newValue, reason) {
+  return {
+    audit_event_id: `audit_${action}_${entityId}_${Date.now()}`,
+    action,
+    entity_type: entityType,
+    entity_id: entityId,
+    occurred_at: new Date().toISOString(),
+    source_channel: 'ADMIN_UI',
+    actor: actor || 'ADMIN',
+    previous_value: previousValue || null,
+    new_value: newValue || null,
+    reason: reason || '',
+  };
+}
+
+function sanitizeDocumentAuditValue(document) {
+  return {
+    document_id: document.document_id,
+    candidate_id: document.candidate_id,
+    document_type: document.document_type,
+    status: document.status,
+    reviewed_at: document.reviewed_at || null,
+    reviewed_by: document.reviewed_by || '',
+  };
+}
+
+function sanitizeIssueAuditValue(issue) {
+  return {
+    normalization_issue_id: issue.normalization_issue_id,
+    submission_id: issue.submission_id,
+    candidate_id: issue.candidate_id,
+    field_code: issue.field_code,
+    code: issue.code,
+    severity: issue.severity,
+    review_status: issue.review_status || 'OPEN',
+    review_note: issue.review_note || '',
+    reviewed_at: issue.reviewed_at || null,
+    reviewed_by: issue.reviewed_by || '',
+  };
 }
 
 module.exports = {

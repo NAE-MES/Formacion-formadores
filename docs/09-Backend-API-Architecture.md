@@ -64,6 +64,8 @@ Endpoints iniciales:
 - `GET /api/admin/summary`
 - `GET /api/admin/submissions`
 - `GET /api/admin/submissions/:submission_id`
+- `PATCH /api/admin/documents/:document_id/status`
+- `PATCH /api/admin/issues/:normalization_issue_id/review`
 
 Autenticacion:
 
@@ -117,10 +119,31 @@ Alcance:
 - busqueda y filtro por estado de normalizacion;
 - detalle de postulante, respuestas normalizadas, documentos asociados e
   incidencias.
+- revision operativa de estado de documentos;
+- seguimiento operativo de incidencias de normalizacion.
 
 Restricciones:
 
 - no expone el RAW completo en la UI inicial;
 - no implementa ranking, cupos ni decision final;
 - no permite modificar respuestas ni documentos en esta fase;
+- no convierte estados operativos en decisiones de admisibilidad,
+  seleccion o ranking;
 - requiere `FDF_ADMIN_TOKEN` para leer datos.
+
+Estados operativos de documentos:
+
+- `RECEIVED`
+- `VALIDATED`
+- `REJECTED`
+- `NEEDS_REVIEW`
+
+Estados operativos de incidencias:
+
+- `OPEN`
+- `ACKNOWLEDGED`
+- `RESOLVED`
+- `NEEDS_SOURCE_REVIEW`
+
+Cada cambio administrativo registra un evento en `audit_events` sin guardar
+CV, carta aval ni datos personales completos dentro del log tecnico.

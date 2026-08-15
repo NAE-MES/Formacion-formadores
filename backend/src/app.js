@@ -38,6 +38,31 @@ function createApp({ config, repository }) {
         return sendJson(res, 200, detail);
       }
 
+      if (req.method === 'PATCH' && req.url.startsWith('/api/admin/documents/') && req.url.endsWith('/status')) {
+        authorizeAdmin(req, config);
+        const documentId = decodeURIComponent(req.url.slice('/api/admin/documents/'.length, -'/status'.length));
+        const payload = await readJson(req);
+        const document = await repository.updateDocumentStatus(documentId, {
+          status: payload.status,
+          actor: payload.actor || 'ADMIN_UI',
+          reason: payload.reason || '',
+        });
+        return sendJson(res, 200, { document });
+      }
+
+      if (req.method === 'PATCH' && req.url.startsWith('/api/admin/issues/') && req.url.endsWith('/review')) {
+        authorizeAdmin(req, config);
+        const issueId = decodeURIComponent(req.url.slice('/api/admin/issues/'.length, -'/review'.length));
+        const payload = await readJson(req);
+        const issue = await repository.updateNormalizationIssueReview(issueId, {
+          reviewStatus: payload.review_status,
+          reviewNote: payload.review_note || '',
+          actor: payload.actor || 'ADMIN_UI',
+          reason: payload.reason || '',
+        });
+        return sendJson(res, 200, { issue });
+      }
+
       if (req.method === 'POST' && req.url === '/api/submissions/google-form') {
         authorize(req, config);
         const payload = await readJson(req);

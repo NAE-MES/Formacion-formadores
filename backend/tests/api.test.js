@@ -101,6 +101,10 @@ function adminRequest(port, method, url, token = 'admin-token') {
   return request(port, method, url, undefined, token);
 }
 
+function adminJsonRequest(port, method, url, body, token = 'admin-token') {
+  return request(port, method, url, body, token);
+}
+
 test('health endpoint works without auth', async (t) => {
   await withServer(t, async ({ port }) => {
     const response = await request(port, 'GET', '/health', undefined, '');
@@ -189,6 +193,81 @@ test('admin API lists and returns submission detail', async (t) => {
     assert.equal(detail.statusCode, 200);
     assert.equal(detail.body.documents.length, 2);
     assert.ok(detail.body.responses.length > 0);
+  });
+});
+
+test('admin API updates document status with audit event', async (t) => {
+  await withServer(t, async ({ port, repository }) => {
+    const imported = await request(port, 'POST', '/api/submissions/google-form', {
+      sourceReference: 'google-response-document-review',
+      responses: validResponses(),
+      documents: requiredDocuments(),
+    });
+    assert.equal(imported.statusCode, 201);
+
+    const documentId = Array.from(repository.documents.values())[0].document_id;
+    const updated = await adminJsonRequest(
+      port,
+      'PATCH',
+      `/api/admin/documents/${documentId}/status`,
+      { status: 'VALIDATED', reason: 'Synthetic test review' },
+    );
+
+    assert.equal(updated.statusCode, 200);
+    assert.equal(updated.body.document.status, 'VALIDATED');
+    assert.equal(repository.documents.get(documentId).status, 'VALIDATED');
+    assert.ok(Array.from(repository.auditEvents.values()).some(event =>
+      event.action === 'DOCUMENT_STATUS_UPDATED'
+    ));
+  });
+});
+
+test('admin API updates normalization issue review with audit event', async (t) => {
+  await withServer(t, async ({ port, repository }) => {
+    const imported = await request(port, 'POST', '/api/submissions/google-form', {
+      sourceReference: 'google-response-issue-review',
+      responses: {
+        ...validResponses(),
+        'FDF-999': 'Dato sintetico desconocido',
+      },
+      documents: requiredDocuments(),
+    });
+    assert.equal(imported.statusCode, 202);
+
+    const issueId = Array.from(repository.issues.values())[0].normalization_issue_id;
+    const updated = await adminJsonRequest(
+      port,
+      'PATCH',
+      `/api/admin/issues/${issueId}/review`,
+      { review_status: 'ACKNOWLEDGED', review_note: 'Revisado en prueba sintetica' },
+    );
+
+    assert.equal(updated.statusCode, 200);
+    assert.equal(updated.body.issue.review_status, 'ACKNOWLEDGED');
+    assert.equal(repository.issues.get(issueId).review_status, 'ACKNOWLEDGED');
+    assert.ok(Array.from(repository.auditEvents.values()).some(event =>
+      event.action === 'NORMALIZATION_ISSUE_REVIEW_UPDATED'
+    ));
+  });
+});
+
+test('admin API rejects invalid operational statuses', async (t) => {
+  await withServer(t, async ({ port, repository }) => {
+    await request(port, 'POST', '/api/submissions/google-form', {
+      sourceReference: 'google-response-invalid-status',
+      responses: validResponses(),
+      documents: requiredDocuments(),
+    });
+    const documentId = Array.from(repository.documents.values())[0].document_id;
+    const response = await adminJsonRequest(
+      port,
+      'PATCH',
+      `/api/admin/documents/${documentId}/status`,
+      { status: 'APPROVED' },
+    );
+
+    assert.equal(response.statusCode, 400);
+    assert.equal(response.body.error, 'INVALID_DOCUMENT_STATUS');
   });
 });
 

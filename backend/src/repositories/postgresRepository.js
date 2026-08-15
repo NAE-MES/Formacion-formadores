@@ -1,3 +1,5 @@
+const crypto = require('node:crypto');
+
 class PostgresRepository {
   constructor(databaseUrl) {
     if (!databaseUrl) throw new Error('DATABASE_URL is required for PostgresRepository.');
@@ -245,7 +247,7 @@ class PostgresRepository {
     );
     const documents = await this.pool.query(
       `select document_id, candidate_id, document_type, source_channel,
-        original_name, storage_reference, received_at, status
+        original_name, storage_reference, received_at, status, reviewed_at, reviewed_by
        from documents
        where candidate_id = $1
        order by received_at desc`,
@@ -253,7 +255,7 @@ class PostgresRepository {
     );
     const issues = await this.pool.query(
       `select normalization_issue_id, submission_id, candidate_id, field_code,
-        code, severity, message, created_at
+        code, severity, message, created_at, review_status, review_note, reviewed_at, reviewed_by
        from normalization_issues
        where submission_id = $1
        order by created_at desc`,
@@ -268,6 +270,180 @@ class PostgresRepository {
       issues: issues.rows,
     };
   }
+
+  async updateDocumentStatus(documentId, { status, actor, reason }) {
+    const allowed = new Set(['RECEIVED', 'VALIDATED', 'REJECTED', 'NEEDS_REVIEW']);
+    if (!allowed.has(status)) {
+      const error = new Error('Invalid document status.');
+      error.statusCode = 400;
+      error.code = 'INVALID_DOCUMENT_STATUS';
+      throw error;
+    }
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const current = await client.query(
+        `select document_id, candidate_id, document_type, status, reviewed_at, reviewed_by
+         from documents where document_id = $1 for update`,
+        [documentId],
+      );
+      if (current.rowCount === 0) {
+        const error = new Error('Document not found.');
+        error.statusCode = 404;
+        error.code = 'NOT_FOUND';
+        throw error;
+      }
+
+      const reviewedAt = new Date().toISOString();
+      const updated = await client.query(
+        `update documents
+         set status = $2, reviewed_at = $3, reviewed_by = $4
+         where document_id = $1
+         returning document_id, candidate_id, document_type, source_channel,
+           original_name, storage_reference, received_at, status, reviewed_at, reviewed_by`,
+        [documentId, status, reviewedAt, actor],
+      );
+
+      await insertAuditEvent(client, {
+        action: 'DOCUMENT_STATUS_UPDATED',
+        entityType: 'Document',
+        entityId: documentId,
+        actor,
+        previousValue: sanitizeDocumentAuditValue(current.rows[0]),
+        newValue: sanitizeDocumentAuditValue(updated.rows[0]),
+        reason,
+      });
+
+      await client.query('COMMIT');
+      return updated.rows[0];
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async updateNormalizationIssueReview(issueId, { reviewStatus, reviewNote, actor, reason }) {
+    const allowed = new Set(['OPEN', 'ACKNOWLEDGED', 'RESOLVED', 'NEEDS_SOURCE_REVIEW']);
+    if (!allowed.has(reviewStatus)) {
+      const error = new Error('Invalid issue review status.');
+      error.statusCode = 400;
+      error.code = 'INVALID_ISSUE_STATUS';
+      throw error;
+    }
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const current = await client.query(
+        `select normalization_issue_id, submission_id, candidate_id, field_code,
+          code, severity, review_status, review_note, reviewed_at, reviewed_by
+         from normalization_issues where normalization_issue_id = $1 for update`,
+        [issueId],
+      );
+      if (current.rowCount === 0) {
+        const error = new Error('Normalization issue not found.');
+        error.statusCode = 404;
+        error.code = 'NOT_FOUND';
+        throw error;
+      }
+
+      const reviewedAt = new Date().toISOString();
+      const updated = await client.query(
+        `update normalization_issues
+         set review_status = $2, review_note = $3, reviewed_at = $4, reviewed_by = $5
+         where normalization_issue_id = $1
+         returning normalization_issue_id, submission_id, candidate_id, field_code,
+           code, severity, message, created_at, review_status, review_note, reviewed_at, reviewed_by`,
+        [issueId, reviewStatus, String(reviewNote || ''), reviewedAt, actor],
+      );
+
+      await insertAuditEvent(client, {
+        action: 'NORMALIZATION_ISSUE_REVIEW_UPDATED',
+        entityType: 'NormalizationIssue',
+        entityId: issueId,
+        actor,
+        previousValue: sanitizeIssueAuditValue(current.rows[0]),
+        newValue: sanitizeIssueAuditValue(updated.rows[0]),
+        reason,
+      });
+
+      await client.query('COMMIT');
+      return updated.rows[0];
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+}
+
+async function insertAuditEvent(client, event) {
+  const occurredAt = new Date().toISOString();
+  const auditEvent = {
+    audit_event_id: `audit_${hash(`${event.action}|${event.entityType}|${event.entityId}|${occurredAt}`)}`,
+    action: event.action,
+    entity_type: event.entityType,
+    entity_id: event.entityId,
+    occurred_at: occurredAt,
+    source_channel: 'ADMIN_UI',
+    actor: event.actor || 'ADMIN',
+    previous_value: event.previousValue || null,
+    new_value: event.newValue || null,
+    reason: event.reason || '',
+  };
+
+  await client.query(
+    `insert into audit_events (
+      audit_event_id, action, entity_type, entity_id, occurred_at,
+      source_channel, actor, previous_value, new_value, reason
+    ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+    [
+      auditEvent.audit_event_id,
+      auditEvent.action,
+      auditEvent.entity_type,
+      auditEvent.entity_id,
+      auditEvent.occurred_at,
+      auditEvent.source_channel,
+      auditEvent.actor,
+      auditEvent.previous_value ? JSON.stringify(auditEvent.previous_value) : null,
+      auditEvent.new_value ? JSON.stringify(auditEvent.new_value) : null,
+      auditEvent.reason,
+    ],
+  );
+}
+
+function sanitizeDocumentAuditValue(document) {
+  return {
+    document_id: document.document_id,
+    candidate_id: document.candidate_id,
+    document_type: document.document_type,
+    status: document.status,
+    reviewed_at: document.reviewed_at || null,
+    reviewed_by: document.reviewed_by || '',
+  };
+}
+
+function sanitizeIssueAuditValue(issue) {
+  return {
+    normalization_issue_id: issue.normalization_issue_id,
+    submission_id: issue.submission_id,
+    candidate_id: issue.candidate_id,
+    field_code: issue.field_code,
+    code: issue.code,
+    severity: issue.severity,
+    review_status: issue.review_status,
+    review_note: issue.review_note || '',
+    reviewed_at: issue.reviewed_at || null,
+    reviewed_by: issue.reviewed_by || '',
+  };
+}
+
+function hash(value) {
+  return crypto.createHash('sha256').update(String(value)).digest('hex');
 }
 
 module.exports = {
