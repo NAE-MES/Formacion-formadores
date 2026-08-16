@@ -61,6 +61,38 @@ function createApp({ config, repository }) {
         return sendJson(res, 200, await repository.getAdminSummary());
       }
 
+      if (req.method === 'GET' && req.url === '/api/admin/users') {
+        await authorizeAdmin(req, config, repository, ['ADMIN']);
+        return sendJson(res, 200, { users: await repository.listAdminUsers() });
+      }
+
+      if (req.method === 'POST' && req.url === '/api/admin/users') {
+        const admin = await authorizeAdmin(req, config, repository, ['ADMIN']);
+        const payload = await readJson(req);
+        const user = await repository.createAdminUser({
+          username: payload.username,
+          password: payload.password,
+          role: payload.role,
+          actor: admin.username,
+          reason: payload.reason || 'Admin user created.',
+        });
+        return sendJson(res, 201, { user });
+      }
+
+      if (req.method === 'PATCH' && req.url.startsWith('/api/admin/users/')) {
+        const admin = await authorizeAdmin(req, config, repository, ['ADMIN']);
+        const username = decodeURIComponent(req.url.slice('/api/admin/users/'.length));
+        const payload = await readJson(req);
+        const user = await repository.updateAdminUser(username, {
+          password: payload.password,
+          role: payload.role,
+          active: payload.active,
+          actor: admin.username,
+          reason: payload.reason || 'Admin user updated.',
+        });
+        return sendJson(res, 200, { user });
+      }
+
       if (req.method === 'GET' && req.url === '/api/admin/submissions') {
         await authorizeAdmin(req, config, repository);
         return sendJson(res, 200, { submissions: await repository.listAdminSubmissions() });
@@ -75,14 +107,14 @@ function createApp({ config, repository }) {
       }
 
       if (req.method === 'POST' && req.url.startsWith('/api/admin/submissions/') && req.url.endsWith('/eligibility/recalculate')) {
-        const admin = await authorizeAdmin(req, config, repository);
+        const admin = await authorizeAdmin(req, config, repository, ['ADMIN', 'REVIEWER']);
         const submissionId = decodeURIComponent(req.url.slice('/api/admin/submissions/'.length, -'/eligibility/recalculate'.length));
         const assessment = await recalculateEligibility(submissionId, config, repository, admin.username || 'ADMIN_UI');
         return sendJson(res, 200, { eligibility_assessment: assessment });
       }
 
       if (req.method === 'PATCH' && req.url.startsWith('/api/admin/eligibility/') && req.url.endsWith('/review')) {
-        const admin = await authorizeAdmin(req, config, repository);
+        const admin = await authorizeAdmin(req, config, repository, ['ADMIN', 'REVIEWER']);
         const assessmentId = decodeURIComponent(req.url.slice('/api/admin/eligibility/'.length, -'/review'.length));
         const payload = await readJson(req);
         const assessment = await repository.updateEligibilityReview(assessmentId, {
@@ -95,7 +127,7 @@ function createApp({ config, repository }) {
       }
 
       if (req.method === 'PATCH' && req.url.startsWith('/api/admin/documents/') && req.url.endsWith('/status')) {
-        const admin = await authorizeAdmin(req, config, repository);
+        const admin = await authorizeAdmin(req, config, repository, ['ADMIN', 'REVIEWER']);
         const documentId = decodeURIComponent(req.url.slice('/api/admin/documents/'.length, -'/status'.length));
         const payload = await readJson(req);
         const document = await repository.updateDocumentStatus(documentId, {
@@ -107,7 +139,7 @@ function createApp({ config, repository }) {
       }
 
       if (req.method === 'POST' && req.url.startsWith('/api/admin/documents/') && req.url.endsWith('/open')) {
-        const admin = await authorizeAdmin(req, config, repository);
+        const admin = await authorizeAdmin(req, config, repository, ['ADMIN', 'REVIEWER', 'INTAKE', 'VIEWER']);
         const documentId = decodeURIComponent(req.url.slice('/api/admin/documents/'.length, -'/open'.length));
         const result = await repository.recordDocumentOpen(documentId, {
           actor: admin.username || 'ADMIN_UI',
@@ -117,7 +149,7 @@ function createApp({ config, repository }) {
       }
 
       if (req.method === 'PATCH' && req.url.startsWith('/api/admin/issues/') && req.url.endsWith('/review')) {
-        const admin = await authorizeAdmin(req, config, repository);
+        const admin = await authorizeAdmin(req, config, repository, ['ADMIN', 'REVIEWER']);
         const issueId = decodeURIComponent(req.url.slice('/api/admin/issues/'.length, -'/review'.length));
         const payload = await readJson(req);
         const issue = await repository.updateNormalizationIssueReview(issueId, {
@@ -130,7 +162,7 @@ function createApp({ config, repository }) {
       }
 
       if (req.method === 'POST' && req.url === '/api/admin/submissions/offline-json') {
-        const admin = await authorizeAdmin(req, config, repository);
+        const admin = await authorizeAdmin(req, config, repository, ['ADMIN', 'INTAKE']);
         const payload = await readJson(req);
         const offlinePayload = adminOfflineJsonPayload(payload, admin.username || 'ADMIN_UI');
         const imported = importOfflineJsonSubmission(offlinePayload, config);
@@ -140,7 +172,7 @@ function createApp({ config, repository }) {
       }
 
       if (req.method === 'POST' && req.url === '/api/admin/submissions/offline-manual') {
-        const admin = await authorizeAdmin(req, config, repository);
+        const admin = await authorizeAdmin(req, config, repository, ['ADMIN', 'INTAKE']);
         const payload = await readJson(req);
         const manualPayload = adminOfflineManualPayload(payload, admin.username || 'ADMIN_UI');
         const imported = importOfflineManualSubmission(manualPayload, config);
@@ -284,23 +316,34 @@ function authorize(req, config) {
   }
 }
 
-async function authorizeAdmin(req, config, repository) {
+async function authorizeAdmin(req, config, repository, roles = []) {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice('Bearer '.length) : '';
+  let admin = null;
   if (config.adminToken && secureTokenEquals(token, config.adminToken)) {
-    return { username: 'ADMIN_TOKEN', role: 'ADMIN' };
+    admin = { username: 'ADMIN_TOKEN', role: 'ADMIN' };
   }
 
   const sessionToken = sessionTokenFromRequest(req);
-  if (sessionToken && repository.findAdminSessionByTokenHash) {
+  if (!admin && sessionToken && repository.findAdminSessionByTokenHash) {
     const session = await repository.findAdminSessionByTokenHash(hash(sessionToken));
     if (session && session.active && !session.revoked_at && new Date(session.expires_at).getTime() > Date.now()) {
-      return {
+      admin = {
         username: session.username,
         role: session.role,
         admin_user_id: session.admin_user_id,
       };
     }
+  }
+
+  if (admin) {
+    if (roles.length && !roles.includes(admin.role)) {
+      const error = new Error('Insufficient role for this operation.');
+      error.statusCode = 403;
+      error.code = 'FORBIDDEN';
+      throw error;
+    }
+    return admin;
   }
 
   const error = new Error('Invalid or missing admin session.');

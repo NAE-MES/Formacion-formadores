@@ -95,6 +95,9 @@ Endpoints iniciales:
 - `PATCH /api/admin/documents/:document_id/status`
 - `POST /api/admin/documents/:document_id/open`
 - `PATCH /api/admin/issues/:normalization_issue_id/review`
+- `GET /api/admin/users`
+- `POST /api/admin/users`
+- `PATCH /api/admin/users/:username`
 
 Autenticacion:
 
@@ -190,6 +193,16 @@ Restricciones:
 - no convierte estados operativos en decisiones de admisibilidad,
   seleccion o ranking;
 - requiere sesion administrativa activa para leer o modificar datos.
+
+Roles administrativos:
+
+- `ADMIN`: gestiona usuarios y puede ejecutar todas las acciones operativas.
+- `REVIEWER`: revisa documentos, incidencias y admisibilidad preliminar.
+- `INTAKE`: registra entradas offline JSON/manual y consulta expedientes.
+- `VIEWER`: consulta expedientes y abre referencias documentales auditadas.
+
+Los endpoints de escritura validan rol en el backend; la UI solo oculta o
+deshabilita controles como ayuda operativa.
 
 Estados operativos de documentos:
 

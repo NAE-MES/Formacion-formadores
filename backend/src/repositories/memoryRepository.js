@@ -74,6 +74,12 @@ class MemoryRepository {
         .filter(item => item.status === 'BLOCKED_BY_MISSING_REQUIREMENTS').length,
       eligibility_review: Array.from(this.eligibilityAssessments.values())
         .filter(item => item.status === 'REQUIRES_MANUAL_REVIEW').length,
+      documents_needs_review: Array.from(this.documents.values())
+        .filter(item => item.status === 'NEEDS_REVIEW').length,
+      documents_rejected: Array.from(this.documents.values())
+        .filter(item => item.status === 'REJECTED').length,
+      open_issues: Array.from(this.issues.values())
+        .filter(item => ['OPEN', 'NEEDS_SOURCE_REVIEW'].includes(item.review_status || 'OPEN')).length,
     };
   }
 
@@ -90,6 +96,70 @@ class MemoryRepository {
 
   async findAdminUserByUsername(username) {
     return this.adminUsers.get(String(username || '').toLowerCase()) || null;
+  }
+
+  async listAdminUsers() {
+    return Array.from(this.adminUsers.values())
+      .sort((a, b) => a.username.localeCompare(b.username))
+      .map(sanitizeAdminUser);
+  }
+
+  async createAdminUser({ username, password, role, actor, reason }) {
+    validateAdminRole(role);
+    const normalizedUsername = String(username || '').trim().toLowerCase();
+    if (!normalizedUsername || !password) {
+      const error = new Error('Username and password are required.');
+      error.statusCode = 400;
+      error.code = 'INVALID_ADMIN_USER';
+      throw error;
+    }
+    if (this.adminUsers.has(normalizedUsername)) {
+      const error = new Error('Admin username already exists.');
+      error.statusCode = 409;
+      error.code = 'ADMIN_USER_EXISTS';
+      throw error;
+    }
+    const now = new Date().toISOString();
+    const user = {
+      admin_user_id: `admin_${normalizedUsername}`,
+      username: normalizedUsername,
+      password_hash: `plain:${password}`,
+      role,
+      active: true,
+      created_at: now,
+      updated_at: now,
+    };
+    this.adminUsers.set(user.username, user);
+    this.auditEvents.set(
+      `audit_${this.auditEvents.size + 1}`,
+      auditEvent('ADMIN_USER_CREATED', 'AdminUser', user.admin_user_id, actor, null, sanitizeAdminUser(user), reason),
+    );
+    return sanitizeAdminUser(user);
+  }
+
+  async updateAdminUser(username, { password, role, active, actor, reason }) {
+    if (role !== undefined) validateAdminRole(role);
+    const normalizedUsername = String(username || '').trim().toLowerCase();
+    const current = this.adminUsers.get(normalizedUsername);
+    if (!current) {
+      const error = new Error('Admin user not found.');
+      error.statusCode = 404;
+      error.code = 'NOT_FOUND';
+      throw error;
+    }
+    const updated = {
+      ...current,
+      role: role === undefined ? current.role : role,
+      active: active === undefined ? current.active : !!active,
+      password_hash: password ? `plain:${password}` : current.password_hash,
+      updated_at: new Date().toISOString(),
+    };
+    this.adminUsers.set(normalizedUsername, updated);
+    this.auditEvents.set(
+      `audit_${this.auditEvents.size + 1}`,
+      auditEvent('ADMIN_USER_UPDATED', 'AdminUser', updated.admin_user_id, actor, sanitizeAdminUser(current), sanitizeAdminUser(updated), reason),
+    );
+    return sanitizeAdminUser(updated);
   }
 
   async createAdminSession(adminUserId, tokenHash, expiresAt) {
@@ -145,6 +215,10 @@ class MemoryRepository {
           Array.from(this.eligibilityAssessments.values())
             .filter(item => item.submission_id === submission.submission_id)
         );
+        const documentStatuses = Array.from(new Set(documents.map(document => document.status))).sort();
+        const openIssueCount = issues.filter(issue =>
+          ['OPEN', 'NEEDS_SOURCE_REVIEW'].includes(issue.review_status || 'OPEN')
+        ).length;
 
         return {
           submission_id: submission.submission_id,
@@ -162,6 +236,8 @@ class MemoryRepository {
           received_at: submission.received_at,
           normalization_status: submission.normalization_status,
           eligibility_status: eligibility?.status || '',
+          document_statuses: documentStatuses.join(','),
+          open_issue_count: openIssueCount,
           issue_count: issues.length,
           document_count: documents.length,
         };
@@ -420,6 +496,26 @@ function sanitizeEligibilityAuditValue(assessment) {
 
 function latestEligibility(items) {
   return items.sort((a, b) => String(b.assessed_at).localeCompare(String(a.assessed_at)))[0] || null;
+}
+
+function sanitizeAdminUser(user) {
+  return {
+    admin_user_id: user.admin_user_id,
+    username: user.username,
+    role: user.role,
+    active: !!user.active,
+    created_at: user.created_at || '',
+    updated_at: user.updated_at || '',
+  };
+}
+
+function validateAdminRole(role) {
+  if (!['ADMIN', 'REVIEWER', 'INTAKE', 'VIEWER'].includes(role)) {
+    const error = new Error('Invalid admin role.');
+    error.statusCode = 400;
+    error.code = 'INVALID_ADMIN_ROLE';
+    throw error;
+  }
 }
 
 function rebindImportedSubmission(imported, submissionId) {

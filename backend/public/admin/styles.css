@@ -74,6 +74,12 @@ select {
   margin-bottom: 18px;
 }
 
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 h1 {
   margin: 0;
   font-size: 24px;
@@ -128,7 +134,7 @@ p {
 
 .stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(140px, 1fr));
+  grid-template-columns: repeat(8, minmax(120px, 1fr));
   gap: 10px;
 }
 
@@ -138,7 +144,7 @@ p {
 
 .stat strong {
   display: block;
-  font-size: 26px;
+  font-size: 22px;
   line-height: 1.1;
 }
 
@@ -148,8 +154,44 @@ p {
 
 .toolbar {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) 210px auto;
+  grid-template-columns: minmax(220px, 1fr) repeat(4, minmax(160px, 210px)) auto;
   gap: 10px;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tab {
+  min-height: 36px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+.tab.active {
+  border-color: var(--accent-dark);
+  background: var(--accent);
+  color: white;
+}
+
+.view {
+  display: none;
+}
+
+.view.active {
+  display: grid;
+  gap: 14px;
+}
+
+.intake-grid,
+.users-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
 }
 
 .import-panel {
@@ -188,6 +230,16 @@ p {
   color: var(--muted);
 }
 
+.user-table-wrap {
+  max-height: calc(100vh - 250px);
+}
+
+.user-actions {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) auto;
+  gap: 8px;
+}
+
 .content-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(360px, 470px);
@@ -203,7 +255,7 @@ p {
 table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 880px;
+  min-width: 1040px;
 }
 
 th,
@@ -351,7 +403,10 @@ tbody tr.selected {
   .stats,
   .toolbar,
   .content-grid,
-  .doc-grid {
+  .doc-grid,
+  .intake-grid,
+  .users-grid,
+  .user-actions {
     grid-template-columns: 1fr;
   }
 

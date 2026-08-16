@@ -215,6 +215,114 @@ class PostgresRepository {
     return result.rows[0] || null;
   }
 
+  async listAdminUsers() {
+    const result = await this.pool.query(
+      `select admin_user_id, username, role, active, created_at, updated_at
+       from admin_users
+       order by username`,
+    );
+    return result.rows;
+  }
+
+  async createAdminUser({ username, password, role, actor, reason }) {
+    validateAdminRole(role);
+    const normalizedUsername = normalizeUsername(username);
+    if (!normalizedUsername || !password) {
+      const error = new Error('Username and password are required.');
+      error.statusCode = 400;
+      error.code = 'INVALID_ADMIN_USER';
+      throw error;
+    }
+
+    const now = new Date().toISOString();
+    const adminUserId = `admin_${hash(`admin-user|${normalizedUsername}`)}`;
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const created = await client.query(
+        `insert into admin_users (
+          admin_user_id, username, password_hash, role, active, created_at, updated_at
+        ) values ($1,$2,$3,$4,true,$5,$5)
+        returning admin_user_id, username, role, active, created_at, updated_at`,
+        [adminUserId, normalizedUsername, hashPassword(password), role, now],
+      );
+      await insertAuditEvent(client, {
+        action: 'ADMIN_USER_CREATED',
+        entityType: 'AdminUser',
+        entityId: adminUserId,
+        actor,
+        previousValue: null,
+        newValue: sanitizeAdminUserAuditValue(created.rows[0]),
+        reason,
+      });
+      await client.query('COMMIT');
+      return created.rows[0];
+    } catch (error) {
+      await client.query('ROLLBACK');
+      if (error.code === '23505') {
+        const conflict = new Error('Admin username already exists.');
+        conflict.statusCode = 409;
+        conflict.code = 'ADMIN_USER_EXISTS';
+        throw conflict;
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async updateAdminUser(username, { password, role, active, actor, reason }) {
+    if (role !== undefined) validateAdminRole(role);
+    const normalizedUsername = normalizeUsername(username);
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const current = await client.query(
+        `select admin_user_id, username, role, active, created_at, updated_at
+         from admin_users
+         where username = $1
+         for update`,
+        [normalizedUsername],
+      );
+      if (current.rowCount === 0) {
+        const error = new Error('Admin user not found.');
+        error.statusCode = 404;
+        error.code = 'NOT_FOUND';
+        throw error;
+      }
+
+      const nextRole = role === undefined ? current.rows[0].role : role;
+      const nextActive = active === undefined ? current.rows[0].active : !!active;
+      const now = new Date().toISOString();
+      const updated = await client.query(
+        `update admin_users
+         set role = $2,
+           active = $3,
+           password_hash = case when $4 = '' then password_hash else $4 end,
+           updated_at = $5
+         where username = $1
+         returning admin_user_id, username, role, active, created_at, updated_at`,
+        [normalizedUsername, nextRole, nextActive, password ? hashPassword(password) : '', now],
+      );
+      await insertAuditEvent(client, {
+        action: 'ADMIN_USER_UPDATED',
+        entityType: 'AdminUser',
+        entityId: updated.rows[0].admin_user_id,
+        actor,
+        previousValue: sanitizeAdminUserAuditValue(current.rows[0]),
+        newValue: sanitizeAdminUserAuditValue(updated.rows[0]),
+        reason,
+      });
+      await client.query('COMMIT');
+      return updated.rows[0];
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async createAdminSession(adminUserId, tokenHash, expiresAt) {
     const now = new Date().toISOString();
     const sessionId = `sess_${hash(`session|${adminUserId}|${tokenHash}|${now}`)}`;
@@ -304,7 +412,10 @@ class PostgresRepository {
         (select count(*)::int from eligibility_assessments) as eligibility_assessments,
         (select count(*)::int from eligibility_assessments where status = 'READY_FOR_TECHNICAL_REVIEW') as eligibility_ready,
         (select count(*)::int from eligibility_assessments where status = 'BLOCKED_BY_MISSING_REQUIREMENTS') as eligibility_blocked,
-        (select count(*)::int from eligibility_assessments where status = 'REQUIRES_MANUAL_REVIEW') as eligibility_review
+        (select count(*)::int from eligibility_assessments where status = 'REQUIRES_MANUAL_REVIEW') as eligibility_review,
+        (select count(*)::int from documents where status = 'NEEDS_REVIEW') as documents_needs_review,
+        (select count(*)::int from documents where status = 'REJECTED') as documents_rejected,
+        (select count(*)::int from normalization_issues where review_status in ('OPEN', 'NEEDS_SOURCE_REVIEW')) as open_issues
     `);
     return result.rows[0];
   }
@@ -327,6 +438,8 @@ class PostgresRepository {
         s.received_at,
         s.normalization_status,
         ea.status as eligibility_status,
+        string_agg(distinct d.status, ',' order by d.status) as document_statuses,
+        count(distinct case when ni.review_status in ('OPEN', 'NEEDS_SOURCE_REVIEW') then ni.normalization_issue_id end)::int as open_issue_count,
         count(distinct ni.normalization_issue_id)::int as issue_count,
         count(distinct d.document_id)::int as document_count
       from submissions s
@@ -954,6 +1067,25 @@ function sanitizeEligibilityAuditValue(assessment) {
     reviewed_at: assessment.reviewed_at || null,
     reviewed_by: assessment.reviewed_by || '',
   };
+}
+
+function sanitizeAdminUserAuditValue(user) {
+  return {
+    admin_user_id: user.admin_user_id,
+    username: user.username,
+    role: user.role,
+    active: !!user.active,
+    updated_at: user.updated_at || null,
+  };
+}
+
+function validateAdminRole(role) {
+  if (!['ADMIN', 'REVIEWER', 'INTAKE', 'VIEWER'].includes(role)) {
+    const error = new Error('Invalid admin role.');
+    error.statusCode = 400;
+    error.code = 'INVALID_ADMIN_ROLE';
+    throw error;
+  }
 }
 
 function hash(value) {

@@ -14,7 +14,13 @@ const table = document.querySelector('#submissionsTable');
 const detailPanel = document.querySelector('#detailPanel');
 const searchInput = document.querySelector('#searchInput');
 const statusFilter = document.querySelector('#statusFilter');
+const eligibilityFilter = document.querySelector('#eligibilityFilter');
+const originFilter = document.querySelector('#originFilter');
+const workFilter = document.querySelector('#workFilter');
 const refreshButton = document.querySelector('#refreshButton');
+const currentUserBadge = document.querySelector('#currentUserBadge');
+const tabs = Array.from(document.querySelectorAll('[data-view]'));
+const views = Array.from(document.querySelectorAll('.view'));
 const offlineJsonForm = document.querySelector('#offlineJsonForm');
 const offlineSourceReference = document.querySelector('#offlineSourceReference');
 const offlineJsonPayload = document.querySelector('#offlineJsonPayload');
@@ -32,6 +38,12 @@ const manualCartaRef = document.querySelector('#manualCartaRef');
 const manualCvName = document.querySelector('#manualCvName');
 const manualCvRef = document.querySelector('#manualCvRef');
 const manualImportResult = document.querySelector('#manualImportResult');
+const userForm = document.querySelector('#userForm');
+const usersTable = document.querySelector('#usersTable');
+const newUsername = document.querySelector('#newUsername');
+const newPassword = document.querySelector('#newPassword');
+const newRole = document.querySelector('#newRole');
+const userFormResult = document.querySelector('#userFormResult');
 
 loginForm.addEventListener('submit', async event => {
   event.preventDefault();
@@ -64,8 +76,13 @@ logoutButton.addEventListener('click', async () => {
 refreshButton.addEventListener('click', loadData);
 searchInput.addEventListener('input', renderTable);
 statusFilter.addEventListener('change', renderTable);
+eligibilityFilter.addEventListener('change', renderTable);
+originFilter.addEventListener('change', renderTable);
+workFilter.addEventListener('change', renderTable);
 offlineJsonForm.addEventListener('submit', importOfflineJson);
 offlineManualForm.addEventListener('submit', importOfflineManual);
+userForm.addEventListener('submit', createUser);
+tabs.forEach(tab => tab.addEventListener('click', () => showView(tab.dataset.view)));
 
 boot();
 
@@ -80,12 +97,12 @@ async function boot() {
 
   try {
     await loadData();
+    applyRoleUi();
     loginPanel.hidden = true;
     appPanel.hidden = false;
     logoutButton.hidden = false;
     loginError.textContent = '';
   } catch (error) {
-    sessionStorage.removeItem(tokenKey);
     showLogin(error.message);
   }
 }
@@ -94,6 +111,7 @@ function showLogin(message = '') {
   loginPanel.hidden = false;
   appPanel.hidden = true;
   logoutButton.hidden = true;
+  currentUserBadge.hidden = true;
   loginError.textContent = message;
   usernameInput.focus();
 }
@@ -107,6 +125,28 @@ async function loadData() {
   renderStats(summary);
   renderTable();
   if (selectedId) await selectSubmission(selectedId);
+  if (currentUser?.role === 'ADMIN') await loadUsers();
+}
+
+function applyRoleUi() {
+  currentUserBadge.hidden = false;
+  currentUserBadge.textContent = `${currentUser.username} - ${currentUser.role}`;
+  const canIntake = hasRole('ADMIN', 'INTAKE');
+  const canManageUsers = hasRole('ADMIN');
+  document.querySelector('[data-view="intake"]').hidden = !canIntake;
+  document.querySelector('[data-view="users"]').hidden = !canManageUsers;
+  if (!canIntake && document.querySelector('#view-intake').classList.contains('active')) showView('submissions');
+  if (!canManageUsers && document.querySelector('#view-users').classList.contains('active')) showView('submissions');
+}
+
+function hasRole(...roles) {
+  return roles.includes(currentUser?.role);
+}
+
+function showView(name) {
+  tabs.forEach(tab => tab.classList.toggle('active', tab.dataset.view === name));
+  views.forEach(view => view.classList.toggle('active', view.id === `view-${name}`));
+  if (name === 'users' && currentUser?.role === 'ADMIN') loadUsers();
 }
 
 async function api(url, options = {}) {
@@ -232,13 +272,93 @@ function manualDocumentsFromForm() {
   ].filter(document => document.original_name || document.storage_reference);
 }
 
+async function loadUsers() {
+  if (!hasRole('ADMIN')) return;
+  const response = await api('/api/admin/users');
+  renderUsers(response.users || []);
+}
+
+function renderUsers(users) {
+  usersTable.innerHTML = users.map(user => `
+    <tr>
+      <td><strong>${escapeHtml(user.username)}</strong><br><span class="muted">${escapeHtml(user.admin_user_id)}</span></td>
+      <td>
+        <select data-user-role="${escapeHtml(user.username)}">
+          ${roleOptions(user.role)}
+        </select>
+      </td>
+      <td>
+        <select data-user-active="${escapeHtml(user.username)}">
+          <option value="true" ${user.active ? 'selected' : ''}>Activo</option>
+          <option value="false" ${!user.active ? 'selected' : ''}>Inactivo</option>
+        </select>
+      </td>
+      <td>
+        <div class="user-actions">
+          <input data-user-password="${escapeHtml(user.username)}" type="password" placeholder="Nueva contrasena">
+          <button class="compact" type="button" data-user-save="${escapeHtml(user.username)}">Guardar</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+
+  usersTable.querySelectorAll('[data-user-save]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const username = button.dataset.userSave;
+      const role = usersTable.querySelector(`[data-user-role="${cssEscape(username)}"]`).value;
+      const active = usersTable.querySelector(`[data-user-active="${cssEscape(username)}"]`).value === 'true';
+      const password = usersTable.querySelector(`[data-user-password="${cssEscape(username)}"]`).value;
+      await api(`/api/admin/users/${encodeURIComponent(username)}`, {
+        method: 'PATCH',
+        body: {
+          role,
+          active,
+          password,
+          reason: 'Admin user management update',
+        },
+      });
+      await loadUsers();
+    });
+  });
+}
+
+async function createUser(event) {
+  event.preventDefault();
+  userFormResult.textContent = '';
+  try {
+    await api('/api/admin/users', {
+      method: 'POST',
+      body: {
+        username: newUsername.value.trim(),
+        password: newPassword.value,
+        role: newRole.value,
+        reason: 'Admin user created from UI',
+      },
+    });
+    userForm.reset();
+    userFormResult.textContent = 'Usuario creado.';
+    await loadUsers();
+  } catch (error) {
+    userFormResult.textContent = error.message;
+  }
+}
+
+function roleOptions(selected) {
+  return ['ADMIN', 'REVIEWER', 'INTAKE', 'VIEWER']
+    .map(role => `<option value="${role}" ${role === selected ? 'selected' : ''}>${role}</option>`)
+    .join('');
+}
+
 function renderStats(summary) {
   const items = [
     ['Postulantes', summary.candidates],
     ['Postulaciones', summary.submissions],
     ['Documentos', summary.documents],
-    ['Incidencias', summary.normalization_issues],
+    ['Incidencias abiertas', summary.open_issues || 0],
     ['Listas revision', summary.eligibility_ready || 0],
+    ['Bloqueadas', summary.eligibility_blocked || 0],
+    ['Rev. manual', summary.eligibility_review || 0],
+    ['Docs rev.', summary.documents_needs_review || 0],
   ];
   stats.innerHTML = items.map(([label, value]) => `
     <div class="stat">
@@ -251,8 +371,19 @@ function renderStats(summary) {
 function renderTable() {
   const query = normalize(searchInput.value);
   const status = statusFilter.value;
+  const eligibility = eligibilityFilter.value;
+  const origin = originFilter.value;
+  const work = workFilter.value;
   const filtered = submissions.filter(item => {
     const matchesStatus = !status || item.normalization_status === status;
+    const itemEligibility = item.eligibility_status || 'SIN_EVALUAR';
+    const matchesEligibility = !eligibility || itemEligibility === eligibility;
+    const matchesOrigin = !origin || item.source_channel === origin;
+    const docStatuses = String(item.document_statuses || '').split(',').filter(Boolean);
+    const matchesWork = !work ||
+      (work === 'OPEN_ISSUES' && Number(item.open_issue_count || item.issue_count || 0) > 0) ||
+      (work === 'DOCS_NEED_REVIEW' && docStatuses.includes('NEEDS_REVIEW')) ||
+      (work === 'DOCS_REJECTED' && docStatuses.includes('REJECTED'));
     const haystack = normalize([
       item.full_name,
       item.email,
@@ -261,7 +392,7 @@ function renderTable() {
       item.candidate_id,
       item.source_channel,
     ].join(' '));
-    return matchesStatus && (!query || haystack.includes(query));
+    return matchesStatus && matchesEligibility && matchesOrigin && matchesWork && (!query || haystack.includes(query));
   });
 
   table.innerHTML = filtered.map(item => `
@@ -272,8 +403,8 @@ function renderTable() {
       <td><span class="badge">${escapeHtml(item.source_channel)}</span></td>
       <td>${statusBadge(item.normalization_status)}</td>
       <td>${eligibilityBadge(item.eligibility_status)}</td>
-      <td>${escapeHtml(item.document_count)}</td>
-      <td>${escapeHtml(item.issue_count)}</td>
+      <td>${documentSummary(item)}</td>
+      <td>${issueSummary(item)}</td>
     </tr>
   `).join('');
 
@@ -413,6 +544,11 @@ function documentLink(document) {
 }
 
 function bindDetailActions() {
+  if (!hasRole('ADMIN', 'REVIEWER')) {
+    detailPanel.querySelectorAll('button[data-document-save], button[data-issue-save], button[data-eligibility-save], button[data-eligibility-recalculate]')
+      .forEach(button => button.disabled = true);
+  }
+
   detailPanel.querySelectorAll('[data-document-save]').forEach(button => {
     button.addEventListener('click', async () => {
       const documentId = button.dataset.documentSave;
@@ -529,6 +665,21 @@ function renderAuditEvents(events) {
 function statusBadge(status) {
   const cls = status === 'NORMALIZED' ? 'ok' : 'warn';
   return `<span class="badge ${cls}">${escapeHtml(status || '')}</span>`;
+}
+
+function documentSummary(item) {
+  const statuses = String(item.document_statuses || '').split(',').filter(Boolean);
+  const flags = statuses.map(status => {
+    const cls = status === 'REJECTED' ? 'bad' : status === 'NEEDS_REVIEW' ? 'warn' : 'ok';
+    return `<span class="badge ${cls}">${escapeHtml(status)}</span>`;
+  }).join(' ');
+  return `${escapeHtml(item.document_count)} ${flags}`;
+}
+
+function issueSummary(item) {
+  const open = Number(item.open_issue_count || 0);
+  if (!open) return escapeHtml(item.issue_count);
+  return `${escapeHtml(item.issue_count)} <span class="badge warn">${escapeHtml(open)} abiertas</span>`;
 }
 
 function eligibilityBadge(status) {

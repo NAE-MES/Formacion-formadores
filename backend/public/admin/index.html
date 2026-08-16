@@ -13,7 +13,10 @@
           <h1>FdF 2026</h1>
           <p>Sistema de postulaciones</p>
         </div>
-        <button id="logoutButton" class="ghost" type="button" hidden>Cerrar sesion</button>
+        <div class="top-actions">
+          <span id="currentUserBadge" class="badge" hidden></span>
+          <button id="logoutButton" class="ghost" type="button" hidden>Cerrar sesion</button>
+        </div>
       </section>
 
       <section id="loginPanel" class="login-panel">
@@ -32,82 +35,42 @@
       <section id="appPanel" class="workspace" hidden>
         <div class="stats" id="stats"></div>
 
+        <nav class="tabs" aria-label="Vistas administrativas">
+          <button class="tab active" type="button" data-view="submissions">Postulaciones</button>
+          <button class="tab" type="button" data-view="intake">Entrada offline</button>
+          <button class="tab" type="button" data-view="users">Usuarios</button>
+        </nav>
+
+        <section id="view-submissions" class="view active">
         <div class="toolbar">
           <input id="searchInput" type="search" placeholder="Buscar por nombre, correo, provincia o ID">
           <select id="statusFilter">
-            <option value="">Todos los estados</option>
+            <option value="">Normalización</option>
             <option value="NORMALIZED">NORMALIZED</option>
             <option value="WITH_ISSUES">WITH_ISSUES</option>
             <option value="REJECTED">REJECTED</option>
           </select>
+          <select id="eligibilityFilter">
+            <option value="">Admisibilidad</option>
+            <option value="READY_FOR_TECHNICAL_REVIEW">READY_FOR_TECHNICAL_REVIEW</option>
+            <option value="BLOCKED_BY_MISSING_REQUIREMENTS">BLOCKED_BY_MISSING_REQUIREMENTS</option>
+            <option value="REQUIRES_MANUAL_REVIEW">REQUIRES_MANUAL_REVIEW</option>
+            <option value="SIN_EVALUAR">SIN_EVALUAR</option>
+          </select>
+          <select id="originFilter">
+            <option value="">Origen</option>
+            <option value="GOOGLE_FORM">GOOGLE_FORM</option>
+            <option value="OFFLINE_JSON">OFFLINE_JSON</option>
+            <option value="OFFLINE_MANUAL">OFFLINE_MANUAL</option>
+          </select>
+          <select id="workFilter">
+            <option value="">Trabajo pendiente</option>
+            <option value="OPEN_ISSUES">Incidencias abiertas</option>
+            <option value="DOCS_NEED_REVIEW">Documentos en revisión</option>
+            <option value="DOCS_REJECTED">Documentos rechazados</option>
+          </select>
           <button id="refreshButton" type="button">Actualizar</button>
         </div>
-
-        <details class="import-panel">
-          <summary>Importar JSON offline</summary>
-          <form id="offlineJsonForm" class="offline-form">
-            <label for="offlineSourceReference">Referencia</label>
-            <input id="offlineSourceReference" type="text" placeholder="correo-2026-08-16-001">
-            <label for="offlineJsonPayload">JSON</label>
-            <textarea id="offlineJsonPayload" rows="9" spellcheck="false" required></textarea>
-            <div class="doc-grid">
-              <label>
-                Carta Aval
-                <input id="offlineCartaName" type="text" placeholder="Nombre del archivo">
-              </label>
-              <label>
-                Referencia Carta Aval
-                <input id="offlineCartaRef" type="text" placeholder="drive://, ruta o URL">
-              </label>
-              <label>
-                Currículum Vitae
-                <input id="offlineCvName" type="text" placeholder="Nombre del archivo">
-              </label>
-              <label>
-                Referencia CV
-                <input id="offlineCvRef" type="text" placeholder="drive://, ruta o URL">
-              </label>
-            </div>
-            <div class="action-row single">
-              <button type="submit">Importar</button>
-            </div>
-            <p id="offlineImportResult" class="muted"></p>
-          </form>
-        </details>
-
-        <details class="import-panel">
-          <summary>Registrar offline manual</summary>
-          <form id="offlineManualForm" class="offline-form">
-            <label for="manualSourceReference">Referencia</label>
-            <input id="manualSourceReference" type="text" placeholder="correo-manual-2026-08-16-001">
-            <label for="manualRegistrationNote">Nota de registro</label>
-            <input id="manualRegistrationNote" type="text" placeholder="Formulario recibido por correo sin JSON">
-            <label for="manualResponsesPayload">Respuestas por código FDF</label>
-            <textarea id="manualResponsesPayload" rows="9" spellcheck="false" required></textarea>
-            <div class="doc-grid">
-              <label>
-                Carta Aval
-                <input id="manualCartaName" type="text" placeholder="Nombre del archivo">
-              </label>
-              <label>
-                Referencia Carta Aval
-                <input id="manualCartaRef" type="text" placeholder="drive://, ruta o URL">
-              </label>
-              <label>
-                Currículum Vitae
-                <input id="manualCvName" type="text" placeholder="Nombre del archivo">
-              </label>
-              <label>
-                Referencia CV
-                <input id="manualCvRef" type="text" placeholder="drive://, ruta o URL">
-              </label>
-            </div>
-            <div class="action-row single">
-              <button type="submit">Registrar</button>
-            </div>
-            <p id="manualImportResult" class="muted"></p>
-          </form>
-        </details>
 
         <section class="content-grid">
           <div class="table-wrap">
@@ -131,6 +94,111 @@
           <aside class="detail" id="detailPanel">
             <p class="muted">Seleccione una postulacion.</p>
           </aside>
+        </section>
+        </section>
+
+        <section id="view-intake" class="view">
+          <div class="intake-grid">
+            <details class="import-panel" open>
+              <summary>Importar JSON offline</summary>
+              <form id="offlineJsonForm" class="offline-form">
+                <label for="offlineSourceReference">Referencia</label>
+                <input id="offlineSourceReference" type="text" placeholder="correo-2026-08-16-001">
+                <label for="offlineJsonPayload">JSON</label>
+                <textarea id="offlineJsonPayload" rows="9" spellcheck="false" required></textarea>
+                <div class="doc-grid">
+                  <label>
+                    Carta Aval
+                    <input id="offlineCartaName" type="text" placeholder="Nombre del archivo">
+                  </label>
+                  <label>
+                    Referencia Carta Aval
+                    <input id="offlineCartaRef" type="text" placeholder="drive://, ruta o URL">
+                  </label>
+                  <label>
+                    Currículum Vitae
+                    <input id="offlineCvName" type="text" placeholder="Nombre del archivo">
+                  </label>
+                  <label>
+                    Referencia CV
+                    <input id="offlineCvRef" type="text" placeholder="drive://, ruta o URL">
+                  </label>
+                </div>
+                <div class="action-row single">
+                  <button type="submit">Importar</button>
+                </div>
+                <p id="offlineImportResult" class="muted"></p>
+              </form>
+            </details>
+
+            <details class="import-panel" open>
+              <summary>Registrar offline manual</summary>
+              <form id="offlineManualForm" class="offline-form">
+                <label for="manualSourceReference">Referencia</label>
+                <input id="manualSourceReference" type="text" placeholder="correo-manual-2026-08-16-001">
+                <label for="manualRegistrationNote">Nota de registro</label>
+                <input id="manualRegistrationNote" type="text" placeholder="Formulario recibido por correo sin JSON">
+                <label for="manualResponsesPayload">Respuestas por código FDF</label>
+                <textarea id="manualResponsesPayload" rows="9" spellcheck="false" required></textarea>
+                <div class="doc-grid">
+                  <label>
+                    Carta Aval
+                    <input id="manualCartaName" type="text" placeholder="Nombre del archivo">
+                  </label>
+                  <label>
+                    Referencia Carta Aval
+                    <input id="manualCartaRef" type="text" placeholder="drive://, ruta o URL">
+                  </label>
+                  <label>
+                    Currículum Vitae
+                    <input id="manualCvName" type="text" placeholder="Nombre del archivo">
+                  </label>
+                  <label>
+                    Referencia CV
+                    <input id="manualCvRef" type="text" placeholder="drive://, ruta o URL">
+                  </label>
+                </div>
+                <div class="action-row single">
+                  <button type="submit">Registrar</button>
+                </div>
+                <p id="manualImportResult" class="muted"></p>
+              </form>
+            </details>
+          </div>
+        </section>
+
+        <section id="view-users" class="view">
+          <div class="users-grid">
+            <form id="userForm" class="import-panel offline-form">
+              <h2>Nuevo usuario</h2>
+              <label for="newUsername">Usuario</label>
+              <input id="newUsername" type="text" autocomplete="off" required>
+              <label for="newPassword">Contrasena inicial</label>
+              <input id="newPassword" type="password" autocomplete="new-password" required>
+              <label for="newRole">Rol</label>
+              <select id="newRole">
+                <option value="REVIEWER">REVIEWER</option>
+                <option value="INTAKE">INTAKE</option>
+                <option value="VIEWER">VIEWER</option>
+                <option value="ADMIN">ADMIN</option>
+              </select>
+              <button type="submit">Crear usuario</button>
+              <p id="userFormResult" class="muted"></p>
+            </form>
+            <div class="table-wrap user-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Usuario</th>
+                    <th>Rol</th>
+                    <th>Activo</th>
+                    <th>Actualizar</th>
+                  </tr>
+                </thead>
+                <tbody id="usersTable"></tbody>
+              </table>
+            </div>
+          </div>
         </section>
       </section>
     </main>

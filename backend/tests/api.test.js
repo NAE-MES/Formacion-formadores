@@ -117,6 +117,12 @@ function adminJsonRequest(port, method, url, body, token = 'admin-token') {
   return request(port, method, url, body, token);
 }
 
+async function loginCookie(port, username, password) {
+  const login = await request(port, 'POST', '/api/auth/login', { username, password }, '');
+  assert.equal(login.statusCode, 200);
+  return login.headers['set-cookie'][0].split(';')[0];
+}
+
 test('health endpoint works without auth', async (t) => {
   await withServer(t, async ({ port }) => {
     const response = await request(port, 'GET', '/health', undefined, '');
@@ -201,6 +207,59 @@ test('admin login rejects invalid credentials', async (t) => {
     assert.equal(login.statusCode, 401);
     assert.equal(login.body.error, 'UNAUTHORIZED');
   });
+});
+
+test('admin API manages users and enforces admin-only user management', async (t) => {
+  await withServer(t, async ({ port }) => {
+    const created = await adminJsonRequest(port, 'POST', '/api/admin/users', {
+      username: 'reviewer',
+      password: 'reviewer-password',
+      role: 'REVIEWER',
+    });
+    assert.equal(created.statusCode, 201);
+    assert.equal(created.body.user.username, 'reviewer');
+    assert.equal(created.body.user.role, 'REVIEWER');
+    assert.equal(created.body.user.password_hash, undefined);
+
+    const reviewerCookie = await loginCookie(port, 'reviewer', 'reviewer-password');
+    const forbidden = await requestWithHeaders(port, 'GET', '/api/admin/users', undefined, { cookie: reviewerCookie });
+    assert.equal(forbidden.statusCode, 403);
+
+    const updated = await adminJsonRequest(port, 'PATCH', '/api/admin/users/reviewer', {
+      role: 'VIEWER',
+      active: false,
+    });
+    assert.equal(updated.statusCode, 200);
+    assert.equal(updated.body.user.role, 'VIEWER');
+    assert.equal(updated.body.user.active, false);
+  });
+});
+
+test('role permissions separate intake and review operations', async (t) => {
+  await withServer(t, async ({ port, repository }) => {
+    const adminCookie = await loginCookie(port, 'admin', 'admin-password');
+    const created = await requestWithHeaders(port, 'POST', '/api/admin/users', {
+      username: 'intake',
+      password: 'intake-password',
+      role: 'INTAKE',
+    }, { cookie: adminCookie, 'content-type': 'application/json' });
+    assert.equal(created.statusCode, 201);
+    const intakeCookie = await loginCookie(port, 'intake', 'intake-password');
+
+    const imported = await requestWithHeaders(port, 'POST', '/api/admin/submissions/offline-manual', {
+      sourceReference: 'role-intake-manual',
+      responses: validResponses(),
+      documents: requiredDocuments(),
+    }, { cookie: intakeCookie, 'content-type': 'application/json' });
+    assert.equal(imported.statusCode, 201);
+    assert.equal(imported.body.status, 'IMPORTED');
+
+    const documentId = Array.from(repository.documents.values())[0].document_id;
+    const forbidden = await requestWithHeaders(port, 'PATCH', `/api/admin/documents/${documentId}/status`, {
+      status: 'VALIDATED',
+    }, { cookie: intakeCookie, 'content-type': 'application/json' });
+    assert.equal(forbidden.statusCode, 403);
+  }, { adminToken: '' });
 });
 
 test('ingests Google Form API payload and preserves raw data', async (t) => {

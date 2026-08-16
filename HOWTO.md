@@ -244,6 +244,20 @@ El sistema aplicara las mismas validaciones del modelo comun. Si faltan campos
 obligatorios o hay opciones invalidas, la postulacion quedara con incidencias
 para revision.
 
+## 6.5 Usuarios y roles
+
+Entrar como `ADMIN` y abrir **Usuarios**.
+
+Roles disponibles:
+
+- `ADMIN`: usuarios, entrada offline, revision y consulta.
+- `REVIEWER`: revision documental, incidencias y admisibilidad.
+- `INTAKE`: entrada offline JSON/manual y consulta.
+- `VIEWER`: solo consulta y apertura auditada de documentos.
+
+Para desactivar un usuario, cambiar `Activo` a `Inactivo` y guardar. Para
+cambiar contrasena, escribir una nueva en la fila del usuario y guardar.
+
 ## 7. Generar Google Forms
 
 Seleccionar la función:
