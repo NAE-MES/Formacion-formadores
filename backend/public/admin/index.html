@@ -45,6 +45,8 @@
         <nav class="tabs" aria-label="Vistas administrativas">
           <button class="tab active" type="button" data-view="submissions">Expedientes</button>
           <button class="tab" type="button" data-view="review">Seguimiento</button>
+          <button class="tab" type="button" data-view="documents">Documentos</button>
+          <button class="tab" type="button" data-view="matrix">Matriz técnica</button>
           <button class="tab" type="button" data-view="intake">Entrada offline</button>
           <button class="tab" type="button" data-view="users">Usuarios</button>
         </nav>
@@ -151,6 +153,72 @@
                 </tr>
               </thead>
               <tbody id="reviewSummaryTable"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="view-documents" class="view">
+          <div class="toolbar document-toolbar">
+            <input id="documentSearchInput" type="search" placeholder="Buscar postulante, correo o provincia">
+            <select id="documentStatusFilter">
+              <option value="">Estado documental</option>
+              <option value="MISSING">No recibido</option>
+              <option value="RECEIVED">Recibido</option>
+              <option value="NEEDS_REVIEW">Necesita revisión</option>
+              <option value="VALIDATED">Validado</option>
+              <option value="REJECTED">Rechazado</option>
+            </select>
+            <select id="documentOriginFilter">
+              <option value="">Origen</option>
+              <option value="GOOGLE_FORM">Formulario en línea</option>
+              <option value="OFFLINE_JSON">Offline con JSON</option>
+              <option value="OFFLINE_MANUAL">Offline manual</option>
+            </select>
+            <button id="clearDocumentFiltersButton" class="ghost" type="button">Limpiar</button>
+          </div>
+          <p id="documentReviewCount" class="result-count"></p>
+          <div class="table-wrap wide-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Postulante</th>
+                  <th>Provincia</th>
+                  <th>Origen</th>
+                  <th>Carta aval</th>
+                  <th>Currículum vitae</th>
+                  <th>Admisibilidad</th>
+                  <th>Recibido</th>
+                </tr>
+              </thead>
+              <tbody id="documentReviewTable"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="view-matrix" class="view">
+          <div class="toolbar matrix-toolbar">
+            <input id="matrixSearchInput" type="search" placeholder="Buscar en matriz técnica">
+            <select id="matrixEvaluationFilter">
+              <option value="">Evaluación</option>
+              <option value="NOT_STARTED">No iniciada</option>
+              <option value="IN_PROGRESS">En curso</option>
+              <option value="COMPLETED">Completada</option>
+              <option value="NEEDS_REVIEW">Necesita revisión</option>
+            </select>
+            <select id="matrixEligibilityFilter">
+              <option value="">Admisibilidad</option>
+              <option value="READY_FOR_TECHNICAL_REVIEW">Lista para revisión técnica</option>
+              <option value="BLOCKED_BY_MISSING_REQUIREMENTS">Bloqueada por requisitos</option>
+              <option value="REQUIRES_MANUAL_REVIEW">Requiere revisión manual</option>
+              <option value="SIN_EVALUAR">Sin evaluar</option>
+            </select>
+            <button id="clearMatrixFiltersButton" class="ghost" type="button">Limpiar</button>
+          </div>
+          <p id="evaluationMatrixCount" class="result-count"></p>
+          <div class="table-wrap matrix-wrap">
+            <table>
+              <thead id="evaluationMatrixHead"></thead>
+              <tbody id="evaluationMatrixTable"></tbody>
             </table>
           </div>
         </section>

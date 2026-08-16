@@ -481,6 +481,41 @@ test('admin API exports operational review summary as JSON and CSV', async (t) =
   });
 });
 
+test('admin API exposes document review and technical evaluation matrix views', async (t) => {
+  await withServer(t, async ({ port }) => {
+    await request(port, 'POST', '/api/submissions/google-form', {
+      sourceReference: 'google-response-matrix-views',
+      responses: validResponses(),
+      documents: requiredDocuments(),
+    });
+    const list = await adminRequest(port, 'GET', '/api/admin/submissions');
+    const submissionId = list.body.submissions[0].submission_id;
+    await adminJsonRequest(
+      port,
+      'PUT',
+      `/api/admin/submissions/${submissionId}/evaluation/criteria/INSTITUTIONAL_LINK`,
+      {
+        status: 'COMPLETED',
+        score: 80,
+        evidence_summary: 'Sintesis operativa.',
+      },
+    );
+
+    const documents = await adminRequest(port, 'GET', '/api/admin/document-review');
+    assert.equal(documents.statusCode, 200);
+    assert.equal(documents.body.rows.length, 1);
+    assert.equal(documents.body.rows[0].carta_aval_status, 'RECEIVED');
+    assert.equal(documents.body.rows[0].curriculum_status, 'RECEIVED');
+
+    const matrix = await adminRequest(port, 'GET', '/api/admin/evaluation-matrix');
+    assert.equal(matrix.statusCode, 200);
+    assert.equal(matrix.body.criteria.length, 4);
+    assert.equal(matrix.body.rows.length, 1);
+    assert.equal(matrix.body.rows[0].evaluation_status, 'IN_PROGRESS');
+    assert.equal(matrix.body.rows[0].criteria[0].criterion_id, 'INSTITUTIONAL_LINK');
+  });
+});
+
 test('technical evaluation requires review role and validates inputs', async (t) => {
   await withServer(t, async ({ port }) => {
     const adminCookie = await loginCookie(port, 'admin', 'admin-password');

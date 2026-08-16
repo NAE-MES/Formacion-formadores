@@ -117,6 +117,19 @@ function createApp({ config, repository }) {
         return sendJson(res, 200, { summaries: await repository.listReviewSummaries() });
       }
 
+      if (req.method === 'GET' && req.url === '/api/admin/document-review') {
+        await authorizeAdmin(req, config, repository);
+        return sendJson(res, 200, { rows: await repository.listDocumentReviewRows() });
+      }
+
+      if (req.method === 'GET' && req.url === '/api/admin/evaluation-matrix') {
+        await authorizeAdmin(req, config, repository);
+        return sendJson(res, 200, {
+          criteria: criteriaFromConfig(config.evaluationConfig),
+          rows: await repository.listEvaluationMatrixRows(),
+        });
+      }
+
       if (req.method === 'GET' && req.url === '/api/admin/review-summary.csv') {
         await authorizeAdmin(req, config, repository);
         return sendCsv(res, 'fdf-2026-review-summary.csv', reviewSummaryCsv(await repository.listReviewSummaries()));

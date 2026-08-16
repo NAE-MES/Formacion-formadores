@@ -1,5 +1,8 @@
 let submissions = [];
 let reviewSummaries = [];
+let documentReviewRows = [];
+let evaluationMatrixRows = [];
+let matrixCriteria = [];
 let selectedId = '';
 let selectedDetail = null;
 let currentUser = null;
@@ -38,6 +41,7 @@ const LABELS = {
     VALIDATED: 'Validado',
     REJECTED: 'Rechazado',
     NEEDS_REVIEW: 'Necesita revisión',
+    MISSING: 'No recibido',
     CARTA_AVAL: 'Carta aval',
     CURRICULUM_VITAE: 'Currículum vitae',
     FORMULARIO_OFFLINE: 'Formulario offline',
@@ -98,6 +102,19 @@ const exportReviewCsvButton = document.querySelector('#exportReviewCsvButton');
 const clearReviewFiltersButton = document.querySelector('#clearReviewFiltersButton');
 const reviewSummaryTable = document.querySelector('#reviewSummaryTable');
 const reviewCount = document.querySelector('#reviewCount');
+const documentSearchInput = document.querySelector('#documentSearchInput');
+const documentStatusFilter = document.querySelector('#documentStatusFilter');
+const documentOriginFilter = document.querySelector('#documentOriginFilter');
+const clearDocumentFiltersButton = document.querySelector('#clearDocumentFiltersButton');
+const documentReviewTable = document.querySelector('#documentReviewTable');
+const documentReviewCount = document.querySelector('#documentReviewCount');
+const matrixSearchInput = document.querySelector('#matrixSearchInput');
+const matrixEvaluationFilter = document.querySelector('#matrixEvaluationFilter');
+const matrixEligibilityFilter = document.querySelector('#matrixEligibilityFilter');
+const clearMatrixFiltersButton = document.querySelector('#clearMatrixFiltersButton');
+const evaluationMatrixHead = document.querySelector('#evaluationMatrixHead');
+const evaluationMatrixTable = document.querySelector('#evaluationMatrixTable');
+const evaluationMatrixCount = document.querySelector('#evaluationMatrixCount');
 const quickFilterButtons = Array.from(document.querySelectorAll('[data-quick-filter]'));
 const currentUserBadge = document.querySelector('#currentUserBadge');
 const tabs = Array.from(document.querySelectorAll('[data-view]'));
@@ -151,6 +168,10 @@ logoutButton.addEventListener('click', async () => {
   selectedId = '';
   selectedDetail = null;
   submissions = [];
+  reviewSummaries = [];
+  documentReviewRows = [];
+  evaluationMatrixRows = [];
+  matrixCriteria = [];
   currentUser = null;
   showLogin();
 });
@@ -168,6 +189,14 @@ reviewEvaluationFilter.addEventListener('change', renderReviewSummary);
 reviewEligibilityFilter.addEventListener('change', renderReviewSummary);
 exportReviewCsvButton.addEventListener('click', exportReviewCsv);
 clearReviewFiltersButton.addEventListener('click', clearReviewFilters);
+documentSearchInput.addEventListener('input', renderDocumentReview);
+documentStatusFilter.addEventListener('change', renderDocumentReview);
+documentOriginFilter.addEventListener('change', renderDocumentReview);
+clearDocumentFiltersButton.addEventListener('click', clearDocumentFilters);
+matrixSearchInput.addEventListener('input', renderEvaluationMatrix);
+matrixEvaluationFilter.addEventListener('change', renderEvaluationMatrix);
+matrixEligibilityFilter.addEventListener('change', renderEvaluationMatrix);
+clearMatrixFiltersButton.addEventListener('click', clearMatrixFilters);
 quickFilterButtons.forEach(button => button.addEventListener('click', () => applyQuickFilter(button.dataset.quickFilter)));
 offlineJsonForm.addEventListener('submit', importOfflineJson);
 offlineManualForm.addEventListener('submit', importOfflineManual);
@@ -207,16 +236,23 @@ function showLogin(message = '') {
 }
 
 async function loadData() {
-  const [summary, list, review] = await Promise.all([
+  const [summary, list, review, documents, matrix] = await Promise.all([
     api('/api/admin/summary'),
     api('/api/admin/submissions'),
     api('/api/admin/review-summary'),
+    api('/api/admin/document-review'),
+    api('/api/admin/evaluation-matrix'),
   ]);
   submissions = list.submissions || [];
   reviewSummaries = review.summaries || [];
+  documentReviewRows = documents.rows || [];
+  evaluationMatrixRows = matrix.rows || [];
+  matrixCriteria = matrix.criteria || [];
   renderStats(summary);
   renderTable();
   renderReviewSummary();
+  renderDocumentReview();
+  renderEvaluationMatrix();
   if (selectedId) await selectSubmission(selectedId);
   if (currentUser?.role === 'ADMIN') await loadUsers();
 }
@@ -241,6 +277,8 @@ function showView(name) {
   views.forEach(view => view.classList.toggle('active', view.id === `view-${name}`));
   if (name === 'users' && currentUser?.role === 'ADMIN') loadUsers();
   if (name === 'review') renderReviewSummary();
+  if (name === 'documents') renderDocumentReview();
+  if (name === 'matrix') renderEvaluationMatrix();
 }
 
 async function api(url, options = {}) {
@@ -554,6 +592,117 @@ function renderReviewSummary() {
   });
 }
 
+function renderDocumentReview() {
+  const query = normalize(documentSearchInput.value);
+  const status = documentStatusFilter.value;
+  const origin = documentOriginFilter.value;
+  const rows = documentReviewRows.filter(item => {
+    const statuses = [item.carta_aval_status || 'MISSING', item.curriculum_status || 'MISSING'];
+    const matchesStatus = !status || statuses.includes(status);
+    const matchesOrigin = !origin || item.source_channel === origin;
+    const haystack = normalize([
+      item.full_name,
+      item.email,
+      item.province,
+      item.submission_id,
+      item.candidate_id,
+      item.source_channel,
+    ].join(' '));
+    return matchesStatus && matchesOrigin && (!query || haystack.includes(query));
+  });
+
+  documentReviewTable.innerHTML = rows.map(item => `
+    <tr data-document-row="${escapeHtml(item.submission_id)}">
+      <td><strong>${escapeHtml(item.full_name || 'Sin nombre')}</strong><br><span class="muted">${escapeHtml(item.email || '')}</span></td>
+      <td>${escapeHtml(item.province || '')}</td>
+      <td><span class="badge">${escapeHtml(label('sourceChannels', item.source_channel))}</span></td>
+      <td>${documentReviewCell(item, 'carta_aval')}</td>
+      <td>${documentReviewCell(item, 'curriculum')}</td>
+      <td>${eligibilityBadge(item.eligibility_status)}</td>
+      <td>${formatDate(item.received_at)}</td>
+    </tr>
+  `).join('');
+  documentReviewCount.textContent = resultCountLabel(rows.length, documentReviewRows.length, 'postulación', 'postulaciones');
+
+  documentReviewTable.querySelectorAll('tr').forEach(row => {
+    row.addEventListener('click', async event => {
+      if (event.target.closest('button, select, a')) return;
+      showView('submissions');
+      await selectSubmission(row.dataset.documentRow);
+    });
+  });
+  documentReviewTable.querySelectorAll('[data-document-review-save]').forEach(button => {
+    button.addEventListener('click', async event => {
+      event.stopPropagation();
+      const documentId = button.dataset.documentReviewSave;
+      const select = documentReviewTable.querySelector(`[data-document-review-status="${cssEscape(documentId)}"]`);
+      await api(`/api/admin/documents/${encodeURIComponent(documentId)}/status`, {
+        method: 'PATCH',
+        body: {
+          status: select.value,
+          reason: 'Actualización documental desde la vista de documentos',
+        },
+      });
+      await loadData();
+    });
+  });
+  documentReviewTable.querySelectorAll('[data-document-open]').forEach(link => {
+    link.addEventListener('click', () => {
+      api(`/api/admin/documents/${encodeURIComponent(link.dataset.documentOpen)}/open`, {
+        method: 'POST',
+      }).catch(() => {});
+    });
+  });
+}
+
+function renderEvaluationMatrix() {
+  const query = normalize(matrixSearchInput.value);
+  const evaluation = matrixEvaluationFilter.value;
+  const eligibility = matrixEligibilityFilter.value;
+  const rows = evaluationMatrixRows.filter(item => {
+    const matchesEvaluation = !evaluation || (item.evaluation_status || 'NOT_STARTED') === evaluation;
+    const matchesEligibility = !eligibility || (item.eligibility_status || 'SIN_EVALUAR') === eligibility;
+    const haystack = normalize([
+      item.full_name,
+      item.email,
+      item.province,
+      item.submission_id,
+      item.candidate_id,
+      item.source_channel,
+    ].join(' '));
+    return matchesEvaluation && matchesEligibility && (!query || haystack.includes(query));
+  });
+
+  evaluationMatrixHead.innerHTML = `
+    <tr>
+      <th>Postulante</th>
+      <th>Provincia</th>
+      <th>Admisibilidad</th>
+      <th>Evaluación</th>
+      ${matrixCriteria.map(criterion => `<th>${escapeHtml(criterion.label)}</th>`).join('')}
+      <th>Recibido</th>
+    </tr>
+  `;
+  evaluationMatrixTable.innerHTML = rows.map(item => `
+    <tr data-matrix-id="${escapeHtml(item.submission_id)}">
+      <td><strong>${escapeHtml(item.full_name || 'Sin nombre')}</strong><br><span class="muted">${escapeHtml(item.email || '')}</span></td>
+      <td>${escapeHtml(item.province || '')}</td>
+      <td>${eligibilityBadge(item.eligibility_status)}</td>
+      <td>${evaluationBadge(item.evaluation_status)}<br><span class="muted">${escapeHtml(item.completed_criteria || 0)} / ${escapeHtml(item.total_criteria || matrixCriteria.length)}</span></td>
+      ${matrixCriteria.map(criterion => matrixCriterionCell(item, criterion)).join('')}
+      <td>${formatDate(item.received_at)}</td>
+    </tr>
+  `).join('');
+  evaluationMatrixCount.textContent = resultCountLabel(rows.length, evaluationMatrixRows.length, 'postulación', 'postulaciones');
+
+  evaluationMatrixTable.querySelectorAll('tr').forEach(row => {
+    row.addEventListener('click', async () => {
+      showView('submissions');
+      await selectSubmission(row.dataset.matrixId);
+    });
+  });
+}
+
 async function exportReviewCsv() {
   const response = await fetch('/api/admin/review-summary.csv', {
     credentials: 'same-origin',
@@ -588,9 +737,25 @@ function clearReviewFilters() {
   renderReviewSummary();
 }
 
+function clearDocumentFilters() {
+  documentSearchInput.value = '';
+  documentStatusFilter.value = '';
+  documentOriginFilter.value = '';
+  renderDocumentReview();
+}
+
+function clearMatrixFilters() {
+  matrixSearchInput.value = '';
+  matrixEvaluationFilter.value = '';
+  matrixEligibilityFilter.value = '';
+  renderEvaluationMatrix();
+}
+
 function applyQuickFilter(filter) {
   clearSubmissionFilters();
   clearReviewFilters();
+  clearDocumentFilters();
+  clearMatrixFilters();
   if (filter === 'CLEAR') {
     showView('submissions');
     return;
@@ -600,20 +765,26 @@ function applyQuickFilter(filter) {
     evaluationFilter.value = 'NOT_STARTED';
     reviewEligibilityFilter.value = 'READY_FOR_TECHNICAL_REVIEW';
     reviewEvaluationFilter.value = 'NOT_STARTED';
-    showView('review');
+    matrixEligibilityFilter.value = 'READY_FOR_TECHNICAL_REVIEW';
+    matrixEvaluationFilter.value = 'NOT_STARTED';
+    showView('matrix');
   } else if (filter === 'EVALUATION_IN_PROGRESS') {
     evaluationFilter.value = 'IN_PROGRESS';
     reviewEvaluationFilter.value = 'IN_PROGRESS';
-    showView('review');
+    matrixEvaluationFilter.value = 'IN_PROGRESS';
+    showView('matrix');
   } else if (filter === 'OPEN_ISSUES') {
     workFilter.value = 'OPEN_ISSUES';
     showView('submissions');
   } else if (filter === 'DOCS_TO_REVIEW') {
     workFilter.value = 'DOCS_NEED_REVIEW';
-    showView('submissions');
+    documentStatusFilter.value = 'NEEDS_REVIEW';
+    showView('documents');
   }
   renderTable();
   renderReviewSummary();
+  renderDocumentReview();
+  renderEvaluationMatrix();
 }
 
 async function selectSubmission(submissionId) {
@@ -815,6 +986,49 @@ function documentLink(document) {
   `;
 }
 
+function documentReviewCell(item, prefix) {
+  const documentId = item[`${prefix}_id`];
+  const status = item[`${prefix}_status`] || 'MISSING';
+  const name = item[`${prefix}_name`] || item[`${prefix}_reference`] || '';
+  const reference = item[`${prefix}_reference`] || '';
+  const link = documentId && isSafeHttpUrl(reference)
+    ? `<a href="${escapeHtml(reference)}" target="_blank" rel="noopener noreferrer" data-document-open="${escapeHtml(documentId)}">${escapeHtml(name || 'Documento')}</a>`
+    : `<span>${escapeHtml(name || 'Sin archivo registrado')}</span>`;
+  const controls = documentId && hasRole('ADMIN', 'REVIEWER')
+    ? `
+      <div class="doc-review-actions">
+        <select data-document-review-status="${escapeHtml(documentId)}">
+          ${documentStatusOptions(status)}
+        </select>
+        <button class="compact" type="button" data-document-review-save="${escapeHtml(documentId)}">Guardar</button>
+      </div>
+    `
+    : '';
+  return `
+    <div class="doc-review-cell">
+      ${documentStatusBadge(status)}
+      ${link}
+      ${controls}
+    </div>
+  `;
+}
+
+function matrixCriterionCell(item, criterion) {
+  const evaluations = Array.isArray(item.criteria) ? item.criteria : [];
+  const evaluation = evaluations.find(candidate => candidate.criterion_id === criterion.criterion_id);
+  if (!evaluation) {
+    return '<td><span class="badge">No iniciada</span></td>';
+  }
+  const score = evaluation.score === null || evaluation.score === undefined ? '' : `<br><span class="muted">Puntaje: ${escapeHtml(evaluation.score)}</span>`;
+  return `
+    <td>
+      ${evaluationBadge(evaluation.status || 'NOT_STARTED')}
+      ${score}
+      ${evaluation.evidence_summary ? `<br><span class="muted">${escapeHtml(evaluation.evidence_summary)}</span>` : ''}
+    </td>
+  `;
+}
+
 function bindDetailActions() {
   if (!hasRole('ADMIN', 'REVIEWER')) {
     detailPanel.querySelectorAll('button[data-document-save], button[data-issue-save], button[data-eligibility-save], button[data-eligibility-recalculate], button[data-evaluation-save]')
@@ -993,6 +1207,16 @@ function documentSummary(item) {
     return `<span class="badge ${cls}">${escapeHtml(label('documents', status))}</span>`;
   }).join(' ');
   return `${escapeHtml(item.document_count)} ${flags}`;
+}
+
+function documentStatusBadge(status) {
+  const normalized = status || 'MISSING';
+  const cls = normalized === 'REJECTED' || normalized === 'MISSING'
+    ? 'bad'
+    : normalized === 'NEEDS_REVIEW'
+      ? 'warn'
+      : 'ok';
+  return `<span class="badge ${cls}">${escapeHtml(label('documents', normalized))}</span>`;
 }
 
 function reviewDocumentSummary(item) {

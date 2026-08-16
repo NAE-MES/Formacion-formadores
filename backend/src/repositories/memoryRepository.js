@@ -305,6 +305,86 @@ class MemoryRepository {
       });
   }
 
+  async listDocumentReviewRows() {
+    return Array.from(this.submissions.values())
+      .sort((a, b) => String(b.received_at).localeCompare(String(a.received_at)))
+      .map(submission => {
+        const candidate = this.candidates.get(submission.candidate_id) || {};
+        const documents = Array.from(this.documents.values())
+          .filter(document => document.candidate_id === submission.candidate_id);
+        const eligibility = latestEligibility(
+          Array.from(this.eligibilityAssessments.values())
+            .filter(item => item.submission_id === submission.submission_id)
+        );
+        const cartaAval = latestDocument(documents, 'CARTA_AVAL');
+        const curriculum = latestDocument(documents, 'CURRICULUM_VITAE');
+
+        return {
+          submission_id: submission.submission_id,
+          candidate_id: submission.candidate_id,
+          full_name: [
+            candidate.first_name,
+            candidate.second_name,
+            candidate.first_surname,
+            candidate.second_surname,
+          ].filter(Boolean).join(' '),
+          email: candidate.email || '',
+          province: candidate.province || '',
+          source_channel: submission.source_channel,
+          received_at: submission.received_at,
+          eligibility_status: eligibility?.status || 'SIN_EVALUAR',
+          document_count: documents.length,
+          carta_aval_id: cartaAval?.document_id || '',
+          carta_aval_status: cartaAval?.status || 'MISSING',
+          carta_aval_name: cartaAval?.original_name || '',
+          carta_aval_reference: cartaAval?.storage_reference || '',
+          curriculum_id: curriculum?.document_id || '',
+          curriculum_status: curriculum?.status || 'MISSING',
+          curriculum_name: curriculum?.original_name || '',
+          curriculum_reference: curriculum?.storage_reference || '',
+        };
+      });
+  }
+
+  async listEvaluationMatrixRows() {
+    return Array.from(this.submissions.values())
+      .sort((a, b) => String(b.received_at).localeCompare(String(a.received_at)))
+      .map(submission => {
+        const candidate = this.candidates.get(submission.candidate_id) || {};
+        const eligibility = latestEligibility(
+          Array.from(this.eligibilityAssessments.values())
+            .filter(item => item.submission_id === submission.submission_id)
+        );
+        const evaluationResult = latestEvaluationResult(
+          Array.from(this.evaluationResults.values())
+            .filter(item => item.submission_id === submission.submission_id)
+        );
+        const criteria = Array.from(this.criterionEvaluations.values())
+          .filter(item => item.submission_id === submission.submission_id)
+          .sort((a, b) => a.criterion_id.localeCompare(b.criterion_id));
+
+        return {
+          submission_id: submission.submission_id,
+          candidate_id: submission.candidate_id,
+          full_name: [
+            candidate.first_name,
+            candidate.second_name,
+            candidate.first_surname,
+            candidate.second_surname,
+          ].filter(Boolean).join(' '),
+          email: candidate.email || '',
+          province: candidate.province || '',
+          source_channel: submission.source_channel,
+          received_at: submission.received_at,
+          eligibility_status: eligibility?.status || 'SIN_EVALUAR',
+          evaluation_status: evaluationResult?.status || 'NOT_STARTED',
+          completed_criteria: evaluationResult?.completed_criteria || 0,
+          total_criteria: evaluationResult?.total_criteria || 0,
+          criteria,
+        };
+      });
+  }
+
   async getAdminSubmissionDetail(submissionId) {
     const submission = this.submissions.get(submissionId);
     if (!submission) return null;
@@ -639,6 +719,12 @@ function latestEligibility(items) {
 
 function latestEvaluationResult(items) {
   return items.sort((a, b) => String(b.calculated_at).localeCompare(String(a.calculated_at)))[0] || null;
+}
+
+function latestDocument(documents, documentType) {
+  return documents
+    .filter(document => document.document_type === documentType)
+    .sort((a, b) => String(b.reviewed_at || b.received_at).localeCompare(String(a.reviewed_at || a.received_at)))[0] || null;
 }
 
 function sanitizeAdminUser(user) {

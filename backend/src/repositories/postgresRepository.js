@@ -546,6 +546,155 @@ class PostgresRepository {
     return result.rows;
   }
 
+  async listDocumentReviewRows() {
+    const result = await this.pool.query(`
+      select
+        s.submission_id,
+        s.candidate_id,
+        trim(concat_ws(' ',
+          c.first_name,
+          nullif(c.second_name, ''),
+          c.first_surname,
+          nullif(c.second_surname, '')
+        )) as full_name,
+        c.email,
+        c.province,
+        s.source_channel,
+        s.received_at,
+        coalesce(ea.status, 'SIN_EVALUAR') as eligibility_status,
+        count(distinct d.document_id)::int as document_count,
+        coalesce(ca.document_id, '') as carta_aval_id,
+        coalesce(ca.status, 'MISSING') as carta_aval_status,
+        coalesce(ca.original_name, '') as carta_aval_name,
+        coalesce(ca.storage_reference, '') as carta_aval_reference,
+        coalesce(cv.document_id, '') as curriculum_id,
+        coalesce(cv.status, 'MISSING') as curriculum_status,
+        coalesce(cv.original_name, '') as curriculum_name,
+        coalesce(cv.storage_reference, '') as curriculum_reference
+      from submissions s
+      left join candidates c on c.candidate_id = s.candidate_id
+      left join documents d on d.candidate_id = s.candidate_id
+      left join lateral (
+        select status
+        from eligibility_assessments
+        where submission_id = s.submission_id
+        order by assessed_at desc
+        limit 1
+      ) ea on true
+      left join lateral (
+        select document_id, status, original_name, storage_reference, received_at, reviewed_at
+        from documents
+        where candidate_id = s.candidate_id and document_type = 'CARTA_AVAL'
+        order by coalesce(reviewed_at, received_at) desc
+        limit 1
+      ) ca on true
+      left join lateral (
+        select document_id, status, original_name, storage_reference, received_at, reviewed_at
+        from documents
+        where candidate_id = s.candidate_id and document_type = 'CURRICULUM_VITAE'
+        order by coalesce(reviewed_at, received_at) desc
+        limit 1
+      ) cv on true
+      group by
+        s.submission_id,
+        s.candidate_id,
+        c.first_name,
+        c.second_name,
+        c.first_surname,
+        c.second_surname,
+        c.email,
+        c.province,
+        s.source_channel,
+        s.received_at,
+        ea.status,
+        ca.document_id,
+        ca.status,
+        ca.original_name,
+        ca.storage_reference,
+        cv.document_id,
+        cv.status,
+        cv.original_name,
+        cv.storage_reference
+      order by s.received_at desc
+      limit 1000
+    `);
+    return result.rows;
+  }
+
+  async listEvaluationMatrixRows() {
+    const result = await this.pool.query(`
+      select
+        s.submission_id,
+        s.candidate_id,
+        trim(concat_ws(' ',
+          c.first_name,
+          nullif(c.second_name, ''),
+          c.first_surname,
+          nullif(c.second_surname, '')
+        )) as full_name,
+        c.email,
+        c.province,
+        s.source_channel,
+        s.received_at,
+        coalesce(ea.status, 'SIN_EVALUAR') as eligibility_status,
+        coalesce(er.status, 'NOT_STARTED') as evaluation_status,
+        coalesce(er.completed_criteria, 0)::int as completed_criteria,
+        coalesce(er.total_criteria, 0)::int as total_criteria,
+        coalesce(
+          jsonb_agg(
+            jsonb_build_object(
+              'criterion_evaluation_id', ce.criterion_evaluation_id,
+              'criterion_id', ce.criterion_id,
+              'criterion_label', ce.criterion_label,
+              'weight_percent', ce.weight_percent,
+              'score', ce.score,
+              'status', ce.status,
+              'evidence_summary', ce.evidence_summary,
+              'evaluated_at', ce.evaluated_at,
+              'evaluated_by', ce.evaluated_by
+            )
+            order by ce.criterion_id
+          ) filter (where ce.criterion_evaluation_id is not null),
+          '[]'::jsonb
+        ) as criteria
+      from submissions s
+      left join candidates c on c.candidate_id = s.candidate_id
+      left join lateral (
+        select status
+        from eligibility_assessments
+        where submission_id = s.submission_id
+        order by assessed_at desc
+        limit 1
+      ) ea on true
+      left join lateral (
+        select status, completed_criteria, total_criteria
+        from evaluation_results
+        where submission_id = s.submission_id
+        order by calculated_at desc
+        limit 1
+      ) er on true
+      left join criterion_evaluations ce on ce.submission_id = s.submission_id
+      group by
+        s.submission_id,
+        s.candidate_id,
+        c.first_name,
+        c.second_name,
+        c.first_surname,
+        c.second_surname,
+        c.email,
+        c.province,
+        s.source_channel,
+        s.received_at,
+        ea.status,
+        er.status,
+        er.completed_criteria,
+        er.total_criteria
+      order by s.received_at desc
+      limit 1000
+    `);
+    return result.rows;
+  }
+
   async getAdminSubmissionDetail(submissionId) {
     const submission = await this.pool.query(
       `select * from submissions where submission_id = $1`,
