@@ -209,6 +209,12 @@ tbody tr.selected {
   color: var(--warn);
 }
 
+.badge.bad {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: var(--bad);
+}
+
 .badge.ok {
   border-color: #99f6e4;
   background: #ecfdf5;
@@ -268,6 +274,11 @@ tbody tr.selected {
   margin-top: 8px;
 }
 
+.action-row.single {
+  grid-template-columns: auto;
+  justify-content: start;
+}
+
 .note-input {
   width: 100%;
   margin-top: 8px;
@@ -284,6 +295,19 @@ tbody tr.selected {
 .doc-link-row a {
   color: var(--accent-dark);
   overflow-wrap: anywhere;
+}
+
+.check-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.check-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
 }
 
 @media (max-width: 980px) {

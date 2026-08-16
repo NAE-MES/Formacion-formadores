@@ -7,6 +7,7 @@ class MemoryRepository {
     this.documents = new Map();
     this.issues = new Map();
     this.auditEvents = new Map();
+    this.eligibilityAssessments = new Map();
     this.adminUsers = new Map();
     this.adminSessions = new Map();
   }
@@ -66,6 +67,13 @@ class MemoryRepository {
       submissions: this.submissions.size,
       documents: this.documents.size,
       normalization_issues: this.issues.size,
+      eligibility_assessments: this.eligibilityAssessments.size,
+      eligibility_ready: Array.from(this.eligibilityAssessments.values())
+        .filter(item => item.status === 'READY_FOR_TECHNICAL_REVIEW').length,
+      eligibility_blocked: Array.from(this.eligibilityAssessments.values())
+        .filter(item => item.status === 'BLOCKED_BY_MISSING_REQUIREMENTS').length,
+      eligibility_review: Array.from(this.eligibilityAssessments.values())
+        .filter(item => item.status === 'REQUIRES_MANUAL_REVIEW').length,
     };
   }
 
@@ -133,6 +141,10 @@ class MemoryRepository {
           .filter(issue => issue.submission_id === submission.submission_id);
         const documents = Array.from(this.documents.values())
           .filter(document => document.candidate_id === submission.candidate_id);
+        const eligibility = latestEligibility(
+          Array.from(this.eligibilityAssessments.values())
+            .filter(item => item.submission_id === submission.submission_id)
+        );
 
         return {
           submission_id: submission.submission_id,
@@ -149,6 +161,7 @@ class MemoryRepository {
           source_reference: submission.source_reference,
           received_at: submission.received_at,
           normalization_status: submission.normalization_status,
+          eligibility_status: eligibility?.status || '',
           issue_count: issues.length,
           document_count: documents.length,
         };
@@ -167,16 +180,103 @@ class MemoryRepository {
       .filter(document => document.candidate_id === submission.candidate_id);
     const issues = Array.from(this.issues.values())
       .filter(issue => issue.submission_id === submissionId);
+    const eligibility = latestEligibility(
+      Array.from(this.eligibilityAssessments.values())
+        .filter(item => item.submission_id === submissionId)
+    );
     const entityIds = new Set([
       submissionId,
       ...documents.map(document => document.document_id),
       ...issues.map(issue => issue.normalization_issue_id),
+      ...(eligibility ? [eligibility.eligibility_assessment_id] : []),
     ]);
     const auditEvents = Array.from(this.auditEvents.values())
       .filter(event => entityIds.has(event.entity_id))
       .sort((a, b) => String(b.occurred_at).localeCompare(String(a.occurred_at)));
 
-    return { submission, candidate, responses, documents, issues, audit_events: auditEvents };
+    return {
+      submission,
+      candidate,
+      responses,
+      documents,
+      issues,
+      eligibility_assessment: eligibility || null,
+      audit_events: auditEvents,
+    };
+  }
+
+  async getEligibilityInput(submissionId) {
+    const detail = await this.getAdminSubmissionDetail(submissionId);
+    if (!detail) return null;
+    return {
+      submission: detail.submission,
+      candidate: detail.candidate,
+      responses: Object.fromEntries((detail.responses || []).map(response => [response.field_code, response.value])),
+      documents: detail.documents || [],
+    };
+  }
+
+  async saveEligibilityAssessment(assessment, { actor, reason } = {}) {
+    const previous = this.eligibilityAssessments.get(assessment.eligibility_assessment_id);
+    this.eligibilityAssessments.set(assessment.eligibility_assessment_id, assessment);
+    this.auditEvents.set(
+      `audit_${this.auditEvents.size + 1}`,
+      auditEvent(
+        'ELIGIBILITY_ASSESSED',
+        'EligibilityAssessment',
+        assessment.eligibility_assessment_id,
+        actor || assessment.assessed_by,
+        previous ? sanitizeEligibilityAuditValue(previous) : null,
+        sanitizeEligibilityAuditValue(assessment),
+        reason,
+      ),
+    );
+    return assessment;
+  }
+
+  async updateEligibilityReview(assessmentId, { status, note, actor, reason }) {
+    const allowed = new Set([
+      'READY_FOR_TECHNICAL_REVIEW',
+      'BLOCKED_BY_MISSING_REQUIREMENTS',
+      'REQUIRES_MANUAL_REVIEW',
+    ]);
+    if (!allowed.has(status)) {
+      const error = new Error('Invalid eligibility status.');
+      error.statusCode = 400;
+      error.code = 'INVALID_ELIGIBILITY_STATUS';
+      throw error;
+    }
+
+    const current = this.eligibilityAssessments.get(assessmentId);
+    if (!current) {
+      const error = new Error('Eligibility assessment not found.');
+      error.statusCode = 404;
+      error.code = 'NOT_FOUND';
+      throw error;
+    }
+
+    const updated = {
+      ...current,
+      status,
+      manual_status: status,
+      manual_note: String(note || ''),
+      reviewed_at: new Date().toISOString(),
+      reviewed_by: actor || 'ADMIN',
+    };
+    this.eligibilityAssessments.set(assessmentId, updated);
+    this.auditEvents.set(
+      `audit_${this.auditEvents.size + 1}`,
+      auditEvent(
+        'ELIGIBILITY_REVIEW_UPDATED',
+        'EligibilityAssessment',
+        assessmentId,
+        actor,
+        sanitizeEligibilityAuditValue(current),
+        sanitizeEligibilityAuditValue(updated),
+        reason,
+      ),
+    );
+    return updated;
   }
 
   async recordDocumentOpen(documentId, { actor, reason }) {
@@ -300,6 +400,26 @@ function sanitizeIssueAuditValue(issue) {
     reviewed_at: issue.reviewed_at || null,
     reviewed_by: issue.reviewed_by || '',
   };
+}
+
+function sanitizeEligibilityAuditValue(assessment) {
+  return {
+    eligibility_assessment_id: assessment.eligibility_assessment_id,
+    candidate_id: assessment.candidate_id,
+    submission_id: assessment.submission_id,
+    status: assessment.status,
+    rule_version: assessment.rule_version,
+    assessed_at: assessment.assessed_at || null,
+    assessed_by: assessment.assessed_by || '',
+    manual_status: assessment.manual_status || '',
+    manual_note: assessment.manual_note || '',
+    reviewed_at: assessment.reviewed_at || null,
+    reviewed_by: assessment.reviewed_by || '',
+  };
+}
+
+function latestEligibility(items) {
+  return items.sort((a, b) => String(b.assessed_at).localeCompare(String(a.assessed_at)))[0] || null;
 }
 
 function rebindImportedSubmission(imported, submissionId) {

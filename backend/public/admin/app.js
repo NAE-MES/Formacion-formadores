@@ -116,6 +116,7 @@ function renderStats(summary) {
     ['Postulaciones', summary.submissions],
     ['Documentos', summary.documents],
     ['Incidencias', summary.normalization_issues],
+    ['Listas revision', summary.eligibility_ready || 0],
   ];
   stats.innerHTML = items.map(([label, value]) => `
     <div class="stat">
@@ -148,6 +149,7 @@ function renderTable() {
       <td>${escapeHtml(item.province || '')}</td>
       <td><span class="badge">${escapeHtml(item.source_channel)}</span></td>
       <td>${statusBadge(item.normalization_status)}</td>
+      <td>${eligibilityBadge(item.eligibility_status)}</td>
       <td>${escapeHtml(item.document_count)}</td>
       <td>${escapeHtml(item.issue_count)}</td>
     </tr>
@@ -174,9 +176,13 @@ async function selectSubmission(submissionId) {
       <dt>Referencia</dt><dd>${escapeHtml(submission.source_reference)}</dd>
       <dt>Recibido</dt><dd>${formatDate(submission.received_at)}</dd>
       <dt>Estado</dt><dd>${statusBadge(submission.normalization_status)}</dd>
+      <dt>Admisibilidad</dt><dd>${eligibilityBadge(detail.eligibility_assessment?.status || '')}</dd>
       <dt>Provincia</dt><dd>${escapeHtml(candidate.province || '')}</dd>
       <dt>CI</dt><dd>${escapeHtml(candidate.identification_number || '')}</dd>
     </dl>
+
+    <h3>Admisibilidad preliminar</h3>
+    ${renderEligibility(detail.eligibility_assessment, submission.submission_id)}
 
     <h3>Incidencias</h3>
     ${renderIssues(detail.issues || [])}
@@ -191,6 +197,47 @@ async function selectSubmission(submissionId) {
     ${renderAuditEvents(detail.audit_events || [])}
   `;
   bindDetailActions();
+}
+
+function renderEligibility(assessment, submissionId) {
+  if (!assessment) {
+    return `
+      <p class="muted">Sin evaluacion preliminar registrada.</p>
+      <button type="button" data-eligibility-recalculate="${escapeHtml(submissionId)}">Recalcular</button>
+    `;
+  }
+
+  return `
+    <div class="item">
+      <strong>${eligibilityBadge(assessment.status)}</strong><br>
+      <span class="muted">${escapeHtml(assessment.assessment_scope)} - ${escapeHtml(assessment.rule_version)}</span><br>
+      <span class="muted">Evaluado por ${escapeHtml(assessment.assessed_by || '')} - ${formatDate(assessment.assessed_at)}</span>
+      <div class="action-row">
+        <select data-eligibility-status="${escapeHtml(assessment.eligibility_assessment_id)}">
+          ${eligibilityStatusOptions(assessment.status)}
+        </select>
+        <button type="button" data-eligibility-save="${escapeHtml(assessment.eligibility_assessment_id)}">Guardar</button>
+      </div>
+      <input class="note-input" data-eligibility-note="${escapeHtml(assessment.eligibility_assessment_id)}" type="text" value="${escapeHtml(assessment.manual_note || '')}" placeholder="Nota de revision">
+      <div class="action-row single">
+        <button type="button" class="ghost" data-eligibility-recalculate="${escapeHtml(submissionId)}">Recalcular</button>
+      </div>
+      ${renderEligibilityChecks(assessment.check_results || [])}
+    </div>
+  `;
+}
+
+function renderEligibilityChecks(checks) {
+  if (!checks.length) return '<p class="muted">Sin checks registrados.</p>';
+  return `<div class="check-list">${checks.map(check => `
+    <div class="check-row">
+      ${checkStatusBadge(check.status)}
+      <div>
+        <strong>${escapeHtml(check.check_id)}</strong><br>
+        <span class="muted">${escapeHtml(check.severity)} - ${escapeHtml(check.description || '')}</span>
+      </div>
+    </div>
+  `).join('')}</div>`;
 }
 
 function renderIssues(issues) {
@@ -290,6 +337,32 @@ function bindDetailActions() {
       await loadData();
     });
   });
+
+  detailPanel.querySelectorAll('[data-eligibility-recalculate]').forEach(button => {
+    button.addEventListener('click', async () => {
+      await api(`/api/admin/submissions/${encodeURIComponent(button.dataset.eligibilityRecalculate)}/eligibility/recalculate`, {
+        method: 'POST',
+      });
+      await loadData();
+    });
+  });
+
+  detailPanel.querySelectorAll('[data-eligibility-save]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const assessmentId = button.dataset.eligibilitySave;
+      const select = detailPanel.querySelector(`[data-eligibility-status="${cssEscape(assessmentId)}"]`);
+      const note = detailPanel.querySelector(`[data-eligibility-note="${cssEscape(assessmentId)}"]`);
+      await api(`/api/admin/eligibility/${encodeURIComponent(assessmentId)}/review`, {
+        method: 'PATCH',
+        body: {
+          status: select.value,
+          note: note.value,
+          reason: 'Admin preliminary eligibility review update',
+        },
+      });
+      await loadData();
+    });
+  });
 }
 
 function documentStatusOptions(selected) {
@@ -300,6 +373,12 @@ function documentStatusOptions(selected) {
 
 function issueStatusOptions(selected) {
   return ['OPEN', 'ACKNOWLEDGED', 'RESOLVED', 'NEEDS_SOURCE_REVIEW']
+    .map(status => `<option value="${status}" ${status === selected ? 'selected' : ''}>${status}</option>`)
+    .join('');
+}
+
+function eligibilityStatusOptions(selected) {
+  return ['READY_FOR_TECHNICAL_REVIEW', 'BLOCKED_BY_MISSING_REQUIREMENTS', 'REQUIRES_MANUAL_REVIEW']
     .map(status => `<option value="${status}" ${status === selected ? 'selected' : ''}>${status}</option>`)
     .join('');
 }
@@ -328,6 +407,22 @@ function renderAuditEvents(events) {
 function statusBadge(status) {
   const cls = status === 'NORMALIZED' ? 'ok' : 'warn';
   return `<span class="badge ${cls}">${escapeHtml(status || '')}</span>`;
+}
+
+function eligibilityBadge(status) {
+  const cls = status === 'READY_FOR_TECHNICAL_REVIEW'
+    ? 'ok'
+    : status === 'BLOCKED_BY_MISSING_REQUIREMENTS'
+      ? 'bad'
+      : status
+        ? 'warn'
+        : '';
+  return `<span class="badge ${cls}">${escapeHtml(status || 'SIN_EVALUAR')}</span>`;
+}
+
+function checkStatusBadge(status) {
+  const cls = status === 'PASS' ? 'ok' : 'bad';
+  return `<span class="badge ${cls}">${escapeHtml(status)}</span>`;
 }
 
 function fullName(candidate) {

@@ -217,6 +217,8 @@ test('ingests Google Form API payload and preserves raw data', async (t) => {
     assert.equal(repository.candidates.size, 1);
     assert.equal(repository.raws.size, 1);
     assert.equal(repository.documents.size, 2);
+    assert.equal(repository.eligibilityAssessments.size, 1);
+    assert.equal(Array.from(repository.eligibilityAssessments.values())[0].status, 'READY_FOR_TECHNICAL_REVIEW');
   });
 });
 
@@ -243,7 +245,61 @@ test('admin API lists and returns submission detail', async (t) => {
     assert.equal(detail.statusCode, 200);
     assert.equal(detail.body.documents.length, 2);
     assert.ok(detail.body.responses.length > 0);
+    assert.equal(detail.body.eligibility_assessment.status, 'READY_FOR_TECHNICAL_REVIEW');
     assert.ok(Array.isArray(detail.body.audit_events));
+  });
+});
+
+test('preliminary eligibility blocks when required consent is negative', async (t) => {
+  await withServer(t, async ({ port, repository }) => {
+    const imported = await request(port, 'POST', '/api/submissions/google-form', {
+      sourceReference: 'google-response-eligibility-blocked',
+      responses: validResponses({ 'FDF-11': 'No' }),
+      documents: requiredDocuments(),
+    });
+
+    assert.equal(imported.statusCode, 201);
+    assert.equal(imported.body.eligibility_status, 'BLOCKED_BY_MISSING_REQUIREMENTS');
+    const assessment = Array.from(repository.eligibilityAssessments.values())[0];
+    assert.equal(assessment.status, 'BLOCKED_BY_MISSING_REQUIREMENTS');
+    assert.ok(assessment.check_results.some(check =>
+      check.check_id === 'CONSENT_ACCEPTED' && check.status === 'FAIL'
+    ));
+  });
+});
+
+test('admin API recalculates and manually reviews preliminary eligibility with audit event', async (t) => {
+  await withServer(t, async ({ port, repository }) => {
+    await request(port, 'POST', '/api/submissions/google-form', {
+      sourceReference: 'google-response-eligibility-review',
+      responses: validResponses({
+        'FDF-18': 'No acredito vínculo institucional activo con una estructura de apoyo a NAE',
+      }),
+      documents: requiredDocuments(),
+    });
+    const submissionId = Array.from(repository.submissions.values())[0].submission_id;
+
+    const recalculated = await adminJsonRequest(
+      port,
+      'POST',
+      `/api/admin/submissions/${submissionId}/eligibility/recalculate`,
+      {},
+    );
+    assert.equal(recalculated.statusCode, 200);
+    assert.equal(recalculated.body.eligibility_assessment.status, 'REQUIRES_MANUAL_REVIEW');
+
+    const assessmentId = recalculated.body.eligibility_assessment.eligibility_assessment_id;
+    const reviewed = await adminJsonRequest(
+      port,
+      'PATCH',
+      `/api/admin/eligibility/${assessmentId}/review`,
+      { status: 'READY_FOR_TECHNICAL_REVIEW', note: 'Revision sintetica de prueba' },
+    );
+    assert.equal(reviewed.statusCode, 200);
+    assert.equal(reviewed.body.eligibility_assessment.status, 'READY_FOR_TECHNICAL_REVIEW');
+    assert.ok(Array.from(repository.auditEvents.values()).some(event =>
+      event.action === 'ELIGIBILITY_REVIEW_UPDATED'
+    ));
   });
 });
 

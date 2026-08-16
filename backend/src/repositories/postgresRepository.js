@@ -300,7 +300,11 @@ class PostgresRepository {
         (select count(*)::int from candidates) as candidates,
         (select count(*)::int from submissions) as submissions,
         (select count(*)::int from documents) as documents,
-        (select count(*)::int from normalization_issues) as normalization_issues
+        (select count(*)::int from normalization_issues) as normalization_issues,
+        (select count(*)::int from eligibility_assessments) as eligibility_assessments,
+        (select count(*)::int from eligibility_assessments where status = 'READY_FOR_TECHNICAL_REVIEW') as eligibility_ready,
+        (select count(*)::int from eligibility_assessments where status = 'BLOCKED_BY_MISSING_REQUIREMENTS') as eligibility_blocked,
+        (select count(*)::int from eligibility_assessments where status = 'REQUIRES_MANUAL_REVIEW') as eligibility_review
     `);
     return result.rows[0];
   }
@@ -322,12 +326,20 @@ class PostgresRepository {
         s.source_reference,
         s.received_at,
         s.normalization_status,
+        ea.status as eligibility_status,
         count(distinct ni.normalization_issue_id)::int as issue_count,
         count(distinct d.document_id)::int as document_count
       from submissions s
       left join candidates c on c.candidate_id = s.candidate_id
       left join normalization_issues ni on ni.submission_id = s.submission_id
       left join documents d on d.candidate_id = s.candidate_id
+      left join lateral (
+        select status
+        from eligibility_assessments
+        where submission_id = s.submission_id
+        order by assessed_at desc
+        limit 1
+      ) ea on true
       group by
         s.submission_id,
         s.candidate_id,
@@ -340,7 +352,8 @@ class PostgresRepository {
         s.source_channel,
         s.source_reference,
         s.received_at,
-        s.normalization_status
+        s.normalization_status,
+        ea.status
       order by s.received_at desc
       limit 500
     `);
@@ -381,6 +394,16 @@ class PostgresRepository {
        order by created_at desc`,
       [submissionId],
     );
+    const eligibility = await this.pool.query(
+      `select eligibility_assessment_id, candidate_id, submission_id, assessment_scope,
+        rule_version, status, check_results, assessed_at, assessed_by,
+        manual_status, manual_note, reviewed_at, reviewed_by
+       from eligibility_assessments
+       where submission_id = $1
+       order by assessed_at desc
+       limit 1`,
+      [submissionId],
+    );
     const auditEvents = await this.pool.query(
       `select audit_event_id, action, entity_type, entity_id, occurred_at,
         source_channel, actor, reason
@@ -392,6 +415,7 @@ class PostgresRepository {
         submissionId,
         ...documents.rows.map(document => document.document_id),
         ...issues.rows.map(issue => issue.normalization_issue_id),
+        ...eligibility.rows.map(item => item.eligibility_assessment_id),
       ]],
     );
 
@@ -401,8 +425,153 @@ class PostgresRepository {
       responses: responses.rows,
       documents: documents.rows,
       issues: issues.rows,
+      eligibility_assessment: eligibility.rows[0] || null,
       audit_events: auditEvents.rows,
     };
+  }
+
+  async getEligibilityInput(submissionId) {
+    const detail = await this.getAdminSubmissionDetail(submissionId);
+    if (!detail) return null;
+    return {
+      submission: detail.submission,
+      candidate: detail.candidate,
+      responses: Object.fromEntries((detail.responses || []).map(response => [response.field_code, response.value])),
+      documents: detail.documents || [],
+    };
+  }
+
+  async saveEligibilityAssessment(assessment, { actor, reason } = {}) {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const current = await client.query(
+        `select eligibility_assessment_id, candidate_id, submission_id, status,
+          rule_version, assessed_at, assessed_by, manual_status, manual_note,
+          reviewed_at, reviewed_by
+         from eligibility_assessments
+         where eligibility_assessment_id = $1
+         for update`,
+        [assessment.eligibility_assessment_id],
+      );
+      const previousValue = current.rows[0] ? sanitizeEligibilityAuditValue(current.rows[0]) : null;
+      const saved = await client.query(
+        `insert into eligibility_assessments (
+          eligibility_assessment_id, candidate_id, submission_id, assessment_scope,
+          rule_version, status, check_results, assessed_at, assessed_by,
+          manual_status, manual_note, reviewed_at, reviewed_by
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+        on conflict (eligibility_assessment_id) do update set
+          status = excluded.status,
+          check_results = excluded.check_results,
+          assessed_at = excluded.assessed_at,
+          assessed_by = excluded.assessed_by,
+          manual_status = '',
+          manual_note = '',
+          reviewed_at = null,
+          reviewed_by = ''
+        returning eligibility_assessment_id, candidate_id, submission_id, assessment_scope,
+          rule_version, status, check_results, assessed_at, assessed_by,
+          manual_status, manual_note, reviewed_at, reviewed_by`,
+        [
+          assessment.eligibility_assessment_id,
+          assessment.candidate_id,
+          assessment.submission_id,
+          assessment.assessment_scope,
+          assessment.rule_version,
+          assessment.status,
+          JSON.stringify(assessment.check_results),
+          assessment.assessed_at,
+          assessment.assessed_by,
+          assessment.manual_status || '',
+          assessment.manual_note || '',
+          assessment.reviewed_at || null,
+          assessment.reviewed_by || '',
+        ],
+      );
+
+      await insertAuditEvent(client, {
+        action: 'ELIGIBILITY_ASSESSED',
+        entityType: 'EligibilityAssessment',
+        entityId: saved.rows[0].eligibility_assessment_id,
+        actor: actor || assessment.assessed_by,
+        previousValue,
+        newValue: sanitizeEligibilityAuditValue(saved.rows[0]),
+        reason: reason || '',
+      });
+
+      await client.query('COMMIT');
+      return saved.rows[0];
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async updateEligibilityReview(assessmentId, { status, note, actor, reason }) {
+    const allowed = new Set([
+      'READY_FOR_TECHNICAL_REVIEW',
+      'BLOCKED_BY_MISSING_REQUIREMENTS',
+      'REQUIRES_MANUAL_REVIEW',
+    ]);
+    if (!allowed.has(status)) {
+      const error = new Error('Invalid eligibility status.');
+      error.statusCode = 400;
+      error.code = 'INVALID_ELIGIBILITY_STATUS';
+      throw error;
+    }
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const current = await client.query(
+        `select eligibility_assessment_id, candidate_id, submission_id, status,
+          rule_version, assessed_at, assessed_by, manual_status, manual_note,
+          reviewed_at, reviewed_by
+         from eligibility_assessments
+         where eligibility_assessment_id = $1
+         for update`,
+        [assessmentId],
+      );
+      if (current.rowCount === 0) {
+        const error = new Error('Eligibility assessment not found.');
+        error.statusCode = 404;
+        error.code = 'NOT_FOUND';
+        throw error;
+      }
+
+      const reviewedAt = new Date().toISOString();
+      const updated = await client.query(
+        `update eligibility_assessments
+         set status = $2, manual_status = $2, manual_note = $3,
+           reviewed_at = $4, reviewed_by = $5
+         where eligibility_assessment_id = $1
+         returning eligibility_assessment_id, candidate_id, submission_id, assessment_scope,
+           rule_version, status, check_results, assessed_at, assessed_by,
+           manual_status, manual_note, reviewed_at, reviewed_by`,
+        [assessmentId, status, String(note || ''), reviewedAt, actor],
+      );
+
+      await insertAuditEvent(client, {
+        action: 'ELIGIBILITY_REVIEW_UPDATED',
+        entityType: 'EligibilityAssessment',
+        entityId: assessmentId,
+        actor,
+        previousValue: sanitizeEligibilityAuditValue(current.rows[0]),
+        newValue: sanitizeEligibilityAuditValue(updated.rows[0]),
+        reason,
+      });
+
+      await client.query('COMMIT');
+      return updated.rows[0];
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async recordDocumentOpen(documentId, { actor, reason }) {
@@ -768,6 +937,22 @@ function sanitizeIssueAuditValue(issue) {
     review_note: issue.review_note || '',
     reviewed_at: issue.reviewed_at || null,
     reviewed_by: issue.reviewed_by || '',
+  };
+}
+
+function sanitizeEligibilityAuditValue(assessment) {
+  return {
+    eligibility_assessment_id: assessment.eligibility_assessment_id,
+    candidate_id: assessment.candidate_id,
+    submission_id: assessment.submission_id,
+    status: assessment.status,
+    rule_version: assessment.rule_version,
+    assessed_at: assessment.assessed_at || null,
+    assessed_by: assessment.assessed_by || '',
+    manual_status: assessment.manual_status || '',
+    manual_note: assessment.manual_note || '',
+    reviewed_at: assessment.reviewed_at || null,
+    reviewed_by: assessment.reviewed_by || '',
   };
 }
 

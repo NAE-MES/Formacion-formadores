@@ -80,6 +80,22 @@ create table if not exists audit_events (
   reason text not null default ''
 );
 
+create table if not exists eligibility_assessments (
+  eligibility_assessment_id text primary key,
+  candidate_id text not null references candidates(candidate_id),
+  submission_id text not null references submissions(submission_id),
+  assessment_scope text not null,
+  rule_version text not null,
+  status text not null,
+  check_results jsonb not null,
+  assessed_at timestamptz not null,
+  assessed_by text not null,
+  manual_status text not null default '',
+  manual_note text not null default '',
+  reviewed_at timestamptz,
+  reviewed_by text not null default ''
+);
+
 create table if not exists admin_users (
   admin_user_id text primary key,
   username text not null unique,
@@ -103,6 +119,8 @@ create index if not exists idx_submissions_candidate_id on submissions(candidate
 create index if not exists idx_candidate_responses_candidate_id on candidate_responses(candidate_id);
 create index if not exists idx_documents_candidate_id on documents(candidate_id);
 create index if not exists idx_normalization_issues_submission_id on normalization_issues(submission_id);
+create index if not exists idx_eligibility_assessments_submission_id on eligibility_assessments(submission_id);
+create index if not exists idx_eligibility_assessments_candidate_id on eligibility_assessments(candidate_id);
 create index if not exists idx_admin_sessions_token_hash on admin_sessions(session_token_hash);
 create index if not exists idx_admin_sessions_user_id on admin_sessions(admin_user_id);
 
@@ -112,3 +130,7 @@ alter table normalization_issues add column if not exists review_status text not
 alter table normalization_issues add column if not exists review_note text not null default '';
 alter table normalization_issues add column if not exists reviewed_at timestamptz;
 alter table normalization_issues add column if not exists reviewed_by text not null default '';
+alter table eligibility_assessments add column if not exists manual_status text not null default '';
+alter table eligibility_assessments add column if not exists manual_note text not null default '';
+alter table eligibility_assessments add column if not exists reviewed_at timestamptz;
+alter table eligibility_assessments add column if not exists reviewed_by text not null default '';

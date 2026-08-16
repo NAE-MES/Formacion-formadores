@@ -3,6 +3,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { importGoogleFormSubmission, importOfflineJsonSubmission } = require('./ingestion');
+const { assessEligibility } = require('./eligibility');
 
 function createApp({ config, repository }) {
   async function handle(req, res) {
@@ -69,6 +70,26 @@ function createApp({ config, repository }) {
         return sendJson(res, 200, detail);
       }
 
+      if (req.method === 'POST' && req.url.startsWith('/api/admin/submissions/') && req.url.endsWith('/eligibility/recalculate')) {
+        const admin = await authorizeAdmin(req, config, repository);
+        const submissionId = decodeURIComponent(req.url.slice('/api/admin/submissions/'.length, -'/eligibility/recalculate'.length));
+        const assessment = await recalculateEligibility(submissionId, config, repository, admin.username || 'ADMIN_UI');
+        return sendJson(res, 200, { eligibility_assessment: assessment });
+      }
+
+      if (req.method === 'PATCH' && req.url.startsWith('/api/admin/eligibility/') && req.url.endsWith('/review')) {
+        const admin = await authorizeAdmin(req, config, repository);
+        const assessmentId = decodeURIComponent(req.url.slice('/api/admin/eligibility/'.length, -'/review'.length));
+        const payload = await readJson(req);
+        const assessment = await repository.updateEligibilityReview(assessmentId, {
+          status: payload.status,
+          note: payload.note || '',
+          actor: admin.username || payload.actor || 'ADMIN_UI',
+          reason: payload.reason || '',
+        });
+        return sendJson(res, 200, { eligibility_assessment: assessment });
+      }
+
       if (req.method === 'PATCH' && req.url.startsWith('/api/admin/documents/') && req.url.endsWith('/status')) {
         const admin = await authorizeAdmin(req, config, repository);
         const documentId = decodeURIComponent(req.url.slice('/api/admin/documents/'.length, -'/status'.length));
@@ -109,7 +130,8 @@ function createApp({ config, repository }) {
         const payload = await readJson(req);
         const imported = importGoogleFormSubmission(payload, config);
         const saved = await repository.saveImportedSubmission(imported);
-        return sendJson(res, statusCodeFor(saved.status), responseBody(saved));
+        const assessment = await assessSavedImport(saved, config, repository);
+        return sendJson(res, statusCodeFor(saved.status), responseBody(saved, assessment));
       }
 
       if (req.method === 'POST' && req.url === '/api/submissions/offline-json') {
@@ -117,7 +139,8 @@ function createApp({ config, repository }) {
         const payload = await readJson(req);
         const imported = importOfflineJsonSubmission(payload, config);
         const saved = await repository.saveImportedSubmission(imported);
-        return sendJson(res, statusCodeFor(saved.status), responseBody(saved));
+        const assessment = await assessSavedImport(saved, config, repository);
+        return sendJson(res, statusCodeFor(saved.status), responseBody(saved, assessment));
       }
 
       return sendJson(res, 404, { error: 'NOT_FOUND' });
@@ -136,6 +159,34 @@ function createApp({ config, repository }) {
   }
 
   return http.createServer(handle);
+}
+
+async function assessSavedImport(saved, config, repository) {
+  const submissionId = saved.imported?.submission?.submission_id;
+  if (!submissionId || !config.eligibilityConfig || !repository.getEligibilityInput) return null;
+  return recalculateEligibility(submissionId, config, repository, 'API_ELIGIBILITY_ASSESSOR');
+}
+
+async function recalculateEligibility(submissionId, config, repository, actor) {
+  if (!config.eligibilityConfig || !repository.getEligibilityInput || !repository.saveEligibilityAssessment) {
+    const error = new Error('Eligibility assessment is not configured.');
+    error.statusCode = 503;
+    error.code = 'ELIGIBILITY_NOT_CONFIGURED';
+    throw error;
+  }
+
+  const input = await repository.getEligibilityInput(submissionId);
+  if (!input) {
+    const error = new Error('Submission not found.');
+    error.statusCode = 404;
+    error.code = 'NOT_FOUND';
+    throw error;
+  }
+  const assessment = assessEligibility(input, config.eligibilityConfig, { actor });
+  return repository.saveEligibilityAssessment(assessment, {
+    actor,
+    reason: 'Eligibility recalculated from normalized responses and document status.',
+  });
 }
 
 function sendAdminAsset(res, relativePath) {
@@ -337,13 +388,14 @@ function statusCodeFor(status) {
   return 201;
 }
 
-function responseBody(saved) {
+function responseBody(saved, assessment) {
   const imported = saved.imported || {};
   return {
     status: saved.status,
     candidate_id: imported.candidate?.candidate_id || '',
     submission_id: imported.submission?.submission_id || imported.submission_id || '',
     normalization_status: imported.submission?.normalization_status || '',
+    eligibility_status: assessment?.status || '',
     issues: (imported.issues || []).map(issue => ({
       field_code: issue.field_code,
       code: issue.code,

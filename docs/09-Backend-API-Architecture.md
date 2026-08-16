@@ -64,6 +64,8 @@ Endpoints iniciales:
 - `GET /api/admin/summary`
 - `GET /api/admin/submissions`
 - `GET /api/admin/submissions/:submission_id`
+- `POST /api/admin/submissions/:submission_id/eligibility/recalculate`
+- `PATCH /api/admin/eligibility/:eligibility_assessment_id/review`
 - `PATCH /api/admin/documents/:document_id/status`
 - `POST /api/admin/documents/:document_id/open`
 - `PATCH /api/admin/issues/:normalization_issue_id/review`
@@ -133,6 +135,8 @@ Alcance:
 - revision operativa de estado de documentos;
 - apertura de referencias documentales desde el repositorio original;
 - seguimiento operativo de incidencias de normalizacion.
+- admisibilidad preliminar operativa calculada desde respuestas normalizadas
+  y documentos asociados.
 
 Restricciones:
 
@@ -158,7 +162,15 @@ Estados operativos de incidencias:
 - `RESOLVED`
 - `NEEDS_SOURCE_REVIEW`
 
+Estados operativos de admisibilidad preliminar:
+
+- `READY_FOR_TECHNICAL_REVIEW`
+- `BLOCKED_BY_MISSING_REQUIREMENTS`
+- `REQUIRES_MANUAL_REVIEW`
+
 Cada cambio administrativo registra un evento en `audit_events` sin guardar
 CV, carta aval ni datos personales completos dentro del log tecnico.
 La accion de abrir una referencia documental tambien queda auditada como
 `DOCUMENT_OPENED`.
+El recalculo de admisibilidad registra `ELIGIBILITY_ASSESSED`; la revision
+manual registra `ELIGIBILITY_REVIEW_UPDATED`.
