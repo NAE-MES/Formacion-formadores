@@ -3,6 +3,8 @@ let reviewSummaries = [];
 let documentReviewRows = [];
 let evaluationMatrixRows = [];
 let matrixCriteria = [];
+let issueReviewRows = [];
+let issueFieldCatalog = [];
 let selectedId = '';
 let selectedDetail = null;
 let currentUser = null;
@@ -102,6 +104,14 @@ const exportReviewCsvButton = document.querySelector('#exportReviewCsvButton');
 const clearReviewFiltersButton = document.querySelector('#clearReviewFiltersButton');
 const reviewSummaryTable = document.querySelector('#reviewSummaryTable');
 const reviewCount = document.querySelector('#reviewCount');
+const issueSearchInput = document.querySelector('#issueSearchInput');
+const issueStatusFilter = document.querySelector('#issueStatusFilter');
+const issueSeverityFilter = document.querySelector('#issueSeverityFilter');
+const issueOriginFilter = document.querySelector('#issueOriginFilter');
+const clearIssueFiltersButton = document.querySelector('#clearIssueFiltersButton');
+const issueReviewTable = document.querySelector('#issueReviewTable');
+const issueReviewCount = document.querySelector('#issueReviewCount');
+const issueReviewStats = document.querySelector('#issueReviewStats');
 const documentSearchInput = document.querySelector('#documentSearchInput');
 const documentStatusFilter = document.querySelector('#documentStatusFilter');
 const documentOriginFilter = document.querySelector('#documentOriginFilter');
@@ -173,6 +183,8 @@ logoutButton.addEventListener('click', async () => {
   documentReviewRows = [];
   evaluationMatrixRows = [];
   matrixCriteria = [];
+  issueReviewRows = [];
+  issueFieldCatalog = [];
   currentUser = null;
   showLogin();
 });
@@ -190,6 +202,11 @@ reviewEvaluationFilter.addEventListener('change', renderReviewSummary);
 reviewEligibilityFilter.addEventListener('change', renderReviewSummary);
 exportReviewCsvButton.addEventListener('click', exportReviewCsv);
 clearReviewFiltersButton.addEventListener('click', clearReviewFilters);
+issueSearchInput.addEventListener('input', renderIssueReview);
+issueStatusFilter.addEventListener('change', renderIssueReview);
+issueSeverityFilter.addEventListener('change', renderIssueReview);
+issueOriginFilter.addEventListener('change', renderIssueReview);
+clearIssueFiltersButton.addEventListener('click', clearIssueFilters);
 documentSearchInput.addEventListener('input', renderDocumentReview);
 documentStatusFilter.addEventListener('change', renderDocumentReview);
 documentOriginFilter.addEventListener('change', renderDocumentReview);
@@ -237,21 +254,25 @@ function showLogin(message = '') {
 }
 
 async function loadData() {
-  const [summary, list, review, documents, matrix] = await Promise.all([
+  const [summary, list, review, documents, matrix, issues] = await Promise.all([
     api('/api/admin/summary'),
     api('/api/admin/submissions'),
     api('/api/admin/review-summary'),
     api('/api/admin/document-review'),
     api('/api/admin/evaluation-matrix'),
+    api('/api/admin/issues'),
   ]);
   submissions = list.submissions || [];
   reviewSummaries = review.summaries || [];
   documentReviewRows = documents.rows || [];
   evaluationMatrixRows = matrix.rows || [];
   matrixCriteria = matrix.criteria || [];
+  issueReviewRows = issues.issues || [];
+  issueFieldCatalog = issues.field_catalog || [];
   renderStats(summary);
   renderTable();
   renderReviewSummary();
+  renderIssueReview();
   renderDocumentReview();
   renderEvaluationMatrix();
   if (selectedId) await selectSubmission(selectedId);
@@ -278,6 +299,7 @@ function showView(name) {
   views.forEach(view => view.classList.toggle('active', view.id === `view-${name}`));
   if (name === 'users' && currentUser?.role === 'ADMIN') loadUsers();
   if (name === 'review') renderReviewSummary();
+  if (name === 'issues') renderIssueReview();
   if (name === 'documents') renderDocumentReview();
   if (name === 'matrix') renderEvaluationMatrix();
 }
@@ -593,6 +615,53 @@ function renderReviewSummary() {
   });
 }
 
+function renderIssueReview() {
+  const query = normalize(issueSearchInput.value);
+  const status = issueStatusFilter.value;
+  const severity = issueSeverityFilter.value;
+  const origin = issueOriginFilter.value;
+  const fieldCatalog = new Map(issueFieldCatalog.map(field => [field.code, field]));
+  const rows = issueReviewRows.filter(issue => {
+    const field = fieldCatalog.get(issue.field_code) || {};
+    const matchesStatus = !status || (issue.review_status || 'OPEN') === status;
+    const matchesSeverity = !severity || issue.severity === severity;
+    const matchesOrigin = !origin || issue.source_channel === origin;
+    const haystack = normalize([
+      issue.code,
+      issue.message,
+      issue.field_code,
+      field.question,
+      issue.full_name,
+      issue.email,
+      issue.province,
+      issue.submission_id,
+      issue.source_channel,
+    ].join(' '));
+    return matchesStatus && matchesSeverity && matchesOrigin && (!query || haystack.includes(query));
+  });
+
+  issueReviewStats.innerHTML = issueStatsHtml(rows);
+  issueReviewTable.innerHTML = rows.map(issue => issueReviewRow(issue, fieldCatalog.get(issue.field_code))).join('');
+  issueReviewCount.textContent = resultCountLabel(rows.length, issueReviewRows.length, 'incidencia', 'incidencias');
+
+  issueReviewTable.querySelectorAll('tr').forEach(row => {
+    row.addEventListener('click', async event => {
+      if (event.target.closest('button, input, select')) return;
+      showView('submissions');
+      await selectSubmission(row.dataset.issueSubmission);
+    });
+  });
+  issueReviewTable.querySelectorAll('[data-issue-quick]').forEach(button => {
+    button.addEventListener('click', saveIssueFromReview);
+  });
+  issueReviewStats.querySelectorAll('[data-issue-status-shortcut]').forEach(button => {
+    button.addEventListener('click', () => {
+      issueStatusFilter.value = button.dataset.issueStatusShortcut;
+      renderIssueReview();
+    });
+  });
+}
+
 function renderDocumentReview() {
   const query = normalize(documentSearchInput.value);
   const status = documentStatusFilter.value;
@@ -763,6 +832,14 @@ function clearReviewFilters() {
   renderReviewSummary();
 }
 
+function clearIssueFilters() {
+  issueSearchInput.value = '';
+  issueStatusFilter.value = '';
+  issueSeverityFilter.value = '';
+  issueOriginFilter.value = '';
+  renderIssueReview();
+}
+
 function clearDocumentFilters() {
   documentSearchInput.value = '';
   documentStatusFilter.value = '';
@@ -780,6 +857,7 @@ function clearMatrixFilters() {
 function applyQuickFilter(filter) {
   clearSubmissionFilters();
   clearReviewFilters();
+  clearIssueFilters();
   clearDocumentFilters();
   clearMatrixFilters();
   if (filter === 'CLEAR') {
@@ -801,7 +879,8 @@ function applyQuickFilter(filter) {
     showView('matrix');
   } else if (filter === 'OPEN_ISSUES') {
     workFilter.value = 'OPEN_ISSUES';
-    showView('submissions');
+    issueStatusFilter.value = 'OPEN';
+    showView('issues');
   } else if (filter === 'DOCS_TO_REVIEW') {
     workFilter.value = 'DOCS_NEED_REVIEW';
     documentStatusFilter.value = 'NEEDS_REVIEW';
@@ -809,6 +888,7 @@ function applyQuickFilter(filter) {
   }
   renderTable();
   renderReviewSummary();
+  renderIssueReview();
   renderDocumentReview();
   renderEvaluationMatrix();
 }
@@ -1037,6 +1117,83 @@ function documentReviewCell(item, prefix) {
       ${controls}
     </div>
   `;
+}
+
+function issueReviewRow(issue, field = {}) {
+  const canReview = hasRole('ADMIN', 'REVIEWER');
+  const status = issue.review_status || 'OPEN';
+  return `
+    <tr data-issue-submission="${escapeHtml(issue.submission_id)}">
+      <td>
+        <strong>${escapeHtml(issue.code)}</strong> ${severityBadge(issue.severity)}<br>
+        <span class="muted">${escapeHtml(issue.message || '')}</span><br>
+        <span class="muted">${formatDate(issue.created_at)}</span>
+      </td>
+      <td>
+        <strong>${escapeHtml(issue.full_name || 'Sin nombre')}</strong><br>
+        <span class="muted">${escapeHtml(issue.email || '')}</span><br>
+        <span class="badge">${escapeHtml(label('sourceChannels', issue.source_channel))}</span>
+      </td>
+      <td>
+        <strong>${escapeHtml(issue.field_code || 'General')}</strong><br>
+        <span class="muted">${escapeHtml(field.question || '')}</span>
+      </td>
+      <td>${issueBadge(status)}<br><span class="muted">${escapeHtml(issue.reviewed_by || '')} ${issue.reviewed_at ? formatDate(issue.reviewed_at) : ''}</span></td>
+      <td>
+        <input class="note-input" data-issue-review-note="${escapeHtml(issue.normalization_issue_id)}" type="text" value="${escapeHtml(issue.review_note || '')}" placeholder="Nota de revisión" ${canReview ? '' : 'disabled'}>
+      </td>
+      <td>
+        <div class="issue-actions">
+          ${quickIssueButton(issue, 'ACKNOWLEDGED', 'Reconocer', canReview)}
+          ${quickIssueButton(issue, 'RESOLVED', 'Resolver', canReview)}
+          ${quickIssueButton(issue, 'NEEDS_SOURCE_REVIEW', 'Revisar fuente', canReview)}
+        </div>
+      </td>
+    </tr>
+  `;
+}
+
+function quickIssueButton(issue, status, text, canReview) {
+  return `<button class="compact ${status === 'RESOLVED' ? '' : 'ghost'}" type="button" data-issue-quick="${escapeHtml(issue.normalization_issue_id)}" data-issue-next-status="${escapeHtml(status)}" ${canReview ? '' : 'disabled'}>${escapeHtml(text)}</button>`;
+}
+
+async function saveIssueFromReview(event) {
+  event.stopPropagation();
+  const button = event.currentTarget;
+  const issueId = button.dataset.issueQuick;
+  const note = issueReviewTable.querySelector(`[data-issue-review-note="${cssEscape(issueId)}"]`);
+  button.disabled = true;
+  const originalText = button.textContent;
+  button.textContent = 'Guardando';
+  try {
+    await api(`/api/admin/issues/${encodeURIComponent(issueId)}/review`, {
+      method: 'PATCH',
+      body: {
+        review_status: button.dataset.issueNextStatus,
+        review_note: note.value,
+        reason: 'Actualización de incidencia desde la vista operativa',
+      },
+    });
+    await loadData();
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = originalText;
+    alert(error.message);
+  }
+}
+
+function issueStatsHtml(rows) {
+  const counts = rows.reduce((acc, issue) => {
+    const status = issue.review_status || 'OPEN';
+    acc[status] = (acc[status] || 0) + 1;
+    return acc;
+  }, {});
+  return ['OPEN', 'ACKNOWLEDGED', 'NEEDS_SOURCE_REVIEW', 'RESOLVED'].map(status => `
+    <button class="ghost issue-stat" type="button" data-issue-status-shortcut="${escapeHtml(status)}">
+      <strong>${escapeHtml(counts[status] || 0)}</strong>
+      <span>${escapeHtml(label('issues', status))}</span>
+    </button>
+  `).join('');
 }
 
 function matrixCriterionCell(item, criterion) {
@@ -1302,6 +1459,29 @@ function issueSummary(item) {
   const open = Number(item.open_issue_count || 0);
   if (!open) return escapeHtml(item.issue_count);
   return `${escapeHtml(item.issue_count)} <span class="badge warn">${escapeHtml(open)} abiertas</span>`;
+}
+
+function issueBadge(status) {
+  const normalized = status || 'OPEN';
+  const cls = normalized === 'RESOLVED'
+    ? 'ok'
+    : normalized === 'NEEDS_SOURCE_REVIEW'
+      ? 'bad'
+      : normalized === 'ACKNOWLEDGED'
+        ? 'warn'
+        : '';
+  return `<span class="badge ${cls}">${escapeHtml(label('issues', normalized))}</span>`;
+}
+
+function severityBadge(severity) {
+  const normalized = severity || '';
+  const labels = {
+    ERROR: 'Error',
+    WARNING: 'Advertencia',
+    INFO: 'Informativa',
+  };
+  const cls = normalized === 'ERROR' ? 'bad' : normalized === 'WARNING' ? 'warn' : '';
+  return `<span class="badge ${cls}">${escapeHtml(labels[normalized] || normalized || 'Incidencia')}</span>`;
 }
 
 function eligibilityBadge(status) {

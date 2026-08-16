@@ -189,8 +189,35 @@ p {
   grid-template-columns: minmax(240px, 1fr) minmax(160px, 210px) minmax(190px, 260px) auto auto;
 }
 
+.issue-toolbar {
+  grid-template-columns: minmax(260px, 1fr) minmax(150px, 190px) minmax(140px, 180px) minmax(160px, 210px) auto;
+}
+
 .document-toolbar {
   grid-template-columns: minmax(240px, 1fr) minmax(160px, 210px) minmax(160px, 210px) auto;
+}
+
+.issue-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+.issue-stat {
+  display: grid;
+  min-height: 54px;
+  justify-items: start;
+  align-content: center;
+}
+
+.issue-stat strong {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.issue-stat span {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .matrix-toolbar {
@@ -327,6 +354,10 @@ table {
 
 .matrix-wrap table {
   min-width: 1360px;
+}
+
+.issue-wrap table {
+  min-width: 1260px;
 }
 
 th,
@@ -540,6 +571,12 @@ tbody tr.selected {
   gap: 6px;
 }
 
+.issue-actions {
+  display: grid;
+  gap: 6px;
+  min-width: 150px;
+}
+
 .matrix-cell {
   min-width: 230px;
 }
@@ -607,6 +644,8 @@ tbody tr.selected {
   .stats,
   .toolbar,
   .review-toolbar,
+  .issue-toolbar,
+  .issue-stats,
   .document-toolbar,
   .matrix-toolbar,
   .matrix-stats,

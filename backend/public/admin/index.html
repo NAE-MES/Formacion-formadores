@@ -45,6 +45,7 @@
         <nav class="tabs" aria-label="Vistas administrativas">
           <button class="tab active" type="button" data-view="submissions">Expedientes</button>
           <button class="tab" type="button" data-view="review">Seguimiento</button>
+          <button class="tab" type="button" data-view="issues">Incidencias</button>
           <button class="tab" type="button" data-view="documents">Documentos</button>
           <button class="tab" type="button" data-view="matrix">Matriz técnica</button>
           <button class="tab" type="button" data-view="intake">Entrada offline</button>
@@ -153,6 +154,49 @@
                 </tr>
               </thead>
               <tbody id="reviewSummaryTable"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="view-issues" class="view">
+          <div class="toolbar issue-toolbar">
+            <input id="issueSearchInput" type="search" placeholder="Buscar incidencia, postulante, campo o provincia">
+            <select id="issueStatusFilter">
+              <option value="">Estado</option>
+              <option value="OPEN">Abierta</option>
+              <option value="ACKNOWLEDGED">Reconocida</option>
+              <option value="RESOLVED">Resuelta</option>
+              <option value="NEEDS_SOURCE_REVIEW">Revisar fuente</option>
+            </select>
+            <select id="issueSeverityFilter">
+              <option value="">Severidad</option>
+              <option value="ERROR">Error</option>
+              <option value="WARNING">Advertencia</option>
+              <option value="INFO">Informativa</option>
+            </select>
+            <select id="issueOriginFilter">
+              <option value="">Origen</option>
+              <option value="GOOGLE_FORM">Formulario en línea</option>
+              <option value="OFFLINE_JSON">Offline con JSON</option>
+              <option value="OFFLINE_MANUAL">Offline manual</option>
+            </select>
+            <button id="clearIssueFiltersButton" class="ghost" type="button">Limpiar</button>
+          </div>
+          <p id="issueReviewCount" class="result-count"></p>
+          <div id="issueReviewStats" class="issue-stats"></div>
+          <div class="table-wrap issue-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Incidencia</th>
+                  <th>Postulante</th>
+                  <th>Campo</th>
+                  <th>Estado</th>
+                  <th>Nota</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="issueReviewTable"></tbody>
             </table>
           </div>
         </section>

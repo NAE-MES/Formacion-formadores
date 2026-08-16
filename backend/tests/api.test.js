@@ -634,6 +634,26 @@ test('admin API updates normalization issue review with audit event', async (t) 
   });
 });
 
+test('admin API lists operational normalization issues', async (t) => {
+  await withServer(t, async ({ port }) => {
+    await request(port, 'POST', '/api/submissions/google-form', {
+      sourceReference: 'google-response-issue-list',
+      responses: {
+        ...validResponses(),
+        'FDF-07': '',
+      },
+      documents: requiredDocuments(),
+    });
+
+    const issues = await adminRequest(port, 'GET', '/api/admin/issues');
+    assert.equal(issues.statusCode, 200);
+    assert.ok(issues.body.issues.length >= 1);
+    assert.ok(issues.body.field_catalog.length >= 1);
+    assert.equal(issues.body.issues[0].review_status, 'OPEN');
+    assert.equal(issues.body.issues.some(issue => issue.field_code === 'FDF-07'), true);
+  });
+});
+
 test('admin API rejects invalid operational statuses', async (t) => {
   await withServer(t, async ({ port, repository }) => {
     await request(port, 'POST', '/api/submissions/google-form', {

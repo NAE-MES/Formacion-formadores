@@ -695,6 +695,40 @@ class PostgresRepository {
     return result.rows;
   }
 
+  async listNormalizationIssueRows() {
+    const result = await this.pool.query(`
+      select
+        ni.normalization_issue_id,
+        ni.submission_id,
+        ni.candidate_id,
+        trim(concat_ws(' ',
+          c.first_name,
+          nullif(c.second_name, ''),
+          c.first_surname,
+          nullif(c.second_surname, '')
+        )) as full_name,
+        c.email,
+        c.province,
+        s.source_channel,
+        s.source_reference,
+        ni.field_code,
+        ni.code,
+        ni.severity,
+        ni.message,
+        ni.created_at,
+        coalesce(ni.review_status, 'OPEN') as review_status,
+        coalesce(ni.review_note, '') as review_note,
+        ni.reviewed_at,
+        coalesce(ni.reviewed_by, '') as reviewed_by
+      from normalization_issues ni
+      left join submissions s on s.submission_id = ni.submission_id
+      left join candidates c on c.candidate_id = ni.candidate_id
+      order by ni.created_at desc
+      limit 1000
+    `);
+    return result.rows;
+  }
+
   async getAdminSubmissionDetail(submissionId) {
     const submission = await this.pool.query(
       `select * from submissions where submission_id = $1`,

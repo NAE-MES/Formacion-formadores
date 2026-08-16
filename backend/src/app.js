@@ -130,6 +130,14 @@ function createApp({ config, repository }) {
         });
       }
 
+      if (req.method === 'GET' && req.url === '/api/admin/issues') {
+        await authorizeAdmin(req, config, repository);
+        return sendJson(res, 200, {
+          issues: await repository.listNormalizationIssueRows(),
+          field_catalog: fieldCatalogFromConfig(config.publicSchema),
+        });
+      }
+
       if (req.method === 'GET' && req.url === '/api/admin/review-summary.csv') {
         await authorizeAdmin(req, config, repository);
         return sendCsv(res, 'fdf-2026-review-summary.csv', reviewSummaryCsv(await repository.listReviewSummaries()));

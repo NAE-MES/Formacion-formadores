@@ -385,6 +385,39 @@ class MemoryRepository {
       });
   }
 
+  async listNormalizationIssueRows() {
+    return Array.from(this.issues.values())
+      .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+      .map(issue => {
+        const submission = this.submissions.get(issue.submission_id) || {};
+        const candidate = this.candidates.get(issue.candidate_id) || {};
+        return {
+          normalization_issue_id: issue.normalization_issue_id,
+          submission_id: issue.submission_id,
+          candidate_id: issue.candidate_id,
+          full_name: [
+            candidate.first_name,
+            candidate.second_name,
+            candidate.first_surname,
+            candidate.second_surname,
+          ].filter(Boolean).join(' '),
+          email: candidate.email || '',
+          province: candidate.province || '',
+          source_channel: submission.source_channel || '',
+          source_reference: submission.source_reference || '',
+          field_code: issue.field_code || '',
+          code: issue.code,
+          severity: issue.severity,
+          message: issue.message,
+          created_at: issue.created_at,
+          review_status: issue.review_status || 'OPEN',
+          review_note: issue.review_note || '',
+          reviewed_at: issue.reviewed_at || '',
+          reviewed_by: issue.reviewed_by || '',
+        };
+      });
+  }
+
   async getAdminSubmissionDetail(submissionId) {
     const submission = this.submissions.get(submissionId);
     if (!submission) return null;
