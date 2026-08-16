@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>FdF 2026 - Gestion</title>
+    <title>FdF 2026 - Gestión</title>
     <link rel="stylesheet" href="/admin/styles.css">
   </head>
   <body>
@@ -15,7 +15,7 @@
         </div>
         <div class="top-actions">
           <span id="currentUserBadge" class="badge" hidden></span>
-          <button id="logoutButton" class="ghost" type="button" hidden>Cerrar sesion</button>
+          <button id="logoutButton" class="ghost" type="button" hidden>Cerrar sesión</button>
         </div>
       </section>
 
@@ -23,7 +23,7 @@
         <form id="loginForm" class="login-form">
           <label for="adminUsername">Usuario</label>
           <input id="adminUsername" name="adminUsername" type="text" autocomplete="username" required>
-          <label for="adminPassword">Contrasena</label>
+          <label for="adminPassword">Contraseña</label>
           <div class="token-row">
             <input id="adminPassword" name="adminPassword" type="password" autocomplete="current-password" required>
             <button type="submit">Entrar</button>
@@ -36,7 +36,7 @@
         <div class="stats" id="stats"></div>
 
         <nav class="tabs" aria-label="Vistas administrativas">
-          <button class="tab active" type="button" data-view="submissions">Postulaciones</button>
+          <button class="tab active" type="button" data-view="submissions">Expedientes</button>
           <button class="tab" type="button" data-view="review">Seguimiento</button>
           <button class="tab" type="button" data-view="intake">Entrada offline</button>
           <button class="tab" type="button" data-view="users">Usuarios</button>
@@ -47,29 +47,29 @@
           <input id="searchInput" type="search" placeholder="Buscar por nombre, correo, provincia o ID">
           <select id="statusFilter">
             <option value="">Normalización</option>
-            <option value="NORMALIZED">NORMALIZED</option>
-            <option value="WITH_ISSUES">WITH_ISSUES</option>
-            <option value="REJECTED">REJECTED</option>
+            <option value="NORMALIZED">Normalizada</option>
+            <option value="WITH_ISSUES">Con incidencias</option>
+            <option value="REJECTED">Rechazada</option>
           </select>
           <select id="eligibilityFilter">
             <option value="">Admisibilidad</option>
-            <option value="READY_FOR_TECHNICAL_REVIEW">READY_FOR_TECHNICAL_REVIEW</option>
-            <option value="BLOCKED_BY_MISSING_REQUIREMENTS">BLOCKED_BY_MISSING_REQUIREMENTS</option>
-            <option value="REQUIRES_MANUAL_REVIEW">REQUIRES_MANUAL_REVIEW</option>
-            <option value="SIN_EVALUAR">SIN_EVALUAR</option>
+            <option value="READY_FOR_TECHNICAL_REVIEW">Lista para revisión técnica</option>
+            <option value="BLOCKED_BY_MISSING_REQUIREMENTS">Bloqueada por requisitos</option>
+            <option value="REQUIRES_MANUAL_REVIEW">Requiere revisión manual</option>
+            <option value="SIN_EVALUAR">Sin evaluar</option>
           </select>
           <select id="evaluationFilter">
             <option value="">Evaluación</option>
-            <option value="NOT_STARTED">NOT_STARTED</option>
-            <option value="IN_PROGRESS">IN_PROGRESS</option>
-            <option value="COMPLETED">COMPLETED</option>
-            <option value="NEEDS_REVIEW">NEEDS_REVIEW</option>
+            <option value="NOT_STARTED">No iniciada</option>
+            <option value="IN_PROGRESS">En curso</option>
+            <option value="COMPLETED">Completada</option>
+            <option value="NEEDS_REVIEW">Necesita revisión</option>
           </select>
           <select id="originFilter">
             <option value="">Origen</option>
-            <option value="GOOGLE_FORM">GOOGLE_FORM</option>
-            <option value="OFFLINE_JSON">OFFLINE_JSON</option>
-            <option value="OFFLINE_MANUAL">OFFLINE_MANUAL</option>
+            <option value="GOOGLE_FORM">Formulario en línea</option>
+            <option value="OFFLINE_JSON">Offline con JSON</option>
+            <option value="OFFLINE_MANUAL">Offline manual</option>
           </select>
           <select id="workFilter">
             <option value="">Trabajo pendiente</option>
@@ -89,7 +89,7 @@
                   <th>Postulante</th>
                   <th>Provincia</th>
                   <th>Origen</th>
-                  <th>Estado</th>
+                  <th>Normalización</th>
                   <th>Admisibilidad</th>
                   <th>Evaluación</th>
                   <th>Docs</th>
@@ -111,17 +111,17 @@
             <input id="reviewSearchInput" type="search" placeholder="Buscar en seguimiento">
             <select id="reviewEvaluationFilter">
               <option value="">Evaluación</option>
-              <option value="NOT_STARTED">NOT_STARTED</option>
-              <option value="IN_PROGRESS">IN_PROGRESS</option>
-              <option value="COMPLETED">COMPLETED</option>
-              <option value="NEEDS_REVIEW">NEEDS_REVIEW</option>
+              <option value="NOT_STARTED">No iniciada</option>
+              <option value="IN_PROGRESS">En curso</option>
+              <option value="COMPLETED">Completada</option>
+              <option value="NEEDS_REVIEW">Necesita revisión</option>
             </select>
             <select id="reviewEligibilityFilter">
               <option value="">Admisibilidad</option>
-              <option value="READY_FOR_TECHNICAL_REVIEW">READY_FOR_TECHNICAL_REVIEW</option>
-              <option value="BLOCKED_BY_MISSING_REQUIREMENTS">BLOCKED_BY_MISSING_REQUIREMENTS</option>
-              <option value="REQUIRES_MANUAL_REVIEW">REQUIRES_MANUAL_REVIEW</option>
-              <option value="SIN_EVALUAR">SIN_EVALUAR</option>
+              <option value="READY_FOR_TECHNICAL_REVIEW">Lista para revisión técnica</option>
+              <option value="BLOCKED_BY_MISSING_REQUIREMENTS">Bloqueada por requisitos</option>
+              <option value="REQUIRES_MANUAL_REVIEW">Requiere revisión manual</option>
+              <option value="SIN_EVALUAR">Sin evaluar</option>
             </select>
             <button id="exportReviewCsvButton" type="button">Exportar CSV</button>
           </div>
@@ -220,14 +220,14 @@
               <h2>Nuevo usuario</h2>
               <label for="newUsername">Usuario</label>
               <input id="newUsername" type="text" autocomplete="off" required>
-              <label for="newPassword">Contrasena inicial</label>
+              <label for="newPassword">Contraseña inicial</label>
               <input id="newPassword" type="password" autocomplete="new-password" required>
               <label for="newRole">Rol</label>
               <select id="newRole">
-                <option value="REVIEWER">REVIEWER</option>
-                <option value="INTAKE">INTAKE</option>
-                <option value="VIEWER">VIEWER</option>
-                <option value="ADMIN">ADMIN</option>
+                <option value="REVIEWER">Revisor</option>
+                <option value="INTAKE">Registro</option>
+                <option value="VIEWER">Consulta</option>
+                <option value="ADMIN">Administrador</option>
               </select>
               <button type="submit">Crear usuario</button>
               <p id="userFormResult" class="muted"></p>

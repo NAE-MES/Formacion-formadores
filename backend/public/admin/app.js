@@ -3,6 +3,56 @@ let reviewSummaries = [];
 let selectedId = '';
 let currentUser = null;
 
+const LABELS = {
+  roles: {
+    ADMIN: 'Administrador',
+    REVIEWER: 'Revisor',
+    INTAKE: 'Registro',
+    VIEWER: 'Consulta',
+  },
+  sourceChannels: {
+    GOOGLE_FORM: 'Formulario en línea',
+    OFFLINE_JSON: 'Offline con JSON',
+    OFFLINE_MANUAL: 'Offline manual',
+  },
+  normalization: {
+    NORMALIZED: 'Normalizada',
+    WITH_ISSUES: 'Con incidencias',
+    REJECTED: 'Rechazada',
+  },
+  eligibility: {
+    READY_FOR_TECHNICAL_REVIEW: 'Lista para revisión técnica',
+    BLOCKED_BY_MISSING_REQUIREMENTS: 'Bloqueada por requisitos',
+    REQUIRES_MANUAL_REVIEW: 'Requiere revisión manual',
+    SIN_EVALUAR: 'Sin evaluar',
+  },
+  evaluation: {
+    NOT_STARTED: 'No iniciada',
+    IN_PROGRESS: 'En curso',
+    COMPLETED: 'Completada',
+    NEEDS_REVIEW: 'Necesita revisión',
+  },
+  documents: {
+    RECEIVED: 'Recibido',
+    VALIDATED: 'Validado',
+    REJECTED: 'Rechazado',
+    NEEDS_REVIEW: 'Necesita revisión',
+    CARTA_AVAL: 'Carta aval',
+    CURRICULUM_VITAE: 'Currículum vitae',
+    FORMULARIO_OFFLINE: 'Formulario offline',
+  },
+  issues: {
+    OPEN: 'Abierta',
+    ACKNOWLEDGED: 'Reconocida',
+    RESOLVED: 'Resuelta',
+    NEEDS_SOURCE_REVIEW: 'Revisar fuente',
+  },
+  checks: {
+    PASS: 'Cumple',
+    FAIL: 'No cumple',
+  },
+};
+
 const loginPanel = document.querySelector('#loginPanel');
 const appPanel = document.querySelector('#appPanel');
 const loginForm = document.querySelector('#loginForm');
@@ -145,7 +195,7 @@ async function loadData() {
 
 function applyRoleUi() {
   currentUserBadge.hidden = false;
-  currentUserBadge.textContent = `${currentUser.username} - ${currentUser.role}`;
+  currentUserBadge.textContent = `${currentUser.username} - ${label('roles', currentUser.role)}`;
   const canIntake = hasRole('ADMIN', 'INTAKE');
   const canManageUsers = hasRole('ADMIN');
   document.querySelector('[data-view="intake"]').hidden = !canIntake;
@@ -178,7 +228,7 @@ async function api(url, options = {}) {
   if (!response.ok) {
     if (response.status === 401 && !options.skipAuthRedirect) {
       currentUser = null;
-      showLogin('Sesion expirada o no autorizada.');
+      showLogin('Sesión expirada o no autorizada.');
     }
     throw new Error(body.message || body.error || `HTTP ${response.status}`);
   }
@@ -206,9 +256,9 @@ async function importOfflineJson(event) {
       },
     });
     offlineImportResult.textContent = [
-      result.status,
-      result.normalization_status,
-      result.eligibility_status,
+      importStatusLabel(result.status),
+      label('normalization', result.normalization_status),
+      label('eligibility', result.eligibility_status),
       result.submission_id,
     ].filter(Boolean).join(' - ');
     offlineJsonForm.reset();
@@ -258,9 +308,9 @@ async function importOfflineManual(event) {
       },
     });
     manualImportResult.textContent = [
-      result.status,
-      result.normalization_status,
-      result.eligibility_status,
+      importStatusLabel(result.status),
+      label('normalization', result.normalization_status),
+      label('eligibility', result.eligibility_status),
       result.submission_id,
     ].filter(Boolean).join(' - ');
     offlineManualForm.reset();
@@ -311,7 +361,7 @@ function renderUsers(users) {
       </td>
       <td>
         <div class="user-actions">
-          <input data-user-password="${escapeHtml(user.username)}" type="password" placeholder="Nueva contrasena">
+          <input data-user-password="${escapeHtml(user.username)}" type="password" placeholder="Nueva contraseña">
           <button class="compact" type="button" data-user-save="${escapeHtml(user.username)}">Guardar</button>
         </div>
       </td>
@@ -330,7 +380,7 @@ function renderUsers(users) {
           role,
           active,
           password,
-          reason: 'Admin user management update',
+          reason: 'Actualización de usuario desde la consola',
         },
       });
       await loadUsers();
@@ -348,7 +398,7 @@ async function createUser(event) {
         username: newUsername.value.trim(),
         password: newPassword.value,
         role: newRole.value,
-        reason: 'Admin user created from UI',
+        reason: 'Usuario creado desde la consola',
       },
     });
     userForm.reset();
@@ -361,7 +411,7 @@ async function createUser(event) {
 
 function roleOptions(selected) {
   return ['ADMIN', 'REVIEWER', 'INTAKE', 'VIEWER']
-    .map(role => `<option value="${role}" ${role === selected ? 'selected' : ''}>${role}</option>`)
+    .map(role => `<option value="${role}" ${role === selected ? 'selected' : ''}>${escapeHtml(label('roles', role))}</option>`)
     .join('');
 }
 
@@ -371,12 +421,12 @@ function renderStats(summary) {
     ['Postulaciones', summary.submissions],
     ['Documentos', summary.documents],
     ['Incidencias abiertas', summary.open_issues || 0],
-    ['Listas revision', summary.eligibility_ready || 0],
+    ['Listas para revisar', summary.eligibility_ready || 0],
     ['Bloqueadas', summary.eligibility_blocked || 0],
-    ['Eval. curso', summary.evaluation_in_progress || 0],
-    ['Eval. completas', summary.evaluation_completed || 0],
-    ['Rev. manual', summary.eligibility_review || 0],
-    ['Docs rev.', summary.documents_needs_review || 0],
+    ['Evaluación en curso', summary.evaluation_in_progress || 0],
+    ['Evaluaciones completas', summary.evaluation_completed || 0],
+    ['Revisión manual', summary.eligibility_review || 0],
+    ['Docs por revisar', summary.documents_needs_review || 0],
   ];
   stats.innerHTML = items.map(([label, value]) => `
     <div class="stat">
@@ -421,7 +471,7 @@ function renderTable() {
       <td>${formatDate(item.received_at)}</td>
       <td><strong>${escapeHtml(item.full_name || 'Sin nombre')}</strong><br><span class="muted">${escapeHtml(item.email || '')}</span></td>
       <td>${escapeHtml(item.province || '')}</td>
-      <td><span class="badge">${escapeHtml(item.source_channel)}</span></td>
+      <td><span class="badge">${escapeHtml(label('sourceChannels', item.source_channel))}</span></td>
       <td>${statusBadge(item.normalization_status)}</td>
       <td>${eligibilityBadge(item.eligibility_status)}</td>
       <td>${evaluationBadge(item.evaluation_status)}</td>
@@ -457,10 +507,10 @@ function renderReviewSummary() {
     <tr data-review-id="${escapeHtml(item.submission_id)}">
       <td><strong>${escapeHtml(item.full_name || 'Sin nombre')}</strong><br><span class="muted">${escapeHtml(item.email || '')}</span></td>
       <td>${escapeHtml(item.province || '')}</td>
-      <td><span class="badge">${escapeHtml(item.source_channel)}</span></td>
+      <td><span class="badge">${escapeHtml(label('sourceChannels', item.source_channel))}</span></td>
       <td>${eligibilityBadge(item.eligibility_status)}</td>
       <td>${evaluationBadge(item.evaluation_status)}</td>
-      <td>${escapeHtml(item.completed_criteria || 0)} / ${escapeHtml(item.total_criteria || 0)}</td>
+      <td>${criteriaProgress(item)}</td>
       <td>${reviewDocumentSummary(item)}</td>
       <td>${issueSummary({ issue_count: item.open_issue_count, open_issue_count: item.open_issue_count })}</td>
     </tr>
@@ -499,37 +549,60 @@ async function selectSubmission(submissionId) {
   const candidate = detail.candidate || {};
   const submission = detail.submission || {};
   detailPanel.innerHTML = `
-    <h2>${escapeHtml(fullName(candidate) || 'Sin nombre')}</h2>
-    <p class="muted">${escapeHtml(candidate.email || '')}</p>
+    <div class="detail-head">
+      <div>
+        <h2>${escapeHtml(fullName(candidate) || 'Sin nombre')}</h2>
+        <p class="muted">${escapeHtml(candidate.email || '')}</p>
+      </div>
+      ${evaluationBadge(detail.evaluation_result?.status || 'NOT_STARTED')}
+    </div>
+    <div class="status-strip">
+      ${statusBadge(submission.normalization_status)}
+      ${eligibilityBadge(detail.eligibility_assessment?.status || '')}
+      <span class="badge">${escapeHtml(label('sourceChannels', submission.source_channel))}</span>
+      ${pendingWorkBadge(detail)}
+    </div>
     <dl class="kv">
-      <dt>Postulacion</dt><dd>${escapeHtml(submission.submission_id)}</dd>
-      <dt>Origen</dt><dd>${escapeHtml(submission.source_channel)}</dd>
+      <dt>Postulación</dt><dd>${escapeHtml(submission.submission_id)}</dd>
+      <dt>Origen</dt><dd>${escapeHtml(label('sourceChannels', submission.source_channel))}</dd>
       <dt>Referencia</dt><dd>${escapeHtml(submission.source_reference)}</dd>
       <dt>Recibido</dt><dd>${formatDate(submission.received_at)}</dd>
-      <dt>Estado</dt><dd>${statusBadge(submission.normalization_status)}</dd>
+      <dt>Normalización</dt><dd>${statusBadge(submission.normalization_status)}</dd>
       <dt>Admisibilidad</dt><dd>${eligibilityBadge(detail.eligibility_assessment?.status || '')}</dd>
-      <dt>Evaluacion</dt><dd>${evaluationBadge(detail.evaluation_result?.status || 'NOT_STARTED')}</dd>
+      <dt>Evaluación</dt><dd>${evaluationBadge(detail.evaluation_result?.status || 'NOT_STARTED')}</dd>
       <dt>Provincia</dt><dd>${escapeHtml(candidate.province || '')}</dd>
       <dt>CI</dt><dd>${escapeHtml(candidate.identification_number || '')}</dd>
     </dl>
 
-    <h3>Admisibilidad preliminar</h3>
-    ${renderEligibility(detail.eligibility_assessment, submission.submission_id)}
+    <section class="detail-section">
+      <h3>Admisibilidad preliminar</h3>
+      ${renderEligibility(detail.eligibility_assessment, submission.submission_id)}
+    </section>
 
-    <h3>Evaluacion tecnica</h3>
-    ${renderTechnicalEvaluation(detail)}
+    <section class="detail-section">
+      <h3>Evaluación técnica</h3>
+      ${renderTechnicalEvaluation(detail)}
+    </section>
 
-    <h3>Incidencias</h3>
-    ${renderIssues(detail.issues || [])}
+    <section class="detail-section">
+      <h3>Incidencias</h3>
+      ${renderIssues(detail.issues || [])}
+    </section>
 
-    <h3>Documentos</h3>
-    ${renderDocuments(detail.documents || [])}
+    <section class="detail-section">
+      <h3>Documentos</h3>
+      ${renderDocuments(detail.documents || [])}
+    </section>
 
-    <h3>Respuestas</h3>
-    ${renderResponses(detail.responses || [])}
+    <details class="detail-section">
+      <summary>Respuestas normalizadas</summary>
+      ${renderResponses(detail.responses || [])}
+    </details>
 
-    <h3>Auditoria</h3>
-    ${renderAuditEvents(detail.audit_events || [])}
+    <details class="detail-section">
+      <summary>Auditoría</summary>
+      ${renderAuditEvents(detail.audit_events || [])}
+    </details>
   `;
   bindDetailActions();
 }
@@ -545,7 +618,7 @@ function renderEligibility(assessment, submissionId) {
   return `
     <div class="item">
       <strong>${eligibilityBadge(assessment.status)}</strong><br>
-      <span class="muted">${escapeHtml(assessment.assessment_scope)} - ${escapeHtml(assessment.rule_version)}</span><br>
+      <span class="muted">Regla ${escapeHtml(assessment.rule_version)}</span><br>
       <span class="muted">Evaluado por ${escapeHtml(assessment.assessed_by || '')} - ${formatDate(assessment.assessed_at)}</span>
       <div class="action-row">
         <select data-eligibility-status="${escapeHtml(assessment.eligibility_assessment_id)}">
@@ -569,7 +642,7 @@ function renderEligibilityChecks(checks) {
       ${checkStatusBadge(check.status)}
       <div>
         <strong>${escapeHtml(check.check_id)}</strong><br>
-        <span class="muted">${escapeHtml(check.severity)} - ${escapeHtml(check.description || '')}</span>
+        <span class="muted">${escapeHtml(check.description || '')}</span>
       </div>
     </div>
   `).join('')}</div>`;
@@ -598,7 +671,7 @@ function renderCriterionReview(submissionId, criterion, evaluation = {}) {
         <strong>${escapeHtml(criterion.label)}</strong>
         <span class="badge">${escapeHtml(criterion.weight_percent)}%</span>
       </div>
-      <span class="muted">${escapeHtml(criterion.criterion_id)}</span>
+      <span class="muted">Criterio técnico</span>
       <div class="action-row">
         <select data-evaluation-status="${escapeHtml(criterion.criterion_id)}">
           ${evaluationStatusOptions(evaluation.status || 'NOT_STARTED')}
@@ -618,7 +691,7 @@ function renderIssues(issues) {
   return `<div class="list">${issues.map(issue => `
     <div class="item">
       <strong>${escapeHtml(issue.code)}</strong> ${escapeHtml(issue.field_code || '')}<br>
-      <span class="muted">${escapeHtml(issue.severity)} - ${escapeHtml(issue.message)}</span>
+      <span class="muted">${escapeHtml(issue.message)}</span>
       <div class="action-row">
         <select data-issue-status="${escapeHtml(issue.normalization_issue_id)}">
           ${issueStatusOptions(issue.review_status || 'OPEN')}
@@ -635,9 +708,9 @@ function renderDocuments(documents) {
   if (!documents.length) return '<p class="muted">Sin documentos asociados.</p>';
   return `<div class="list">${documents.map(document => `
     <div class="item">
-      <strong>${escapeHtml(document.document_type)}</strong><br>
+      <strong>${escapeHtml(label('documents', document.document_type))}</strong><br>
       ${documentLink(document)}
-      <span class="muted">${escapeHtml(document.status)} - ${formatDate(document.received_at)}</span>
+      <span class="muted">${escapeHtml(label('documents', document.status))} - ${formatDate(document.received_at)}</span>
       <div class="action-row">
         <select data-document-status="${escapeHtml(document.document_id)}">
           ${documentStatusOptions(document.status)}
@@ -675,7 +748,7 @@ function bindDetailActions() {
       const select = detailPanel.querySelector(`[data-document-status="${cssEscape(documentId)}"]`);
       await api(`/api/admin/documents/${encodeURIComponent(documentId)}/status`, {
         method: 'PATCH',
-        body: { status: select.value, reason: 'Admin document status update' },
+        body: { status: select.value, reason: 'Actualización de estado documental desde la consola' },
       });
       await loadData();
     });
@@ -709,7 +782,7 @@ function bindDetailActions() {
         body: {
           review_status: select.value,
           review_note: note.value,
-          reason: 'Admin normalization issue review update',
+          reason: 'Actualización de incidencia desde la consola',
         },
       });
       await loadData();
@@ -735,7 +808,7 @@ function bindDetailActions() {
         body: {
           status: select.value,
           note: note.value,
-          reason: 'Admin preliminary eligibility review update',
+          reason: 'Actualización de admisibilidad preliminar desde la consola',
         },
       });
       await loadData();
@@ -757,7 +830,7 @@ function bindDetailActions() {
           score: score.value,
           evidence_summary: evidence.value,
           evaluator_note: note.value,
-          reason: 'Admin technical criterion review update',
+          reason: 'Actualización de criterio técnico desde la consola',
         },
       });
       await loadData();
@@ -767,25 +840,25 @@ function bindDetailActions() {
 
 function documentStatusOptions(selected) {
   return ['RECEIVED', 'VALIDATED', 'REJECTED', 'NEEDS_REVIEW']
-    .map(status => `<option value="${status}" ${status === selected ? 'selected' : ''}>${status}</option>`)
+    .map(status => `<option value="${status}" ${status === selected ? 'selected' : ''}>${escapeHtml(label('documents', status))}</option>`)
     .join('');
 }
 
 function issueStatusOptions(selected) {
   return ['OPEN', 'ACKNOWLEDGED', 'RESOLVED', 'NEEDS_SOURCE_REVIEW']
-    .map(status => `<option value="${status}" ${status === selected ? 'selected' : ''}>${status}</option>`)
+    .map(status => `<option value="${status}" ${status === selected ? 'selected' : ''}>${escapeHtml(label('issues', status))}</option>`)
     .join('');
 }
 
 function eligibilityStatusOptions(selected) {
   return ['READY_FOR_TECHNICAL_REVIEW', 'BLOCKED_BY_MISSING_REQUIREMENTS', 'REQUIRES_MANUAL_REVIEW']
-    .map(status => `<option value="${status}" ${status === selected ? 'selected' : ''}>${status}</option>`)
+    .map(status => `<option value="${status}" ${status === selected ? 'selected' : ''}>${escapeHtml(label('eligibility', status))}</option>`)
     .join('');
 }
 
 function evaluationStatusOptions(selected) {
   return ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'NEEDS_REVIEW']
-    .map(status => `<option value="${status}" ${status === selected ? 'selected' : ''}>${status}</option>`)
+    .map(status => `<option value="${status}" ${status === selected ? 'selected' : ''}>${escapeHtml(label('evaluation', status))}</option>`)
     .join('');
 }
 
@@ -800,11 +873,11 @@ function renderResponses(responses) {
 }
 
 function renderAuditEvents(events) {
-  if (!events.length) return '<p class="muted">Sin eventos de auditoria relacionados.</p>';
+  if (!events.length) return '<p class="muted">Sin eventos de auditoría relacionados.</p>';
   return `<div class="list">${events.map(event => `
     <div class="item">
-      <strong>${escapeHtml(event.action)}</strong><br>
-      <span class="muted">${escapeHtml(event.entity_type)} - ${escapeHtml(event.actor || '')} - ${formatDate(event.occurred_at)}</span><br>
+      <strong>${escapeHtml(actionLabel(event.action))}</strong><br>
+      <span class="muted">${escapeHtml(entityLabel(event.entity_type))} - ${escapeHtml(event.actor || '')} - ${formatDate(event.occurred_at)}</span><br>
       ${escapeHtml(event.reason || '')}
     </div>
   `).join('')}</div>`;
@@ -812,14 +885,14 @@ function renderAuditEvents(events) {
 
 function statusBadge(status) {
   const cls = status === 'NORMALIZED' ? 'ok' : 'warn';
-  return `<span class="badge ${cls}">${escapeHtml(status || '')}</span>`;
+  return `<span class="badge ${cls}">${escapeHtml(label('normalization', status))}</span>`;
 }
 
 function documentSummary(item) {
   const statuses = String(item.document_statuses || '').split(',').filter(Boolean);
   const flags = statuses.map(status => {
     const cls = status === 'REJECTED' ? 'bad' : status === 'NEEDS_REVIEW' ? 'warn' : 'ok';
-    return `<span class="badge ${cls}">${escapeHtml(status)}</span>`;
+    return `<span class="badge ${cls}">${escapeHtml(label('documents', status))}</span>`;
   }).join(' ');
   return `${escapeHtml(item.document_count)} ${flags}`;
 }
@@ -832,6 +905,12 @@ function reviewDocumentSummary(item) {
   return `${escapeHtml(item.document_count || 0)} ${flags.join(' ')}`;
 }
 
+function criteriaProgress(item) {
+  const total = Number(item.total_criteria || 0);
+  if (!total) return '<span class="muted">Sin iniciar</span>';
+  return `${escapeHtml(item.completed_criteria || 0)} / ${escapeHtml(total)}`;
+}
+
 function issueSummary(item) {
   const open = Number(item.open_issue_count || 0);
   if (!open) return escapeHtml(item.issue_count);
@@ -839,6 +918,7 @@ function issueSummary(item) {
 }
 
 function eligibilityBadge(status) {
+  const normalized = status || 'SIN_EVALUAR';
   const cls = status === 'READY_FOR_TECHNICAL_REVIEW'
     ? 'ok'
     : status === 'BLOCKED_BY_MISSING_REQUIREMENTS'
@@ -846,10 +926,11 @@ function eligibilityBadge(status) {
       : status
         ? 'warn'
         : '';
-  return `<span class="badge ${cls}">${escapeHtml(status || 'SIN_EVALUAR')}</span>`;
+  return `<span class="badge ${cls}">${escapeHtml(label('eligibility', normalized))}</span>`;
 }
 
 function evaluationBadge(status) {
+  const normalized = status || 'NOT_STARTED';
   const cls = status === 'COMPLETED'
     ? 'ok'
     : status === 'NEEDS_REVIEW'
@@ -857,12 +938,12 @@ function evaluationBadge(status) {
       : status === 'IN_PROGRESS'
         ? 'warn'
         : '';
-  return `<span class="badge ${cls}">${escapeHtml(status || 'NOT_STARTED')}</span>`;
+  return `<span class="badge ${cls}">${escapeHtml(label('evaluation', normalized))}</span>`;
 }
 
 function checkStatusBadge(status) {
   const cls = status === 'PASS' ? 'ok' : 'bad';
-  return `<span class="badge ${cls}">${escapeHtml(status)}</span>`;
+  return `<span class="badge ${cls}">${escapeHtml(label('checks', status))}</span>`;
 }
 
 function fullName(candidate) {
@@ -922,4 +1003,67 @@ function isSafeHttpUrl(value) {
 function cssEscape(value) {
   if (window.CSS && CSS.escape) return CSS.escape(value);
   return String(value).replace(/"/g, '\\"');
+}
+
+function label(group, value) {
+  const key = String(value || '');
+  return LABELS[group]?.[key] || key || '';
+}
+
+function actionLabel(action) {
+  return {
+    SUBMISSION_IMPORTED: 'Postulación importada',
+    SUBMISSION_REIMPORTED: 'Postulación reimportada',
+    SUBMISSION_REPROCESSED: 'Postulación reprocesada',
+    POSSIBLE_DUPLICATE_DETECTED: 'Posible duplicado detectado',
+    ELIGIBILITY_ASSESSED: 'Admisibilidad evaluada',
+    ELIGIBILITY_REVIEW_UPDATED: 'Admisibilidad actualizada',
+    DOCUMENT_STATUS_UPDATED: 'Documento actualizado',
+    DOCUMENT_OPENED: 'Documento abierto',
+    NORMALIZATION_ISSUE_REVIEW_UPDATED: 'Incidencia actualizada',
+    CRITERION_EVALUATION_UPDATED: 'Criterio técnico actualizado',
+    EVALUATION_RESULT_UPDATED: 'Resumen de evaluación actualizado',
+    ADMIN_LOGIN: 'Inicio de sesión',
+    ADMIN_LOGOUT: 'Cierre de sesión',
+    ADMIN_USER_CREATED: 'Usuario creado',
+    ADMIN_USER_UPDATED: 'Usuario actualizado',
+  }[action] || action;
+}
+
+function entityLabel(entityType) {
+  return {
+    Submission: 'Postulación',
+    Candidate: 'Postulante',
+    Document: 'Documento',
+    NormalizationIssue: 'Incidencia',
+    EligibilityAssessment: 'Admisibilidad',
+    CriterionEvaluation: 'Evaluación técnica',
+    EvaluationResult: 'Resumen de evaluación',
+    AdminUser: 'Usuario',
+    AdminSession: 'Sesión',
+  }[entityType] || entityType;
+}
+
+function importStatusLabel(status) {
+  return {
+    IMPORTED: 'Importada',
+    IMPORTED_WITH_ISSUES: 'Importada con incidencias',
+    REIMPORTED: 'Ya importada',
+    REPROCESSED: 'Reprocesada',
+    REJECTED: 'Rechazada',
+  }[status] || status;
+}
+
+function pendingWorkBadge(detail) {
+  const openIssues = (detail.issues || []).filter(issue =>
+    ['OPEN', 'NEEDS_SOURCE_REVIEW'].includes(issue.review_status || 'OPEN')
+  ).length;
+  const docsToReview = (detail.documents || []).filter(document =>
+    ['NEEDS_REVIEW', 'REJECTED'].includes(document.status)
+  ).length;
+  const badges = [];
+  if (openIssues) badges.push(`<span class="badge warn">${escapeHtml(openIssues)} incidencias abiertas</span>`);
+  if (docsToReview) badges.push(`<span class="badge warn">${escapeHtml(docsToReview)} documentos por revisar</span>`);
+  if (!badges.length) badges.push('<span class="badge ok">Sin pendientes operativos</span>');
+  return badges.join('');
 }
