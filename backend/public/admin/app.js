@@ -1121,6 +1121,7 @@ function actionLabel(action) {
     ELIGIBILITY_ASSESSED: 'Admisibilidad evaluada',
     ELIGIBILITY_REVIEW_UPDATED: 'Admisibilidad actualizada',
     DOCUMENT_STATUS_UPDATED: 'Documento actualizado',
+    DOCUMENT_ASSOCIATED: 'Documento asociado',
     DOCUMENT_OPENED: 'Documento abierto',
     NORMALIZATION_ISSUE_REVIEW_UPDATED: 'Incidencia actualizada',
     CRITERION_EVALUATION_UPDATED: 'Criterio técnico actualizado',
@@ -1134,6 +1135,7 @@ function actionLabel(action) {
 
 function actorLabel(actor) {
   return {
+    admin: 'Administrador',
     API_ELIGIBILITY_ASSESSOR: 'Evaluador automático',
     ADMIN_UI: 'Consola administrativa',
     ADMIN_TOKEN: 'Acceso técnico',
