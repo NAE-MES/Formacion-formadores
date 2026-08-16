@@ -38,9 +38,42 @@
             <option value="">Todos los estados</option>
             <option value="NORMALIZED">NORMALIZED</option>
             <option value="WITH_ISSUES">WITH_ISSUES</option>
+            <option value="REJECTED">REJECTED</option>
           </select>
           <button id="refreshButton" type="button">Actualizar</button>
         </div>
+
+        <details class="import-panel">
+          <summary>Importar JSON offline</summary>
+          <form id="offlineJsonForm" class="offline-form">
+            <label for="offlineSourceReference">Referencia</label>
+            <input id="offlineSourceReference" type="text" placeholder="correo-2026-08-16-001">
+            <label for="offlineJsonPayload">JSON</label>
+            <textarea id="offlineJsonPayload" rows="9" spellcheck="false" required></textarea>
+            <div class="doc-grid">
+              <label>
+                Carta Aval
+                <input id="offlineCartaName" type="text" placeholder="Nombre del archivo">
+              </label>
+              <label>
+                Referencia Carta Aval
+                <input id="offlineCartaRef" type="text" placeholder="drive://, ruta o URL">
+              </label>
+              <label>
+                Currículum Vitae
+                <input id="offlineCvName" type="text" placeholder="Nombre del archivo">
+              </label>
+              <label>
+                Referencia CV
+                <input id="offlineCvRef" type="text" placeholder="drive://, ruta o URL">
+              </label>
+            </div>
+            <div class="action-row single">
+              <button type="submit">Importar</button>
+            </div>
+            <p id="offlineImportResult" class="muted"></p>
+          </form>
+        </details>
 
         <section class="content-grid">
           <div class="table-wrap">

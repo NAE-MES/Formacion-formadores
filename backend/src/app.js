@@ -125,6 +125,16 @@ function createApp({ config, repository }) {
         return sendJson(res, 200, { issue });
       }
 
+      if (req.method === 'POST' && req.url === '/api/admin/submissions/offline-json') {
+        const admin = await authorizeAdmin(req, config, repository);
+        const payload = await readJson(req);
+        const offlinePayload = adminOfflineJsonPayload(payload, admin.username || 'ADMIN_UI');
+        const imported = importOfflineJsonSubmission(offlinePayload, config);
+        const saved = await repository.saveImportedSubmission(imported);
+        const assessment = await assessSavedImport(saved, config, repository);
+        return sendJson(res, statusCodeFor(saved.status), responseBody(saved, assessment));
+      }
+
       if (req.method === 'POST' && req.url === '/api/submissions/google-form') {
         authorize(req, config);
         const payload = await readJson(req);
@@ -163,8 +173,33 @@ function createApp({ config, repository }) {
 
 async function assessSavedImport(saved, config, repository) {
   const submissionId = saved.imported?.submission?.submission_id;
-  if (!submissionId || !config.eligibilityConfig || !repository.getEligibilityInput) return null;
+  if (!submissionId || !saved.imported?.submission?.candidate_id || !config.eligibilityConfig || !repository.getEligibilityInput) return null;
   return recalculateEligibility(submissionId, config, repository, 'API_ELIGIBILITY_ASSESSOR');
+}
+
+function adminOfflineJsonPayload(payload, actor) {
+  const offlinePayload = payload.payload && typeof payload.payload === 'object'
+    ? payload.payload
+    : payload;
+  return {
+    ...offlinePayload,
+    sourceReference: payload.sourceReference || payload.source_reference || offlinePayload.sourceReference || '',
+    receivedAt: payload.receivedAt || payload.received_at || offlinePayload.receivedAt || '',
+    actor: actor || offlinePayload.actor || 'ADMIN_UI',
+    documents: normalizeAdminOfflineDocuments(payload.documents || offlinePayload.documents || []),
+  };
+}
+
+function normalizeAdminOfflineDocuments(documents) {
+  return (documents || [])
+    .map(document => ({
+      document_type: String(document.document_type || '').trim(),
+      original_name: String(document.original_name || '').trim(),
+      storage_reference: String(document.storage_reference || '').trim(),
+      status: document.status || 'RECEIVED',
+      received_at: document.received_at || '',
+    }))
+    .filter(document => document.document_type || document.original_name || document.storage_reference);
 }
 
 async function recalculateEligibility(submissionId, config, repository, actor) {

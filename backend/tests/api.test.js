@@ -418,6 +418,30 @@ test('ingests offline JSON payload directly', async (t) => {
   });
 });
 
+test('admin API imports offline JSON with document references', async (t) => {
+  await withServer(t, async ({ port, repository }) => {
+    const response = await adminJsonRequest(port, 'POST', '/api/admin/submissions/offline-json', {
+      sourceReference: 'correo-offline-json-1',
+      payload: {
+        schema: 'FDF-2026-OFFLINE-1',
+        exportedAt: '2026-08-14T10:00:00.000Z',
+        respuestas: validResponses(),
+      },
+      documents: requiredDocuments(),
+    });
+
+    assert.equal(response.statusCode, 201);
+    assert.equal(response.body.status, 'IMPORTED');
+    assert.equal(response.body.eligibility_status, 'READY_FOR_TECHNICAL_REVIEW');
+    assert.equal(repository.submissions.size, 1);
+    assert.equal(repository.documents.size, 2);
+    assert.equal(repository.raws.size, 1);
+    const submission = Array.from(repository.submissions.values())[0];
+    assert.equal(submission.source_channel, 'OFFLINE_JSON');
+    assert.equal(submission.source_reference, 'correo-offline-json-1');
+  });
+});
+
 test('reimporting same Google payload is idempotent', async (t) => {
   await withServer(t, async ({ port, repository }) => {
     const payload = {
@@ -483,5 +507,7 @@ test('rejects unknown offline JSON schema', async (t) => {
     assert.equal(response.body.status, 'REJECTED');
     assert.equal(response.body.issues[0].code, 'UNKNOWN_SCHEMA_VERSION');
     assert.equal(repository.raws.size, 1);
+    assert.equal(repository.submissions.size, 1);
+    assert.equal(Array.from(repository.submissions.values())[0].normalization_status, 'REJECTED');
   });
 });

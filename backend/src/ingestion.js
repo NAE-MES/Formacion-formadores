@@ -167,7 +167,9 @@ function importSubmission(input, config) {
 }
 
 function rejectedImport(sourceChannel, sourceReference, rawPayload, code, message) {
-  const submissionId = `sub_${hash(`${sourceChannel}|${sourceReference}|${canonicalJson(rawPayload)}`)}`;
+  const effectiveSourceReference = sourceReference || hash(`rejected:${sourceChannel}:${canonicalJson(rawPayload)}`);
+  const now = new Date().toISOString();
+  const submissionId = `sub_${hash(`${sourceChannel}|${effectiveSourceReference}|${canonicalJson(rawPayload)}`)}`;
   const issue = {
     normalization_issue_id: `issue_${hash(`issue|${submissionId}|${code}`)}`,
     submission_id: submissionId,
@@ -176,18 +178,28 @@ function rejectedImport(sourceChannel, sourceReference, rawPayload, code, messag
     code,
     severity: 'ERROR',
     message,
-    created_at: new Date().toISOString(),
+    created_at: now,
   };
   return {
     status: 'REJECTED',
     submission_id: submissionId,
+    submission: {
+      submission_id: submissionId,
+      candidate_id: null,
+      source_channel: sourceChannel,
+      source_reference: effectiveSourceReference,
+      received_at: now,
+      normalization_status: 'REJECTED',
+      created_at: now,
+      updated_at: now,
+    },
     raw: {
       submission_raw_id: `raw_${hash(`raw|${submissionId}`)}`,
       submission_id: submissionId,
       source_channel: sourceChannel,
       raw_payload: rawPayload,
       raw_hash: hash(canonicalJson(rawPayload)),
-      received_at: new Date().toISOString(),
+      received_at: now,
     },
     issues: [issue],
     auditEvents: [

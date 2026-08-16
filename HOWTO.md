@@ -184,6 +184,32 @@ La hoja `23_API_Bridge_Log` registra estado, `source_reference`, HTTP status,
 `candidate_id`, `submission_id`, `eligibility_status`, estado de normalizacion,
 respuesta del API y hash del payload. No guarda el token.
 
+## 6.3 Ingesta JSON offline desde admin
+
+Entrar a:
+
+```text
+https://fdf-nae.mes.gob.cu/admin
+```
+
+Abrir **Importar JSON offline**.
+
+Completar:
+
+- `Referencia`: codigo operativo del correo o recepcion.
+- `JSON`: contenido exportado por el HTML offline.
+- `Carta Aval`: nombre del archivo recibido.
+- `Referencia Carta Aval`: ruta, URL o referencia de almacenamiento.
+- `Curriculum Vitae`: nombre del archivo recibido.
+- `Referencia CV`: ruta, URL o referencia de almacenamiento.
+
+Al importar:
+
+- el JSON se conserva como RAW;
+- los documentos quedan asociados al postulante;
+- se calcula admisibilidad preliminar;
+- cualquier incidencia queda visible en el detalle de la postulacion.
+
 ## 7. Generar Google Forms
 
 Seleccionar la función:

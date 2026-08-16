@@ -35,6 +35,18 @@ Backend API
 PostgreSQL
 ```
 
+La misma via puede operarse desde el panel administrativo:
+
+```text
+Admin UI
+        |
+POST /api/admin/submissions/offline-json
+        |
+Mismo importador OFFLINE_JSON
+        |
+PostgreSQL
+```
+
 ## Restricciones
 
 - No tocar el Google Form.
@@ -64,6 +76,7 @@ Endpoints iniciales:
 - `GET /api/admin/summary`
 - `GET /api/admin/submissions`
 - `GET /api/admin/submissions/:submission_id`
+- `POST /api/admin/submissions/offline-json`
 - `POST /api/admin/submissions/:submission_id/eligibility/recalculate`
 - `PATCH /api/admin/eligibility/:eligibility_assessment_id/review`
 - `PATCH /api/admin/documents/:document_id/status`
@@ -151,6 +164,8 @@ Alcance:
 - seguimiento operativo de incidencias de normalizacion.
 - admisibilidad preliminar operativa calculada desde respuestas normalizadas
   y documentos asociados.
+- carga administrativa de JSON offline con referencias de Carta Aval y CV
+  recibidos por correo.
 
 Restricciones:
 
@@ -188,3 +203,41 @@ La accion de abrir una referencia documental tambien queda auditada como
 `DOCUMENT_OPENED`.
 El recalculo de admisibilidad registra `ELIGIBILITY_ASSESSED`; la revision
 manual registra `ELIGIBILITY_REVIEW_UPDATED`.
+
+## Ingesta JSON offline desde admin
+
+El cuerpo aceptado por el endpoint administrativo es:
+
+```json
+{
+  "sourceReference": "correo-offline-001",
+  "payload": {
+    "schema": "FDF-2026-OFFLINE-1",
+    "exportedAt": "2026-08-16T10:00:00.000Z",
+    "respuestas": {
+      "FDF-01": "..."
+    }
+  },
+  "documents": [
+    {
+      "document_type": "CARTA_AVAL",
+      "original_name": "carta.pdf",
+      "storage_reference": "drive://referencia-o-ruta",
+      "status": "RECEIVED"
+    },
+    {
+      "document_type": "CURRICULUM_VITAE",
+      "original_name": "cv.pdf",
+      "storage_reference": "drive://referencia-o-ruta",
+      "status": "RECEIVED"
+    }
+  ]
+}
+```
+
+El `payload` se conserva como RAW. Las referencias documentales se guardan en
+`documents`; no se copian archivos al servidor en esta fase.
+
+Los JSON rechazados por version o estructura tambien generan una `submission`
+tecnica con `normalization_status = REJECTED` para poder conservar RAW e
+incidencias de validacion en PostgreSQL.

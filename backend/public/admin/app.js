@@ -15,6 +15,14 @@ const detailPanel = document.querySelector('#detailPanel');
 const searchInput = document.querySelector('#searchInput');
 const statusFilter = document.querySelector('#statusFilter');
 const refreshButton = document.querySelector('#refreshButton');
+const offlineJsonForm = document.querySelector('#offlineJsonForm');
+const offlineSourceReference = document.querySelector('#offlineSourceReference');
+const offlineJsonPayload = document.querySelector('#offlineJsonPayload');
+const offlineCartaName = document.querySelector('#offlineCartaName');
+const offlineCartaRef = document.querySelector('#offlineCartaRef');
+const offlineCvName = document.querySelector('#offlineCvName');
+const offlineCvRef = document.querySelector('#offlineCvRef');
+const offlineImportResult = document.querySelector('#offlineImportResult');
 
 loginForm.addEventListener('submit', async event => {
   event.preventDefault();
@@ -47,6 +55,7 @@ logoutButton.addEventListener('click', async () => {
 refreshButton.addEventListener('click', loadData);
 searchInput.addEventListener('input', renderTable);
 statusFilter.addEventListener('change', renderTable);
+offlineJsonForm.addEventListener('submit', importOfflineJson);
 
 boot();
 
@@ -108,6 +117,57 @@ async function api(url, options = {}) {
     throw new Error(body.message || body.error || `HTTP ${response.status}`);
   }
   return body;
+}
+
+async function importOfflineJson(event) {
+  event.preventDefault();
+  offlineImportResult.textContent = '';
+  let payload;
+  try {
+    payload = JSON.parse(offlineJsonPayload.value);
+  } catch (error) {
+    offlineImportResult.textContent = 'JSON invalido.';
+    return;
+  }
+
+  try {
+    const result = await api('/api/admin/submissions/offline-json', {
+      method: 'POST',
+      body: {
+        payload,
+        sourceReference: offlineSourceReference.value.trim(),
+        documents: offlineDocumentsFromForm(),
+      },
+    });
+    offlineImportResult.textContent = [
+      result.status,
+      result.normalization_status,
+      result.eligibility_status,
+      result.submission_id,
+    ].filter(Boolean).join(' - ');
+    offlineJsonForm.reset();
+    await loadData();
+    if (result.submission_id) await selectSubmission(result.submission_id);
+  } catch (error) {
+    offlineImportResult.textContent = error.message;
+  }
+}
+
+function offlineDocumentsFromForm() {
+  return [
+    {
+      document_type: 'CARTA_AVAL',
+      original_name: offlineCartaName.value.trim(),
+      storage_reference: offlineCartaRef.value.trim(),
+      status: 'RECEIVED',
+    },
+    {
+      document_type: 'CURRICULUM_VITAE',
+      original_name: offlineCvName.value.trim(),
+      storage_reference: offlineCvRef.value.trim(),
+      status: 'RECEIVED',
+    },
+  ].filter(document => document.original_name || document.storage_reference);
 }
 
 function renderStats(summary) {
