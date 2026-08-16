@@ -697,8 +697,8 @@ function renderEligibility(assessment, submissionId) {
   return `
     <div class="item">
       <strong>${eligibilityBadge(assessment.status)}</strong><br>
-      <span class="muted">Regla ${escapeHtml(assessment.rule_version)}</span><br>
-      <span class="muted">Evaluado por ${escapeHtml(assessment.assessed_by || '')} - ${formatDate(assessment.assessed_at)}</span>
+      <span class="muted">Configuración de admisibilidad vigente</span><br>
+      <span class="muted">Evaluado por ${escapeHtml(actorLabel(assessment.assessed_by || ''))} - ${formatDate(assessment.assessed_at)}</span>
       <div class="action-row">
         <select data-eligibility-status="${escapeHtml(assessment.eligibility_assessment_id)}">
           ${eligibilityStatusOptions(assessment.status)}
@@ -975,7 +975,7 @@ function renderAuditEvents(events) {
   return `<div class="list">${events.map(event => `
     <div class="item">
       <strong>${escapeHtml(actionLabel(event.action))}</strong><br>
-      <span class="muted">${escapeHtml(entityLabel(event.entity_type))} - ${escapeHtml(event.actor || '')} - ${formatDate(event.occurred_at)}</span><br>
+      <span class="muted">${escapeHtml(entityLabel(event.entity_type))} - ${escapeHtml(actorLabel(event.actor || ''))} - ${formatDate(event.occurred_at)}</span><br>
       ${escapeHtml(event.reason || '')}
     </div>
   `).join('')}</div>`;
@@ -1130,6 +1130,15 @@ function actionLabel(action) {
     ADMIN_USER_CREATED: 'Usuario creado',
     ADMIN_USER_UPDATED: 'Usuario actualizado',
   }[action] || action;
+}
+
+function actorLabel(actor) {
+  return {
+    API_ELIGIBILITY_ASSESSOR: 'Evaluador automático',
+    ADMIN_UI: 'Consola administrativa',
+    ADMIN_TOKEN: 'Acceso técnico',
+    API: 'API de ingesta',
+  }[actor] || actor;
 }
 
 function entityLabel(entityType) {
