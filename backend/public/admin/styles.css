@@ -179,6 +179,90 @@ p {
   font-size: 13px;
 }
 
+.workboard-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.workboard-head h2 {
+  margin: 0 0 2px;
+  font-size: 18px;
+}
+
+.workboard-stats {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.workboard-stat {
+  display: grid;
+  min-height: 68px;
+  justify-items: start;
+  align-content: center;
+}
+
+.workboard-stat strong {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.workboard-stat span {
+  color: var(--muted);
+}
+
+.workboard-sections {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.workboard-section {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.workboard-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.workboard-section h3 {
+  margin: 0;
+  font-size: 14px;
+  text-transform: uppercase;
+  color: #42505a;
+}
+
+.workboard-list {
+  display: grid;
+  gap: 8px;
+}
+
+.workboard-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+
+.workboard-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: 4px;
+}
+
 .toolbar {
   display: grid;
   grid-template-columns: minmax(220px, 1fr) repeat(5, minmax(130px, 180px)) auto auto;
@@ -642,6 +726,8 @@ tbody tr.selected {
 
 @media (max-width: 980px) {
   .stats,
+  .workboard-stats,
+  .workboard-sections,
   .toolbar,
   .review-toolbar,
   .issue-toolbar,
@@ -672,6 +758,19 @@ tbody tr.selected {
 
   .doc-link-row {
     grid-template-columns: 1fr;
+  }
+
+  .workboard-head,
+  .workboard-section-head {
+    display: grid;
+  }
+
+  .workboard-item {
+    grid-template-columns: 1fr;
+  }
+
+  .workboard-badges {
+    justify-content: start;
   }
 
   .doc-review-actions {

@@ -5,6 +5,7 @@ let evaluationMatrixRows = [];
 let matrixCriteria = [];
 let issueReviewRows = [];
 let issueFieldCatalog = [];
+let currentSummary = {};
 let selectedId = '';
 let selectedDetail = null;
 let currentUser = null;
@@ -86,6 +87,9 @@ const usernameInput = document.querySelector('#adminUsername');
 const passwordInput = document.querySelector('#adminPassword');
 const logoutButton = document.querySelector('#logoutButton');
 const stats = document.querySelector('#stats');
+const workboardRefreshButton = document.querySelector('#workboardRefreshButton');
+const workboardStats = document.querySelector('#workboardStats');
+const workboardSections = document.querySelector('#workboardSections');
 const table = document.querySelector('#submissionsTable');
 const detailPanel = document.querySelector('#detailPanel');
 const submissionsCount = document.querySelector('#submissionsCount');
@@ -185,11 +189,13 @@ logoutButton.addEventListener('click', async () => {
   matrixCriteria = [];
   issueReviewRows = [];
   issueFieldCatalog = [];
+  currentSummary = {};
   currentUser = null;
   showLogin();
 });
 
 refreshButton.addEventListener('click', loadData);
+workboardRefreshButton.addEventListener('click', loadData);
 clearFiltersButton.addEventListener('click', clearSubmissionFilters);
 searchInput.addEventListener('input', renderTable);
 statusFilter.addEventListener('change', renderTable);
@@ -269,7 +275,9 @@ async function loadData() {
   matrixCriteria = matrix.criteria || [];
   issueReviewRows = issues.issues || [];
   issueFieldCatalog = issues.field_catalog || [];
+  currentSummary = summary || {};
   renderStats(summary);
+  renderWorkboard();
   renderTable();
   renderReviewSummary();
   renderIssueReview();
@@ -286,8 +294,8 @@ function applyRoleUi() {
   const canManageUsers = hasRole('ADMIN');
   document.querySelector('[data-view="intake"]').hidden = !canIntake;
   document.querySelector('[data-view="users"]').hidden = !canManageUsers;
-  if (!canIntake && document.querySelector('#view-intake').classList.contains('active')) showView('submissions');
-  if (!canManageUsers && document.querySelector('#view-users').classList.contains('active')) showView('submissions');
+  if (!canIntake && document.querySelector('#view-intake').classList.contains('active')) showView('workboard');
+  if (!canManageUsers && document.querySelector('#view-users').classList.contains('active')) showView('workboard');
 }
 
 function hasRole(...roles) {
@@ -298,6 +306,7 @@ function showView(name) {
   tabs.forEach(tab => tab.classList.toggle('active', tab.dataset.view === name));
   views.forEach(view => view.classList.toggle('active', view.id === `view-${name}`));
   if (name === 'users' && currentUser?.role === 'ADMIN') loadUsers();
+  if (name === 'workboard') renderWorkboard();
   if (name === 'review') renderReviewSummary();
   if (name === 'issues') renderIssueReview();
   if (name === 'documents') renderDocumentReview();
@@ -523,6 +532,140 @@ function renderStats(summary) {
       <span>${escapeHtml(label)}</span>
     </div>
   `).join('');
+}
+
+function renderWorkboard() {
+  const openIssues = issueReviewRows.filter(issue => ['OPEN', 'NEEDS_SOURCE_REVIEW'].includes(issue.review_status || 'OPEN'));
+  const documentTasks = documentReviewRows.filter(row =>
+    ['MISSING', 'NEEDS_REVIEW', 'REJECTED'].includes(row.carta_aval_status || 'MISSING') ||
+    ['MISSING', 'NEEDS_REVIEW', 'REJECTED'].includes(row.curriculum_status || 'MISSING')
+  );
+  const readyToEvaluate = evaluationMatrixRows.filter(row =>
+    (row.eligibility_status || 'SIN_EVALUAR') === 'READY_FOR_TECHNICAL_REVIEW' &&
+    (row.evaluation_status || 'NOT_STARTED') === 'NOT_STARTED'
+  );
+  const inProgress = evaluationMatrixRows.filter(row => (row.evaluation_status || 'NOT_STARTED') === 'IN_PROGRESS');
+  const completed = evaluationMatrixRows.filter(row => (row.evaluation_status || 'NOT_STARTED') === 'COMPLETED');
+
+  workboardStats.innerHTML = [
+    workboardStat('Incidencias abiertas', openIssues.length, 'issues', 'OPEN'),
+    workboardStat('Documentos pendientes', documentTasks.length, 'documents', ''),
+    workboardStat('Listas por evaluar', readyToEvaluate.length, 'matrix', 'READY_TO_EVALUATE'),
+    workboardStat('Evaluación en curso', inProgress.length, 'matrix', 'IN_PROGRESS'),
+    workboardStat('Evaluación completa', completed.length, 'review', 'COMPLETED'),
+  ].join('');
+
+  workboardSections.innerHTML = [
+    workboardIssueSection(openIssues),
+    workboardDocumentSection(documentTasks),
+    workboardSubmissionSection('Listas para evaluación técnica', readyToEvaluate, 'matrix', 'Capturar evaluación'),
+    workboardSubmissionSection('Evaluación en curso', inProgress, 'matrix', 'Continuar'),
+    workboardSubmissionSection('Evaluación completa', completed, 'review', 'Ver seguimiento'),
+  ].join('');
+
+  workboardStats.querySelectorAll('[data-workboard-open]').forEach(button => {
+    button.addEventListener('click', () => openWorkboardTarget(button.dataset.workboardOpen, button.dataset.workboardFilter));
+  });
+  workboardSections.querySelectorAll('[data-workboard-open]').forEach(button => {
+    button.addEventListener('click', () => openWorkboardTarget(button.dataset.workboardOpen, button.dataset.workboardFilter));
+  });
+  workboardSections.querySelectorAll('[data-workboard-submission]').forEach(button => {
+    button.addEventListener('click', async () => {
+      showView('submissions');
+      await selectSubmission(button.dataset.workboardSubmission);
+    });
+  });
+}
+
+function workboardStat(title, value, target, filter) {
+  return `
+    <button class="ghost workboard-stat" type="button" data-workboard-open="${escapeHtml(target)}" data-workboard-filter="${escapeHtml(filter)}">
+      <strong>${escapeHtml(value)}</strong>
+      <span>${escapeHtml(title)}</span>
+    </button>
+  `;
+}
+
+function workboardIssueSection(issues) {
+  return workboardSection('Incidencias que requieren atención', issues, 'issues', 'Ver incidencias', issue => `
+    <div>
+      <strong>${escapeHtml(issue.full_name || 'Sin nombre')}</strong><br>
+      <span class="muted">${escapeHtml(issue.code)} ${issue.field_code ? `- ${issue.field_code}` : ''}</span><br>
+      <span class="muted">${escapeHtml(issue.message || '')}</span>
+    </div>
+    <div>${issueBadge(issue.review_status || 'OPEN')}</div>
+  `);
+}
+
+function workboardDocumentSection(rows) {
+  return workboardSection('Documentos pendientes', rows, 'documents', 'Revisar documentos', row => `
+    <div>
+      <strong>${escapeHtml(row.full_name || 'Sin nombre')}</strong><br>
+      <span class="muted">${escapeHtml(row.province || '')} - ${escapeHtml(label('sourceChannels', row.source_channel))}</span>
+    </div>
+    <div class="workboard-badges">
+      ${documentStatusBadge(row.carta_aval_status || 'MISSING')}
+      ${documentStatusBadge(row.curriculum_status || 'MISSING')}
+    </div>
+  `);
+}
+
+function workboardSubmissionSection(title, rows, target, actionText) {
+  return workboardSection(title, rows, target, actionText, row => `
+    <div>
+      <strong>${escapeHtml(row.full_name || 'Sin nombre')}</strong><br>
+      <span class="muted">${escapeHtml(row.province || '')} - ${escapeHtml(label('sourceChannels', row.source_channel))}</span>
+    </div>
+    <div>
+      ${eligibilityBadge(row.eligibility_status)}
+      ${evaluationBadge(row.evaluation_status)}
+    </div>
+  `);
+}
+
+function workboardSection(title, rows, target, actionText, itemHtml) {
+  const visibleRows = rows.slice(0, 5);
+  return `
+    <section class="workboard-section">
+      <div class="workboard-section-head">
+        <h3>${escapeHtml(title)}</h3>
+        <button class="ghost compact" type="button" data-workboard-open="${escapeHtml(target)}">${escapeHtml(actionText)}</button>
+      </div>
+      ${visibleRows.length ? `<div class="workboard-list">${visibleRows.map(row => `
+        <div class="workboard-item">
+          ${itemHtml(row)}
+          <button class="compact" type="button" data-workboard-submission="${escapeHtml(row.submission_id)}">Abrir expediente</button>
+        </div>
+      `).join('')}</div>` : '<p class="muted">Sin tareas en este grupo.</p>'}
+      ${rows.length > visibleRows.length ? `<p class="muted">${escapeHtml(rows.length - visibleRows.length)} más en la vista correspondiente.</p>` : ''}
+    </section>
+  `;
+}
+
+function openWorkboardTarget(target, filter = '') {
+  if (target === 'issues') {
+    clearIssueFilters();
+    if (filter === 'OPEN') issueStatusFilter.value = 'OPEN';
+    renderIssueReview();
+  } else if (target === 'documents') {
+    clearDocumentFilters();
+    if (filter === 'NEEDS_REVIEW') documentStatusFilter.value = 'NEEDS_REVIEW';
+    renderDocumentReview();
+  } else if (target === 'matrix') {
+    clearMatrixFilters();
+    if (filter === 'READY_TO_EVALUATE') {
+      matrixEligibilityFilter.value = 'READY_FOR_TECHNICAL_REVIEW';
+      matrixEvaluationFilter.value = 'NOT_STARTED';
+    } else if (filter === 'IN_PROGRESS') {
+      matrixEvaluationFilter.value = 'IN_PROGRESS';
+    }
+    renderEvaluationMatrix();
+  } else if (target === 'review') {
+    clearReviewFilters();
+    if (filter === 'COMPLETED') reviewEvaluationFilter.value = 'COMPLETED';
+    renderReviewSummary();
+  }
+  showView(target);
 }
 
 function renderTable() {
@@ -861,7 +1004,7 @@ function applyQuickFilter(filter) {
   clearDocumentFilters();
   clearMatrixFilters();
   if (filter === 'CLEAR') {
-    showView('submissions');
+    showView('workboard');
     return;
   }
   if (filter === 'READY_TO_EVALUATE') {

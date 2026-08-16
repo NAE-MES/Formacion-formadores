@@ -43,7 +43,8 @@
         </div>
 
         <nav class="tabs" aria-label="Vistas administrativas">
-          <button class="tab active" type="button" data-view="submissions">Expedientes</button>
+          <button class="tab active" type="button" data-view="workboard">Bandeja</button>
+          <button class="tab" type="button" data-view="submissions">Expedientes</button>
           <button class="tab" type="button" data-view="review">Seguimiento</button>
           <button class="tab" type="button" data-view="issues">Incidencias</button>
           <button class="tab" type="button" data-view="documents">Documentos</button>
@@ -52,7 +53,19 @@
           <button class="tab" type="button" data-view="users">Usuarios</button>
         </nav>
 
-        <section id="view-submissions" class="view active">
+        <section id="view-workboard" class="view active">
+          <div class="workboard-head">
+            <div>
+              <h2>Bandeja de trabajo</h2>
+              <p class="muted">Tareas operativas derivadas de la ingesta, normalización, documentos y evaluación técnica.</p>
+            </div>
+            <button id="workboardRefreshButton" type="button">Actualizar</button>
+          </div>
+          <div id="workboardStats" class="workboard-stats"></div>
+          <div id="workboardSections" class="workboard-sections"></div>
+        </section>
+
+        <section id="view-submissions" class="view">
         <div class="toolbar">
           <input id="searchInput" type="search" placeholder="Buscar por nombre, correo, provincia o ID">
           <select id="statusFilter">
