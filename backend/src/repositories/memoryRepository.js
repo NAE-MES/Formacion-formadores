@@ -12,6 +12,39 @@ class MemoryRepository {
   }
 
   async saveImportedSubmission(imported) {
+    const sameReference = Array.from(this.submissions.values()).find(submission =>
+      imported.submission &&
+      submission.source_channel === imported.submission.source_channel &&
+      submission.source_reference === imported.submission.source_reference &&
+      submission.submission_id !== imported.submission.submission_id
+    );
+    if (sameReference) {
+      const rebound = rebindImportedSubmission(imported, sameReference.submission_id);
+      if (rebound.candidate) this.candidates.set(rebound.candidate.candidate_id, rebound.candidate);
+      if (rebound.submission) this.submissions.set(rebound.submission.submission_id, rebound.submission);
+      if (rebound.raw) this.raws.set(rebound.raw.submission_raw_id, rebound.raw);
+      for (const response of Array.from(this.responses.values())) {
+        if (response.submission_id === rebound.submission.submission_id) {
+          this.responses.delete(response.candidate_response_id);
+        }
+      }
+      for (const issue of Array.from(this.issues.values())) {
+        if (issue.submission_id === rebound.submission.submission_id) {
+          this.issues.delete(issue.normalization_issue_id);
+        }
+      }
+      for (const response of rebound.responses || []) this.responses.set(response.candidate_response_id, response);
+      for (const document of rebound.documents || []) this.documents.set(document.document_id, document);
+      for (const issue of rebound.issues || []) this.issues.set(issue.normalization_issue_id, issue);
+      this.auditEvents.set(
+        `audit_${this.auditEvents.size + 1}`,
+        auditEvent('SUBMISSION_REPROCESSED', 'Submission', rebound.submission.submission_id, 'API', null, {
+          normalization_status: rebound.submission.normalization_status,
+        }, 'Same source reference reprocessed with updated payload.'),
+      );
+      return { status: 'REPROCESSED', imported: rebound };
+    }
+
     if (this.submissions.has(imported.submission?.submission_id || imported.submission_id)) {
       return { status: 'REIMPORTED', imported };
     }
@@ -242,6 +275,32 @@ function sanitizeIssueAuditValue(issue) {
     review_note: issue.review_note || '',
     reviewed_at: issue.reviewed_at || null,
     reviewed_by: issue.reviewed_by || '',
+  };
+}
+
+function rebindImportedSubmission(imported, submissionId) {
+  const rawHash = imported.raw?.raw_hash || JSON.stringify(imported.raw?.raw_payload || {});
+  return {
+    ...imported,
+    submission: {
+      ...imported.submission,
+      submission_id: submissionId,
+    },
+    raw: imported.raw ? {
+      ...imported.raw,
+      submission_raw_id: `raw_${submissionId}_${rawHash}`,
+      submission_id: submissionId,
+    } : null,
+    responses: (imported.responses || []).map(response => ({
+      ...response,
+      candidate_response_id: `resp_${submissionId}_${response.field_code}`,
+      submission_id: submissionId,
+    })),
+    issues: (imported.issues || []).map(issue => ({
+      ...issue,
+      normalization_issue_id: `issue_${submissionId}_${issue.code}_${issue.field_code}`,
+      submission_id: submissionId,
+    })),
   };
 }
 

@@ -355,6 +355,41 @@ test('reimporting same Google payload is idempotent', async (t) => {
   });
 });
 
+test('reprocessing same Google source reference updates normalized data without duplicating submission', async (t) => {
+  await withServer(t, async ({ port, repository }) => {
+    const sourceReference = 'google-form-row-corrected-upload';
+    const first = await request(port, 'POST', '/api/submissions/google-form', {
+      sourceReference,
+      responses: {
+        ...validResponses(),
+        'FDF-17': '',
+        'FDF-27': 'drive://synthetic/cv',
+      },
+      documents: [requiredDocuments()[1]],
+    });
+    assert.equal(first.statusCode, 202);
+    assert.equal(repository.submissions.size, 1);
+    assert.equal(repository.issues.size, 1);
+
+    const second = await request(port, 'POST', '/api/submissions/google-form', {
+      sourceReference,
+      responses: {
+        ...validResponses(),
+        'FDF-17': 'drive://synthetic/carta-aval',
+        'FDF-27': 'drive://synthetic/cv',
+      },
+      documents: requiredDocuments(),
+    });
+
+    assert.equal(second.statusCode, 200);
+    assert.equal(second.body.status, 'REPROCESSED');
+    assert.equal(repository.submissions.size, 1);
+    assert.equal(repository.raws.size, 2);
+    assert.equal(repository.documents.size, 2);
+    assert.equal(repository.issues.size, 0);
+  });
+});
+
 test('rejects unknown offline JSON schema', async (t) => {
   await withServer(t, async ({ port, repository }) => {
     const response = await request(port, 'POST', '/api/submissions/offline-json', {

@@ -112,6 +112,12 @@ La conexion con el Form publicado se hace sin modificar la encuesta:
 4. Ejecutar una prueba con una respuesta sintetica o controlada.
 5. Revisar `23_API_Bridge_Log` y el backend para confirmar ingestion.
 
+Si una fila ya recibida necesita reenviarse por una correccion tecnica del
+bridge, se puede usar `FdF_reenviarFilaActivaAApi` o
+`FdF_reenviarUltimaRespuestaAApi`. El backend reprocesa la misma combinacion
+`source_channel + source_reference`, conserva un nuevo RAW y actualiza la
+normalizacion sin crear otra postulacion.
+
 ## Panel administrativo inicial
 
 Ruta: `/admin`

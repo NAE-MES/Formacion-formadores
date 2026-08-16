@@ -25,7 +25,10 @@ function FdF_onFormSubmitToApi(e) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const config = FdF_buildApiBridgePublicConfig_(ss);
   const namedValues = e && e.namedValues ? e.namedValues : {};
-  const responses = FdF_mapNamedValuesToFdfCodes_(namedValues, config);
+  const responses = FdF_mergeObjects_(
+    FdF_mapNamedValuesToFdfCodes_(namedValues, config),
+    FdF_mapEventRowToFdfCodes_(e, config)
+  );
   const documents = FdF_documentsFromMappedResponses_(responses);
   const sourceReference = FdF_formSubmitSourceReference_(e, responses);
 
@@ -60,6 +63,26 @@ function FdF_onFormSubmitToApi(e) {
   return body;
 }
 
+function FdF_reenviarFilaActivaAApi() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getActiveSheet();
+  const row = sheet.getActiveRange().getRow();
+  if (row <= 1) {
+    throw new Error('Seleccione una fila de respuesta, no el encabezado.');
+  }
+  return FdF_sendSheetRowToApi_(ss, sheet, row);
+}
+
+function FdF_reenviarUltimaRespuestaAApi() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('01_Esquema_Respuestas') || ss.getActiveSheet();
+  const row = sheet.getLastRow();
+  if (row <= 1) {
+    throw new Error('No hay filas de respuesta para reenviar.');
+  }
+  return FdF_sendSheetRowToApi_(ss, sheet, row);
+}
+
 function FdF_buildApiBridgePublicConfig_(ss) {
   const sh = ss.getSheetByName('13_Formulario_Publico');
   if (!sh) {
@@ -75,14 +98,22 @@ function FdF_buildApiBridgePublicConfig_(ss) {
     }));
 
   const questionToCode = {};
-  fields.forEach(field => questionToCode[field.question] = field.code);
-  return { fields: fields, questionToCode: questionToCode };
+  const normalizedQuestionToCode = {};
+  fields.forEach(field => {
+    questionToCode[field.question] = field.code;
+    normalizedQuestionToCode[FdF_normalizeHeader_(field.question)] = field.code;
+  });
+  return {
+    fields: fields,
+    questionToCode: questionToCode,
+    normalizedQuestionToCode: normalizedQuestionToCode,
+  };
 }
 
 function FdF_mapNamedValuesToFdfCodes_(namedValues, config) {
   const responses = {};
-  Object.keys(namedValues || {}).forEach(question => {
-    const code = config.questionToCode[question];
+Object.keys(namedValues || {}).forEach(question => {
+    const code = FdF_codeForQuestion_(question, config);
     if (!code) {
       return;
     }
@@ -97,6 +128,63 @@ function FdF_mapNamedValuesToFdfCodes_(namedValues, config) {
     }
   });
   return responses;
+}
+
+function FdF_mapEventRowToFdfCodes_(e, config) {
+  if (!e || !e.range) {
+    return {};
+  }
+  const sheet = e.range.getSheet();
+  return FdF_mapSheetRowToFdfCodes_(sheet, e.range.getRow(), config);
+}
+
+function FdF_mapSheetRowToFdfCodes_(sheet, row, config) {
+  if (!sheet || row <= 1) {
+    return {};
+  }
+  const lastColumn = sheet.getLastColumn();
+  const headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
+  const values = sheet.getRange(row, 1, 1, lastColumn).getValues()[0];
+  const responses = {};
+
+  headers.forEach((header, index) => {
+    const code = FdF_codeForQuestion_(String(header || ''), config);
+    if (!code) {
+      return;
+    }
+    const field = config.fields.find(item => item.code === code);
+    responses[code] = FdF_normalizeBridgeValue_(values[index], field);
+  });
+
+  return responses;
+}
+
+function FdF_codeForQuestion_(question, config) {
+  if (config.questionToCode[question]) {
+    return config.questionToCode[question];
+  }
+
+  const normalized = FdF_normalizeHeader_(question);
+  if (config.normalizedQuestionToCode[normalized]) {
+    return config.normalizedQuestionToCode[normalized];
+  }
+
+  if (FdF_containsAll_(normalized, ['adjunte', 'carta', 'aval'])) {
+    return 'FDF-17';
+  }
+  if (FdF_containsAll_(normalized, ['curriculum', 'vitae'])) {
+    return 'FDF-27';
+  }
+  return '';
+}
+
+function FdF_normalizeBridgeValue_(value, field) {
+  if (field && field.type === 'Casillas') {
+    return Array.isArray(value)
+      ? value
+      : String(value || '').split(/,\s*/).map(item => item.trim()).filter(Boolean);
+  }
+  return String(value || '').trim();
 }
 
 function FdF_documentsFromMappedResponses_(responses) {
@@ -118,6 +206,53 @@ function FdF_documentsFromMappedResponses_(responses) {
     });
   }
   return docs;
+}
+
+function FdF_sendSheetRowToApi_(ss, sheet, row) {
+  const props = PropertiesService.getScriptProperties();
+  const apiUrl = props.getProperty('FDF_API_URL');
+  const apiToken = props.getProperty('FDF_API_TOKEN');
+
+  if (!apiUrl) {
+    throw new Error('Missing Script Property FDF_API_URL.');
+  }
+  if (!apiToken) {
+    throw new Error('Missing Script Property FDF_API_TOKEN.');
+  }
+
+  const config = FdF_buildApiBridgePublicConfig_(ss);
+  const responses = FdF_mapSheetRowToFdfCodes_(sheet, row, config);
+  const documents = FdF_documentsFromMappedResponses_(responses);
+  const sourceReference = 'google-form-row-' + row;
+  const payload = {
+    sourceReference: sourceReference,
+    submittedAt: new Date().toISOString(),
+    responses: responses,
+    documents: documents,
+  };
+
+  const response = UrlFetchApp.fetch(
+    apiUrl.replace(/\/$/, '') + '/api/submissions/google-form',
+    {
+      method: 'post',
+      contentType: 'application/json',
+      headers: {
+        Authorization: 'Bearer ' + apiToken,
+      },
+      muteHttpExceptions: true,
+      payload: JSON.stringify(payload),
+    }
+  );
+
+  const code = response.getResponseCode();
+  const body = response.getContentText();
+  FdF_logApiBridge_(ss, sourceReference, code, body);
+
+  if (code < 200 || code >= 300) {
+    throw new Error('FDF API returned HTTP ' + code + ': ' + body);
+  }
+
+  return body;
 }
 
 function FdF_bridgeOriginalName_(reference, fallback) {
@@ -156,4 +291,34 @@ function FdF_logApiBridge_(ss, sourceReference, httpStatus, responseBody) {
     httpStatus,
     responseBody,
   ]);
+}
+
+function FdF_mergeObjects_(primary, secondary) {
+  const out = {};
+  Object.keys(primary || {}).forEach(key => out[key] = primary[key]);
+  Object.keys(secondary || {}).forEach(key => {
+    if (!FdF_bridgeHasValue_(out[key]) && FdF_bridgeHasValue_(secondary[key])) {
+      out[key] = secondary[key];
+    }
+  });
+  return out;
+}
+
+function FdF_bridgeHasValue_(value) {
+  return Array.isArray(value)
+    ? value.length > 0
+    : String(value || '').trim() !== '';
+}
+
+function FdF_normalizeHeader_(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function FdF_containsAll_(value, words) {
+  return words.every(word => value.indexOf(word) !== -1);
 }

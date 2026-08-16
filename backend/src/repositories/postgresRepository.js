@@ -13,6 +13,21 @@ class PostgresRepository {
     try {
       await client.query('BEGIN');
 
+      if (imported.submission) {
+        const existingByReference = await client.query(
+          `select submission_id
+           from submissions
+           where source_channel = $1 and source_reference = $2`,
+          [imported.submission.source_channel, imported.submission.source_reference],
+        );
+        if (existingByReference.rowCount > 0 && existingByReference.rows[0].submission_id !== submissionId) {
+          const rebound = rebindImportedSubmission(imported, existingByReference.rows[0].submission_id);
+          await replaceImportedSubmission(client, rebound);
+          await client.query('COMMIT');
+          return { status: 'REPROCESSED', imported: rebound };
+        }
+      }
+
       const existing = await client.query(
         'select submission_id from submissions where submission_id = $1',
         [submissionId],
@@ -484,6 +499,166 @@ class PostgresRepository {
       client.release();
     }
   }
+}
+
+async function replaceImportedSubmission(client, imported) {
+  if (imported.candidate) {
+    await client.query(
+      `insert into candidates (
+        candidate_id, first_name, second_name, first_surname, second_surname,
+        identification_number, email, province, created_at, updated_at
+      ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      on conflict (candidate_id) do update set
+        first_name = excluded.first_name,
+        second_name = excluded.second_name,
+        first_surname = excluded.first_surname,
+        second_surname = excluded.second_surname,
+        identification_number = excluded.identification_number,
+        email = excluded.email,
+        province = excluded.province,
+        updated_at = excluded.updated_at`,
+      [
+        imported.candidate.candidate_id,
+        imported.candidate.first_name,
+        imported.candidate.second_name,
+        imported.candidate.first_surname,
+        imported.candidate.second_surname,
+        imported.candidate.identification_number,
+        imported.candidate.email,
+        imported.candidate.province,
+        imported.candidate.created_at,
+        imported.candidate.updated_at,
+      ],
+    );
+  }
+
+  await client.query(
+    `update submissions
+     set candidate_id = $2, received_at = $3, normalization_status = $4, updated_at = $5
+     where submission_id = $1`,
+    [
+      imported.submission.submission_id,
+      imported.submission.candidate_id,
+      imported.submission.received_at,
+      imported.submission.normalization_status,
+      imported.submission.updated_at,
+    ],
+  );
+
+  if (imported.raw) {
+    await client.query(
+      `insert into submission_raws (
+        submission_raw_id, submission_id, source_channel, raw_payload,
+        raw_hash, received_at
+      ) values ($1,$2,$3,$4,$5,$6)
+      on conflict (submission_raw_id) do nothing`,
+      [
+        imported.raw.submission_raw_id,
+        imported.raw.submission_id,
+        imported.raw.source_channel,
+        JSON.stringify(imported.raw.raw_payload),
+        imported.raw.raw_hash,
+        imported.raw.received_at,
+      ],
+    );
+  }
+
+  await client.query(`delete from candidate_responses where submission_id = $1`, [imported.submission.submission_id]);
+  for (const response of imported.responses || []) {
+    await client.query(
+      `insert into candidate_responses (
+        candidate_response_id, candidate_id, submission_id, field_code, value
+      ) values ($1,$2,$3,$4,$5)`,
+      [
+        response.candidate_response_id,
+        response.candidate_id,
+        response.submission_id,
+        response.field_code,
+        JSON.stringify(response.value),
+      ],
+    );
+  }
+
+  for (const document of imported.documents || []) {
+    await client.query(
+      `insert into documents (
+        document_id, candidate_id, document_type, source_channel,
+        original_name, storage_reference, received_at, status
+      ) values ($1,$2,$3,$4,$5,$6,$7,$8)
+      on conflict (document_id) do nothing`,
+      [
+        document.document_id,
+        document.candidate_id,
+        document.document_type,
+        document.source_channel,
+        document.original_name,
+        document.storage_reference,
+        document.received_at,
+        document.status,
+      ],
+    );
+  }
+
+  await client.query(`delete from normalization_issues where submission_id = $1`, [imported.submission.submission_id]);
+  for (const issue of imported.issues || []) {
+    await client.query(
+      `insert into normalization_issues (
+        normalization_issue_id, submission_id, candidate_id, field_code,
+        code, severity, message, created_at
+      ) values ($1,$2,$3,$4,$5,$6,$7,$8)
+      on conflict (normalization_issue_id) do nothing`,
+      [
+        issue.normalization_issue_id,
+        issue.submission_id,
+        issue.candidate_id,
+        issue.field_code,
+        issue.code,
+        issue.severity,
+        issue.message,
+        issue.created_at,
+      ],
+    );
+  }
+
+  await insertAuditEvent(client, {
+    action: 'SUBMISSION_REPROCESSED',
+    entityType: 'Submission',
+    entityId: imported.submission.submission_id,
+    actor: 'API',
+    previousValue: null,
+    newValue: {
+      candidate_id: imported.submission.candidate_id,
+      normalization_status: imported.submission.normalization_status,
+    },
+    reason: 'Same source reference reprocessed with updated payload.',
+  });
+}
+
+function rebindImportedSubmission(imported, submissionId) {
+  const rawHash = imported.raw?.raw_hash || hash(JSON.stringify(imported.raw?.raw_payload || {}));
+  return {
+    ...imported,
+    submission: {
+      ...imported.submission,
+      submission_id: submissionId,
+    },
+    raw: imported.raw ? {
+      ...imported.raw,
+      submission_raw_id: `raw_${hash(`raw|${submissionId}|${rawHash}`)}`,
+      submission_id: submissionId,
+    } : null,
+    responses: (imported.responses || []).map(response => ({
+      ...response,
+      candidate_response_id: `resp_${hash(`response|${submissionId}|${response.field_code}`)}`,
+      submission_id: submissionId,
+    })),
+    issues: (imported.issues || []).map(issue => ({
+      ...issue,
+      normalization_issue_id: `issue_${hash(`issue|${submissionId}|${issue.code}|${issue.field_code}|${issue.message}`)}`,
+      submission_id: submissionId,
+    })),
+    auditEvents: imported.auditEvents || [],
+  };
 }
 
 async function insertAuditEvent(client, event) {

@@ -322,6 +322,7 @@ function readJson(req) {
 function statusCodeFor(status) {
   if (status === 'REJECTED') return 422;
   if (status === 'REIMPORTED') return 200;
+  if (status === 'REPROCESSED') return 200;
   if (status === 'IMPORTED_WITH_ISSUES') return 202;
   return 201;
 }
