@@ -196,6 +196,17 @@
               <option value="OFFLINE_MANUAL">Offline manual</option>
             </select>
             <button id="clearIssueFiltersButton" class="ghost" type="button">Limpiar</button>
+            <button id="exportIssuesCsvButton" type="button">Exportar CSV</button>
+          </div>
+          <div class="bulk-bar">
+            <span id="selectedIssuesCount" class="muted">0 incidencias seleccionadas</span>
+            <select id="bulkIssueStatus">
+              <option value="ACKNOWLEDGED">Reconocer</option>
+              <option value="RESOLVED">Resolver</option>
+              <option value="NEEDS_SOURCE_REVIEW">Revisar fuente</option>
+            </select>
+            <input id="bulkIssueNote" type="text" placeholder="Nota para la actualización masiva">
+            <button id="applyBulkIssueButton" type="button">Aplicar</button>
           </div>
           <p id="issueReviewCount" class="result-count"></p>
           <div id="issueReviewStats" class="issue-stats"></div>
@@ -203,6 +214,7 @@
             <table>
               <thead>
                 <tr>
+                  <th><input id="selectAllIssues" type="checkbox" aria-label="Seleccionar incidencias visibles"></th>
                   <th>Incidencia</th>
                   <th>Postulante</th>
                   <th>Campo</th>
@@ -234,6 +246,17 @@
               <option value="OFFLINE_MANUAL">Offline manual</option>
             </select>
             <button id="clearDocumentFiltersButton" class="ghost" type="button">Limpiar</button>
+            <button id="exportDocumentsCsvButton" type="button">Exportar CSV</button>
+          </div>
+          <div class="bulk-bar">
+            <span id="selectedDocumentsCount" class="muted">0 documentos seleccionados</span>
+            <select id="bulkDocumentStatus">
+              <option value="VALIDATED">Validar</option>
+              <option value="NEEDS_REVIEW">Necesita revisión</option>
+              <option value="REJECTED">Rechazar</option>
+              <option value="RECEIVED">Marcar recibido</option>
+            </select>
+            <button id="applyBulkDocumentButton" type="button">Aplicar</button>
           </div>
           <p id="documentReviewCount" class="result-count"></p>
           <div class="table-wrap wide-table">
@@ -272,6 +295,7 @@
               <option value="SIN_EVALUAR">Sin evaluar</option>
             </select>
             <button id="clearMatrixFiltersButton" class="ghost" type="button">Limpiar</button>
+            <button id="exportMatrixCsvButton" type="button">Exportar CSV</button>
           </div>
           <p id="evaluationMatrixCount" class="result-count"></p>
           <div id="evaluationMatrixStats" class="matrix-stats"></div>

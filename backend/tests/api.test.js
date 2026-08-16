@@ -654,6 +654,64 @@ test('admin API lists operational normalization issues', async (t) => {
   });
 });
 
+test('admin API exports operational CSV views', async (t) => {
+  await withServer(t, async ({ port }) => {
+    await request(port, 'POST', '/api/submissions/google-form', {
+      sourceReference: 'google-response-operational-csv',
+      responses: {
+        ...validResponses(),
+        'FDF-07': '',
+      },
+      documents: requiredDocuments(),
+    });
+
+    const documents = await adminRawRequest(port, 'GET', '/api/admin/document-review.csv');
+    assert.equal(documents.statusCode, 200);
+    assert.match(documents.body, /submission_id,candidate_id,full_name/);
+
+    const issues = await adminRawRequest(port, 'GET', '/api/admin/issues.csv');
+    assert.equal(issues.statusCode, 200);
+    assert.match(issues.body, /normalization_issue_id,submission_id,candidate_id/);
+
+    const matrix = await adminRawRequest(port, 'GET', '/api/admin/evaluation-matrix.csv');
+    assert.equal(matrix.statusCode, 200);
+    assert.match(matrix.body, /INSTITUTIONAL_LINK_status/);
+  });
+});
+
+test('admin API applies bulk issue and document updates with review permissions', async (t) => {
+  await withServer(t, async ({ port, repository }) => {
+    await request(port, 'POST', '/api/submissions/google-form', {
+      sourceReference: 'google-response-bulk-ops',
+      responses: {
+        ...validResponses(),
+        'FDF-07': '',
+      },
+      documents: requiredDocuments(),
+    });
+
+    const issueIds = Array.from(repository.issues.values()).map(issue => issue.normalization_issue_id);
+    const documentIds = Array.from(repository.documents.values()).map(document => document.document_id);
+
+    const issues = await adminJsonRequest(port, 'PATCH', '/api/admin/issues/bulk-review', {
+      issue_ids: issueIds,
+      review_status: 'ACKNOWLEDGED',
+      review_note: 'Revision sintetica.',
+    });
+    assert.equal(issues.statusCode, 200);
+    assert.equal(issues.body.updated, issueIds.length);
+    assert.equal(repository.issues.get(issueIds[0]).review_status, 'ACKNOWLEDGED');
+
+    const documents = await adminJsonRequest(port, 'PATCH', '/api/admin/documents/bulk-status', {
+      document_ids: documentIds,
+      status: 'VALIDATED',
+    });
+    assert.equal(documents.statusCode, 200);
+    assert.equal(documents.body.updated, documentIds.length);
+    assert.equal(repository.documents.get(documentIds[0]).status, 'VALIDATED');
+  });
+});
+
 test('admin API rejects invalid operational statuses', async (t) => {
   await withServer(t, async ({ port, repository }) => {
     await request(port, 'POST', '/api/submissions/google-form', {

@@ -8,6 +8,8 @@ let issueFieldCatalog = [];
 let selectedId = '';
 let selectedDetail = null;
 let currentUser = null;
+const selectedIssues = new Set();
+const selectedDocuments = new Set();
 
 const LABELS = {
   roles: {
@@ -112,6 +114,12 @@ const issueStatusFilter = document.querySelector('#issueStatusFilter');
 const issueSeverityFilter = document.querySelector('#issueSeverityFilter');
 const issueOriginFilter = document.querySelector('#issueOriginFilter');
 const clearIssueFiltersButton = document.querySelector('#clearIssueFiltersButton');
+const exportIssuesCsvButton = document.querySelector('#exportIssuesCsvButton');
+const selectedIssuesCount = document.querySelector('#selectedIssuesCount');
+const bulkIssueStatus = document.querySelector('#bulkIssueStatus');
+const bulkIssueNote = document.querySelector('#bulkIssueNote');
+const applyBulkIssueButton = document.querySelector('#applyBulkIssueButton');
+const selectAllIssues = document.querySelector('#selectAllIssues');
 const issueReviewTable = document.querySelector('#issueReviewTable');
 const issueReviewCount = document.querySelector('#issueReviewCount');
 const issueReviewStats = document.querySelector('#issueReviewStats');
@@ -119,12 +127,17 @@ const documentSearchInput = document.querySelector('#documentSearchInput');
 const documentStatusFilter = document.querySelector('#documentStatusFilter');
 const documentOriginFilter = document.querySelector('#documentOriginFilter');
 const clearDocumentFiltersButton = document.querySelector('#clearDocumentFiltersButton');
+const exportDocumentsCsvButton = document.querySelector('#exportDocumentsCsvButton');
+const selectedDocumentsCount = document.querySelector('#selectedDocumentsCount');
+const bulkDocumentStatus = document.querySelector('#bulkDocumentStatus');
+const applyBulkDocumentButton = document.querySelector('#applyBulkDocumentButton');
 const documentReviewTable = document.querySelector('#documentReviewTable');
 const documentReviewCount = document.querySelector('#documentReviewCount');
 const matrixSearchInput = document.querySelector('#matrixSearchInput');
 const matrixEvaluationFilter = document.querySelector('#matrixEvaluationFilter');
 const matrixEligibilityFilter = document.querySelector('#matrixEligibilityFilter');
 const clearMatrixFiltersButton = document.querySelector('#clearMatrixFiltersButton');
+const exportMatrixCsvButton = document.querySelector('#exportMatrixCsvButton');
 const evaluationMatrixHead = document.querySelector('#evaluationMatrixHead');
 const evaluationMatrixTable = document.querySelector('#evaluationMatrixTable');
 const evaluationMatrixCount = document.querySelector('#evaluationMatrixCount');
@@ -188,6 +201,8 @@ logoutButton.addEventListener('click', async () => {
   matrixCriteria = [];
   issueReviewRows = [];
   issueFieldCatalog = [];
+  selectedIssues.clear();
+  selectedDocuments.clear();
   currentUser = null;
   showLogin();
 });
@@ -211,14 +226,20 @@ issueStatusFilter.addEventListener('change', renderIssueReview);
 issueSeverityFilter.addEventListener('change', renderIssueReview);
 issueOriginFilter.addEventListener('change', renderIssueReview);
 clearIssueFiltersButton.addEventListener('click', clearIssueFilters);
+exportIssuesCsvButton.addEventListener('click', () => exportCsv('/api/admin/issues.csv', 'fdf-2026-issues.csv'));
+applyBulkIssueButton.addEventListener('click', applyBulkIssueReview);
+selectAllIssues.addEventListener('change', toggleVisibleIssues);
 documentSearchInput.addEventListener('input', renderDocumentReview);
 documentStatusFilter.addEventListener('change', renderDocumentReview);
 documentOriginFilter.addEventListener('change', renderDocumentReview);
 clearDocumentFiltersButton.addEventListener('click', clearDocumentFilters);
+exportDocumentsCsvButton.addEventListener('click', () => exportCsv('/api/admin/document-review.csv', 'fdf-2026-document-review.csv'));
+applyBulkDocumentButton.addEventListener('click', applyBulkDocumentStatus);
 matrixSearchInput.addEventListener('input', renderEvaluationMatrix);
 matrixEvaluationFilter.addEventListener('change', renderEvaluationMatrix);
 matrixEligibilityFilter.addEventListener('change', renderEvaluationMatrix);
 clearMatrixFiltersButton.addEventListener('click', clearMatrixFilters);
+exportMatrixCsvButton.addEventListener('click', () => exportCsv('/api/admin/evaluation-matrix.csv', 'fdf-2026-evaluation-matrix.csv'));
 quickFilterButtons.forEach(button => button.addEventListener('click', () => applyQuickFilter(button.dataset.quickFilter)));
 offlineJsonForm.addEventListener('submit', importOfflineJson);
 offlineManualForm.addEventListener('submit', importOfflineManual);
@@ -809,6 +830,7 @@ function renderIssueReview() {
   issueReviewStats.innerHTML = issueStatsHtml(rows);
   issueReviewTable.innerHTML = rows.map(issue => issueReviewRow(issue, fieldCatalog.get(issue.field_code))).join('');
   issueReviewCount.textContent = resultCountLabel(rows.length, issueReviewRows.length, 'incidencia', 'incidencias');
+  updateBulkIssueUi();
 
   issueReviewTable.querySelectorAll('tr').forEach(row => {
     row.addEventListener('click', async event => {
@@ -819,6 +841,13 @@ function renderIssueReview() {
   });
   issueReviewTable.querySelectorAll('[data-issue-quick]').forEach(button => {
     button.addEventListener('click', saveIssueFromReview);
+  });
+  issueReviewTable.querySelectorAll('[data-issue-select]').forEach(checkbox => {
+    checkbox.addEventListener('change', () => {
+      if (checkbox.checked) selectedIssues.add(checkbox.dataset.issueSelect);
+      else selectedIssues.delete(checkbox.dataset.issueSelect);
+      updateBulkIssueUi();
+    });
   });
   issueReviewStats.querySelectorAll('[data-issue-status-shortcut]').forEach(button => {
     button.addEventListener('click', () => {
@@ -859,6 +888,7 @@ function renderDocumentReview() {
     </tr>
   `).join('');
   documentReviewCount.textContent = resultCountLabel(rows.length, documentReviewRows.length, 'postulación', 'postulaciones');
+  updateBulkDocumentUi();
 
   documentReviewTable.querySelectorAll('tr').forEach(row => {
     row.addEventListener('click', async event => {
@@ -880,6 +910,13 @@ function renderDocumentReview() {
         },
       });
       await loadData();
+    });
+  });
+  documentReviewTable.querySelectorAll('[data-document-select]').forEach(checkbox => {
+    checkbox.addEventListener('change', () => {
+      if (checkbox.checked) selectedDocuments.add(checkbox.dataset.documentSelect);
+      else selectedDocuments.delete(checkbox.dataset.documentSelect);
+      updateBulkDocumentUi();
     });
   });
   documentReviewTable.querySelectorAll('[data-document-open]').forEach(link => {
@@ -965,7 +1002,11 @@ function matrixStatsHtml(rows) {
 }
 
 async function exportReviewCsv() {
-  const response = await fetch('/api/admin/review-summary.csv', {
+  return exportCsv('/api/admin/review-summary.csv', 'fdf-2026-review-summary.csv');
+}
+
+async function exportCsv(url, filename) {
+  const response = await fetch(url, {
     credentials: 'same-origin',
   });
   if (!response.ok) {
@@ -973,12 +1014,82 @@ async function exportReviewCsv() {
     throw new Error(body.message || body.error || `HTTP ${response.status}`);
   }
   const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
+  const objectUrl = URL.createObjectURL(blob);
   const link = document.createElement('a');
-  link.href = url;
-  link.download = 'fdf-2026-review-summary.csv';
+  link.href = objectUrl;
+  link.download = filename;
   link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+}
+
+function updateBulkIssueUi() {
+  selectedIssuesCount.textContent = `${selectedIssues.size} ${selectedIssues.size === 1 ? 'incidencia seleccionada' : 'incidencias seleccionadas'}`;
+  applyBulkIssueButton.disabled = !selectedIssues.size || !hasRole('ADMIN', 'REVIEWER');
+  const visible = Array.from(issueReviewTable.querySelectorAll('[data-issue-select]'));
+  selectAllIssues.checked = visible.length > 0 && visible.every(checkbox => checkbox.checked);
+  selectAllIssues.indeterminate = visible.some(checkbox => checkbox.checked) && !selectAllIssues.checked;
+}
+
+function updateBulkDocumentUi() {
+  selectedDocumentsCount.textContent = `${selectedDocuments.size} ${selectedDocuments.size === 1 ? 'documento seleccionado' : 'documentos seleccionados'}`;
+  applyBulkDocumentButton.disabled = !selectedDocuments.size || !hasRole('ADMIN', 'REVIEWER');
+}
+
+function toggleVisibleIssues() {
+  issueReviewTable.querySelectorAll('[data-issue-select]').forEach(checkbox => {
+    checkbox.checked = selectAllIssues.checked;
+    if (checkbox.checked) selectedIssues.add(checkbox.dataset.issueSelect);
+    else selectedIssues.delete(checkbox.dataset.issueSelect);
+  });
+  updateBulkIssueUi();
+}
+
+async function applyBulkIssueReview() {
+  if (!selectedIssues.size) return;
+  applyBulkIssueButton.disabled = true;
+  applyBulkIssueButton.textContent = 'Aplicando';
+  try {
+    await api('/api/admin/issues/bulk-review', {
+      method: 'PATCH',
+      body: {
+        issue_ids: Array.from(selectedIssues),
+        review_status: bulkIssueStatus.value,
+        review_note: bulkIssueNote.value,
+        reason: 'Actualización masiva de incidencias desde la consola',
+      },
+    });
+    selectedIssues.clear();
+    bulkIssueNote.value = '';
+    await loadData();
+  } catch (error) {
+    alert(error.message);
+  } finally {
+    applyBulkIssueButton.textContent = 'Aplicar';
+    updateBulkIssueUi();
+  }
+}
+
+async function applyBulkDocumentStatus() {
+  if (!selectedDocuments.size) return;
+  applyBulkDocumentButton.disabled = true;
+  applyBulkDocumentButton.textContent = 'Aplicando';
+  try {
+    await api('/api/admin/documents/bulk-status', {
+      method: 'PATCH',
+      body: {
+        document_ids: Array.from(selectedDocuments),
+        status: bulkDocumentStatus.value,
+        reason: 'Actualización masiva documental desde la consola',
+      },
+    });
+    selectedDocuments.clear();
+    await loadData();
+  } catch (error) {
+    alert(error.message);
+  } finally {
+    applyBulkDocumentButton.textContent = 'Aplicar';
+    updateBulkDocumentUi();
+  }
 }
 
 function clearSubmissionFilters() {
@@ -1263,10 +1374,14 @@ function documentReviewCell(item, prefix) {
   const status = item[`${prefix}_status`] || 'MISSING';
   const name = item[`${prefix}_name`] || item[`${prefix}_reference`] || '';
   const reference = item[`${prefix}_reference`] || '';
+  const canReview = hasRole('ADMIN', 'REVIEWER');
+  const checkbox = documentId && canReview
+    ? `<input type="checkbox" data-document-select="${escapeHtml(documentId)}" ${selectedDocuments.has(documentId) ? 'checked' : ''} aria-label="Seleccionar documento">`
+    : '';
   const link = documentId && isSafeHttpUrl(reference)
     ? `<a href="${escapeHtml(reference)}" target="_blank" rel="noopener noreferrer" data-document-open="${escapeHtml(documentId)}">${escapeHtml(name || 'Documento')}</a>`
     : `<span>${escapeHtml(name || 'Sin archivo registrado')}</span>`;
-  const controls = documentId && hasRole('ADMIN', 'REVIEWER')
+  const controls = documentId && canReview
     ? `
       <div class="doc-review-actions">
         <select data-document-review-status="${escapeHtml(documentId)}">
@@ -1278,7 +1393,7 @@ function documentReviewCell(item, prefix) {
     : '';
   return `
     <div class="doc-review-cell">
-      ${documentStatusBadge(status)}
+      <div class="doc-review-head">${checkbox}${documentStatusBadge(status)}</div>
       ${link}
       ${controls}
     </div>
@@ -1290,6 +1405,7 @@ function issueReviewRow(issue, field = {}) {
   const status = issue.review_status || 'OPEN';
   return `
     <tr data-issue-submission="${escapeHtml(issue.submission_id)}">
+      <td><input type="checkbox" data-issue-select="${escapeHtml(issue.normalization_issue_id)}" ${selectedIssues.has(issue.normalization_issue_id) ? 'checked' : ''} ${canReview ? '' : 'disabled'} aria-label="Seleccionar incidencia"></td>
       <td>
         <strong>${escapeHtml(issue.code)}</strong> ${severityBadge(issue.severity)}<br>
         <span class="muted">${escapeHtml(issue.message || '')}</span><br>

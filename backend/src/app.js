@@ -122,6 +122,11 @@ function createApp({ config, repository }) {
         return sendJson(res, 200, { rows: await repository.listDocumentReviewRows() });
       }
 
+      if (req.method === 'GET' && req.url === '/api/admin/document-review.csv') {
+        await authorizeAdmin(req, config, repository);
+        return sendCsv(res, 'fdf-2026-document-review.csv', documentReviewCsv(await repository.listDocumentReviewRows()));
+      }
+
       if (req.method === 'GET' && req.url === '/api/admin/evaluation-matrix') {
         await authorizeAdmin(req, config, repository);
         return sendJson(res, 200, {
@@ -130,12 +135,23 @@ function createApp({ config, repository }) {
         });
       }
 
+      if (req.method === 'GET' && req.url === '/api/admin/evaluation-matrix.csv') {
+        await authorizeAdmin(req, config, repository);
+        const criteria = criteriaFromConfig(config.evaluationConfig);
+        return sendCsv(res, 'fdf-2026-evaluation-matrix.csv', evaluationMatrixCsv(await repository.listEvaluationMatrixRows(), criteria));
+      }
+
       if (req.method === 'GET' && req.url === '/api/admin/issues') {
         await authorizeAdmin(req, config, repository);
         return sendJson(res, 200, {
           issues: await repository.listNormalizationIssueRows(),
           field_catalog: fieldCatalogFromConfig(config.publicSchema),
         });
+      }
+
+      if (req.method === 'GET' && req.url === '/api/admin/issues.csv') {
+        await authorizeAdmin(req, config, repository);
+        return sendCsv(res, 'fdf-2026-issues.csv', issuesCsv(await repository.listNormalizationIssueRows()));
       }
 
       if (req.method === 'GET' && req.url === '/api/admin/review-summary.csv') {
@@ -198,6 +214,21 @@ function createApp({ config, repository }) {
         return sendJson(res, 200, { document });
       }
 
+      if (req.method === 'PATCH' && req.url === '/api/admin/documents/bulk-status') {
+        const admin = await authorizeAdmin(req, config, repository, ['ADMIN', 'REVIEWER']);
+        const payload = await readJson(req);
+        const documentIds = boundedStringList(payload.document_ids, 'document_ids');
+        const documents = [];
+        for (const documentId of documentIds) {
+          documents.push(await repository.updateDocumentStatus(documentId, {
+            status: payload.status,
+            actor: admin.username || payload.actor || 'ADMIN_UI',
+            reason: payload.reason || 'Bulk document status update.',
+          }));
+        }
+        return sendJson(res, 200, { updated: documents.length, documents });
+      }
+
       if (req.method === 'POST' && req.url.startsWith('/api/admin/documents/') && req.url.endsWith('/open')) {
         const admin = await authorizeAdmin(req, config, repository, ['ADMIN', 'REVIEWER', 'INTAKE', 'VIEWER']);
         const documentId = decodeURIComponent(req.url.slice('/api/admin/documents/'.length, -'/open'.length));
@@ -219,6 +250,22 @@ function createApp({ config, repository }) {
           reason: payload.reason || '',
         });
         return sendJson(res, 200, { issue });
+      }
+
+      if (req.method === 'PATCH' && req.url === '/api/admin/issues/bulk-review') {
+        const admin = await authorizeAdmin(req, config, repository, ['ADMIN', 'REVIEWER']);
+        const payload = await readJson(req);
+        const issueIds = boundedStringList(payload.issue_ids, 'issue_ids');
+        const issues = [];
+        for (const issueId of issueIds) {
+          issues.push(await repository.updateNormalizationIssueReview(issueId, {
+            reviewStatus: payload.review_status,
+            reviewNote: payload.review_note || '',
+            actor: admin.username || payload.actor || 'ADMIN_UI',
+            reason: payload.reason || 'Bulk issue review update.',
+          }));
+        }
+        return sendJson(res, 200, { updated: issues.length, issues });
       }
 
       if (req.method === 'POST' && req.url === '/api/admin/submissions/offline-json') {
@@ -614,6 +661,23 @@ function responseBody(saved, assessment) {
   };
 }
 
+function boundedStringList(value, fieldName) {
+  if (!Array.isArray(value) || !value.length || value.length > 100) {
+    const error = new Error(`${fieldName} must contain between 1 and 100 items.`);
+    error.statusCode = 400;
+    error.code = 'INVALID_BULK_SELECTION';
+    throw error;
+  }
+  const items = value.map(item => String(item || '').trim()).filter(Boolean);
+  if (items.length !== value.length) {
+    const error = new Error(`${fieldName} contains invalid items.`);
+    error.statusCode = 400;
+    error.code = 'INVALID_BULK_SELECTION';
+    throw error;
+  }
+  return Array.from(new Set(items));
+}
+
 function sendJson(res, statusCode, body) {
   const payload = JSON.stringify(body);
   res.writeHead(statusCode, {
@@ -654,6 +718,86 @@ function reviewSummaryCsv(rows) {
     'documents_rejected',
     'open_issue_count',
   ];
+  return [
+    headers.join(','),
+    ...rows.map(row => headers.map(header => csvCell(row[header])).join(',')),
+  ].join('\n');
+}
+
+function documentReviewCsv(rows) {
+  const headers = [
+    'submission_id',
+    'candidate_id',
+    'full_name',
+    'email',
+    'province',
+    'source_channel',
+    'received_at',
+    'eligibility_status',
+    'document_count',
+    'carta_aval_status',
+    'carta_aval_name',
+    'curriculum_status',
+    'curriculum_name',
+  ];
+  return rowsCsv(headers, rows);
+}
+
+function issuesCsv(rows) {
+  const headers = [
+    'normalization_issue_id',
+    'submission_id',
+    'candidate_id',
+    'full_name',
+    'email',
+    'province',
+    'source_channel',
+    'field_code',
+    'code',
+    'severity',
+    'message',
+    'created_at',
+    'review_status',
+    'review_note',
+    'reviewed_at',
+    'reviewed_by',
+  ];
+  return rowsCsv(headers, rows);
+}
+
+function evaluationMatrixCsv(rows, criteria) {
+  const baseHeaders = [
+    'submission_id',
+    'candidate_id',
+    'full_name',
+    'email',
+    'province',
+    'source_channel',
+    'received_at',
+    'eligibility_status',
+    'evaluation_status',
+    'completed_criteria',
+    'total_criteria',
+  ];
+  const criterionHeaders = criteria.flatMap(criterion => [
+    `${criterion.criterion_id}_status`,
+    `${criterion.criterion_id}_score`,
+  ]);
+  const headers = [...baseHeaders, ...criterionHeaders];
+  const expandedRows = rows.map(row => {
+    const evaluations = new Map((row.criteria || []).map(item => [item.criterion_id, item]));
+    const expanded = { ...row };
+    for (const criterion of criteria) {
+      const evaluation = evaluations.get(criterion.criterion_id) || {};
+      expanded[`${criterion.criterion_id}_status`] = evaluation.status || 'NOT_STARTED';
+      expanded[`${criterion.criterion_id}_score`] = evaluation.score ?? '';
+    }
+    return expanded;
+  });
+  return rowsCsv(headers, expandedRows);
+}
+
+function rowsCsv(headers, rows) {
   return [
     headers.join(','),
     ...rows.map(row => headers.map(header => csvCell(row[header])).join(',')),
