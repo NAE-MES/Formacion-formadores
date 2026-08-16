@@ -8,6 +8,12 @@ const {
   importOfflineManualSubmission,
 } = require('./ingestion');
 const { assessEligibility } = require('./eligibility');
+const {
+  buildCriterionEvaluation,
+  criterionById,
+  criteriaFromConfig,
+  summarizeEvaluation,
+} = require('./evaluation');
 
 function createApp({ config, repository }) {
   async function handle(req, res) {
@@ -66,6 +72,14 @@ function createApp({ config, repository }) {
         return sendJson(res, 200, { users: await repository.listAdminUsers() });
       }
 
+      if (req.method === 'GET' && req.url === '/api/admin/evaluation/criteria') {
+        await authorizeAdmin(req, config, repository);
+        return sendJson(res, 200, {
+          schema_version: config.evaluationConfig?.schema_version || '',
+          criteria: criteriaFromConfig(config.evaluationConfig),
+        });
+      }
+
       if (req.method === 'POST' && req.url === '/api/admin/users') {
         const admin = await authorizeAdmin(req, config, repository, ['ADMIN']);
         const payload = await readJson(req);
@@ -103,7 +117,10 @@ function createApp({ config, repository }) {
         const submissionId = decodeURIComponent(req.url.slice('/api/admin/submissions/'.length));
         const detail = await repository.getAdminSubmissionDetail(submissionId);
         if (!detail) return sendJson(res, 404, { error: 'NOT_FOUND' });
-        return sendJson(res, 200, detail);
+        return sendJson(res, 200, {
+          ...detail,
+          evaluation_criteria: criteriaFromConfig(config.evaluationConfig),
+        });
       }
 
       if (req.method === 'POST' && req.url.startsWith('/api/admin/submissions/') && req.url.endsWith('/eligibility/recalculate')) {
@@ -124,6 +141,17 @@ function createApp({ config, repository }) {
           reason: payload.reason || '',
         });
         return sendJson(res, 200, { eligibility_assessment: assessment });
+      }
+
+      if (req.method === 'PUT' && req.url.startsWith('/api/admin/submissions/') && req.url.includes('/evaluation/criteria/')) {
+        const admin = await authorizeAdmin(req, config, repository, ['ADMIN', 'REVIEWER']);
+        const parts = req.url.match(/^\/api\/admin\/submissions\/(.+)\/evaluation\/criteria\/([^/]+)$/);
+        if (!parts) return sendJson(res, 404, { error: 'NOT_FOUND' });
+        const submissionId = decodeURIComponent(parts[1]);
+        const criterionId = decodeURIComponent(parts[2]);
+        const payload = await readJson(req);
+        const saved = await saveCriterionEvaluation(submissionId, criterionId, payload, config, repository, admin.username || 'ADMIN_UI');
+        return sendJson(res, 200, saved);
       }
 
       if (req.method === 'PATCH' && req.url.startsWith('/api/admin/documents/') && req.url.endsWith('/status')) {
@@ -278,6 +306,43 @@ async function recalculateEligibility(submissionId, config, repository, actor) {
   return repository.saveEligibilityAssessment(assessment, {
     actor,
     reason: 'Eligibility recalculated from normalized responses and document status.',
+  });
+}
+
+async function saveCriterionEvaluation(submissionId, criterionId, payload, config, repository, actor) {
+  if (!config.evaluationConfig || !repository.getSubmission || !repository.saveCriterionEvaluation) {
+    const error = new Error('Evaluation capture is not configured.');
+    error.statusCode = 503;
+    error.code = 'EVALUATION_NOT_CONFIGURED';
+    throw error;
+  }
+  const submission = await repository.getSubmission(submissionId);
+  if (!submission) {
+    const error = new Error('Submission not found.');
+    error.statusCode = 404;
+    error.code = 'NOT_FOUND';
+    throw error;
+  }
+  const criterion = criterionById(config.evaluationConfig, criterionId);
+  if (!criterion) {
+    const error = new Error('Evaluation criterion not found.');
+    error.statusCode = 404;
+    error.code = 'NOT_FOUND';
+    throw error;
+  }
+
+  const evaluation = buildCriterionEvaluation({ submission, criterion, payload, actor });
+  const existing = repository.listCriterionEvaluations
+    ? await repository.listCriterionEvaluations(submissionId)
+    : [];
+  const merged = [
+    ...existing.filter(item => item.criterion_id !== criterionId),
+    evaluation,
+  ];
+  const result = summarizeEvaluation(submission, merged, config.evaluationConfig, actor);
+  return repository.saveCriterionEvaluation(evaluation, result, {
+    actor,
+    reason: payload.reason || 'Technical criterion review captured.',
   });
 }
 

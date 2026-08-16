@@ -1,0 +1,41 @@
+{
+  "schema_version": "FDF-2026-EVALUATION-BASELINE-1",
+  "assessment_scope": "TECHNICAL_REVIEW_CAPTURE",
+  "calculation_status": "PENDING_TECHNICAL_APPROVAL",
+  "notes": [
+    "This catalog enables manual technical review capture only.",
+    "It does not implement automatic scoring, ranking, quotas, tie-breakers or final decisions."
+  ],
+  "statuses": [
+    "NOT_STARTED",
+    "IN_PROGRESS",
+    "COMPLETED",
+    "NEEDS_REVIEW"
+  ],
+  "criteria": [
+    {
+      "criterion_id": "INSTITUTIONAL_LINK",
+      "label": "Vinculación institucional",
+      "weight_percent": 15,
+      "source": "Anexo 1 / Sistema_FdF_2026_FINAL.xlsx"
+    },
+    {
+      "criterion_id": "TRAINING_AND_TECHNICAL_CAPACITY",
+      "label": "Capacidades formativas y experiencia técnica",
+      "weight_percent": 55,
+      "source": "Anexo 1 / Sistema_FdF_2026_FINAL.xlsx"
+    },
+    {
+      "criterion_id": "TERRITORIAL_REPLICATION_POTENTIAL",
+      "label": "Potencial de réplica territorial",
+      "weight_percent": 25,
+      "source": "Anexo 1 / Sistema_FdF_2026_FINAL.xlsx"
+    },
+    {
+      "criterion_id": "INCLUSION_GENDER_SUSTAINABILITY",
+      "label": "Enfoque de inclusión, género o sostenibilidad",
+      "weight_percent": 5,
+      "source": "Anexo 1 / Sistema_FdF_2026_FINAL.xlsx"
+    }
+  ]
+}

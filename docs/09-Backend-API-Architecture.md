@@ -88,9 +88,11 @@ Endpoints iniciales:
 - `GET /api/admin/summary`
 - `GET /api/admin/submissions`
 - `GET /api/admin/submissions/:submission_id`
+- `GET /api/admin/evaluation/criteria`
 - `POST /api/admin/submissions/offline-json`
 - `POST /api/admin/submissions/offline-manual`
 - `POST /api/admin/submissions/:submission_id/eligibility/recalculate`
+- `PUT /api/admin/submissions/:submission_id/evaluation/criteria/:criterion_id`
 - `PATCH /api/admin/eligibility/:eligibility_assessment_id/review`
 - `PATCH /api/admin/documents/:document_id/status`
 - `POST /api/admin/documents/:document_id/open`
@@ -109,8 +111,8 @@ Autenticacion:
   via tecnica de emergencia.
 - Los endpoints de ingesta fallan cerrado si `FDF_API_TOKEN` no esta
   configurado en el backend.
-- Los endpoints administrativos fallan cerrado si `FDF_ADMIN_TOKEN` no esta
-  configurado en el backend.
+- Los endpoints administrativos requieren sesion valida o, si esta configurado,
+  `FDF_ADMIN_TOKEN` como via tecnica de emergencia.
 - El token no debe guardarse en Git ni en celdas visibles del Spreadsheet.
 - En Google Apps Script debe almacenarse como Script Property.
 - La publicacion externa debe hacerse por HTTPS a traves del proxy
@@ -183,13 +185,15 @@ Alcance:
 - carga administrativa de JSON offline con referencias de Carta Aval y CV
   recibidos por correo.
 - registro manual controlado para postulaciones offline recibidas sin JSON.
+- captura manual de evaluacion tecnica por criterio, sin ranking ni decision
+  final.
 
 Restricciones:
 
 - no expone el RAW completo en la UI inicial;
 - no descarga ni almacena fisicamente documentos de Drive en el servidor;
 - no implementa ranking, cupos ni decision final;
-- no permite modificar respuestas ni documentos en esta fase;
+- no permite modificar respuestas en esta fase;
 - no convierte estados operativos en decisiones de admisibilidad,
   seleccion o ranking;
 - requiere sesion administrativa activa para leer o modificar datos.
@@ -197,7 +201,8 @@ Restricciones:
 Roles administrativos:
 
 - `ADMIN`: gestiona usuarios y puede ejecutar todas las acciones operativas.
-- `REVIEWER`: revisa documentos, incidencias y admisibilidad preliminar.
+- `REVIEWER`: revisa documentos, incidencias, admisibilidad preliminar y
+  evaluacion tecnica manual.
 - `INTAKE`: registra entradas offline JSON/manual y consulta expedientes.
 - `VIEWER`: consulta expedientes y abre referencias documentales auditadas.
 
@@ -224,10 +229,20 @@ Estados operativos de admisibilidad preliminar:
 - `BLOCKED_BY_MISSING_REQUIREMENTS`
 - `REQUIRES_MANUAL_REVIEW`
 
+Estados operativos de evaluacion tecnica:
+
+- `NOT_STARTED`
+- `IN_PROGRESS`
+- `COMPLETED`
+- `NEEDS_REVIEW`
+
 Cada cambio administrativo registra un evento en `audit_events` sin guardar
 CV, carta aval ni datos personales completos dentro del log tecnico.
 La accion de abrir una referencia documental tambien queda auditada como
 `DOCUMENT_OPENED`.
+Las actualizaciones de criterios se auditan como
+`CRITERION_EVALUATION_UPDATED` y el resumen operativo como
+`EVALUATION_RESULT_UPDATED`.
 El recalculo de admisibilidad registra `ELIGIBILITY_ASSESSED`; la revision
 manual registra `ELIGIBILITY_REVIEW_UPDATED`.
 

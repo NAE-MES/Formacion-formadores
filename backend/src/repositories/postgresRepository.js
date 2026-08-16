@@ -197,11 +197,7 @@ class PostgresRepository {
       `insert into admin_users (
         admin_user_id, username, password_hash, role, active, created_at, updated_at
       ) values ($1,$2,$3,$4,true,$5,$5)
-      on conflict (username) do update set
-        password_hash = excluded.password_hash,
-        role = excluded.role,
-        active = true,
-        updated_at = excluded.updated_at`,
+      on conflict (username) do nothing`,
       [adminUserId, normalizeUsername(username), passwordHash, role || 'ADMIN', now],
     );
   }
@@ -413,6 +409,9 @@ class PostgresRepository {
         (select count(*)::int from eligibility_assessments where status = 'READY_FOR_TECHNICAL_REVIEW') as eligibility_ready,
         (select count(*)::int from eligibility_assessments where status = 'BLOCKED_BY_MISSING_REQUIREMENTS') as eligibility_blocked,
         (select count(*)::int from eligibility_assessments where status = 'REQUIRES_MANUAL_REVIEW') as eligibility_review,
+        (select count(*)::int from evaluation_results where status = 'COMPLETED') as evaluation_completed,
+        (select count(*)::int from evaluation_results where status = 'IN_PROGRESS') as evaluation_in_progress,
+        (select count(*)::int from evaluation_results where status = 'NEEDS_REVIEW') as evaluation_needs_review,
         (select count(*)::int from documents where status = 'NEEDS_REVIEW') as documents_needs_review,
         (select count(*)::int from documents where status = 'REJECTED') as documents_rejected,
         (select count(*)::int from normalization_issues where review_status in ('OPEN', 'NEEDS_SOURCE_REVIEW')) as open_issues
@@ -438,6 +437,7 @@ class PostgresRepository {
         s.received_at,
         s.normalization_status,
         ea.status as eligibility_status,
+        coalesce(er.status, 'NOT_STARTED') as evaluation_status,
         string_agg(distinct d.status, ',' order by d.status) as document_statuses,
         count(distinct case when ni.review_status in ('OPEN', 'NEEDS_SOURCE_REVIEW') then ni.normalization_issue_id end)::int as open_issue_count,
         count(distinct ni.normalization_issue_id)::int as issue_count,
@@ -453,6 +453,13 @@ class PostgresRepository {
         order by assessed_at desc
         limit 1
       ) ea on true
+      left join lateral (
+        select status
+        from evaluation_results
+        where submission_id = s.submission_id
+        order by calculated_at desc
+        limit 1
+      ) er on true
       group by
         s.submission_id,
         s.candidate_id,
@@ -466,7 +473,8 @@ class PostgresRepository {
         s.source_reference,
         s.received_at,
         s.normalization_status,
-        ea.status
+        ea.status,
+        er.status
       order by s.received_at desc
       limit 500
     `);
@@ -517,6 +525,24 @@ class PostgresRepository {
        limit 1`,
       [submissionId],
     );
+    const criterionEvaluations = await this.pool.query(
+      `select criterion_evaluation_id, candidate_id, submission_id, criterion_id,
+        criterion_label, weight_percent, score, status, evidence_summary,
+        evaluator_note, evaluated_at, evaluated_by
+       from criterion_evaluations
+       where submission_id = $1
+       order by criterion_id`,
+      [submissionId],
+    );
+    const evaluationResult = await this.pool.query(
+      `select evaluation_result_id, candidate_id, submission_id, status,
+        completed_criteria, total_criteria, calculated_at, calculated_by, notes
+       from evaluation_results
+       where submission_id = $1
+       order by calculated_at desc
+       limit 1`,
+      [submissionId],
+    );
     const auditEvents = await this.pool.query(
       `select audit_event_id, action, entity_type, entity_id, occurred_at,
         source_channel, actor, reason
@@ -529,6 +555,8 @@ class PostgresRepository {
         ...documents.rows.map(document => document.document_id),
         ...issues.rows.map(issue => issue.normalization_issue_id),
         ...eligibility.rows.map(item => item.eligibility_assessment_id),
+        ...criterionEvaluations.rows.map(item => item.criterion_evaluation_id),
+        ...evaluationResult.rows.map(item => item.evaluation_result_id),
       ]],
     );
 
@@ -539,8 +567,138 @@ class PostgresRepository {
       documents: documents.rows,
       issues: issues.rows,
       eligibility_assessment: eligibility.rows[0] || null,
+      criterion_evaluations: criterionEvaluations.rows,
+      evaluation_result: evaluationResult.rows[0] || null,
       audit_events: auditEvents.rows,
     };
+  }
+
+  async getSubmission(submissionId) {
+    const result = await this.pool.query(
+      `select submission_id, candidate_id, source_channel, source_reference,
+        received_at, normalization_status, created_at, updated_at
+       from submissions
+       where submission_id = $1`,
+      [submissionId],
+    );
+    return result.rows[0] || null;
+  }
+
+  async listCriterionEvaluations(submissionId) {
+    const result = await this.pool.query(
+      `select criterion_evaluation_id, candidate_id, submission_id, criterion_id,
+        criterion_label, weight_percent, score, status, evidence_summary,
+        evaluator_note, evaluated_at, evaluated_by
+       from criterion_evaluations
+       where submission_id = $1
+       order by criterion_id`,
+      [submissionId],
+    );
+    return result.rows;
+  }
+
+  async saveCriterionEvaluation(evaluation, result, { actor, reason } = {}) {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const current = await client.query(
+        `select criterion_evaluation_id, candidate_id, submission_id, criterion_id,
+          status, score, evaluated_at, evaluated_by
+         from criterion_evaluations
+         where criterion_evaluation_id = $1
+         for update`,
+        [evaluation.criterion_evaluation_id],
+      );
+      const saved = await client.query(
+        `insert into criterion_evaluations (
+          criterion_evaluation_id, candidate_id, submission_id, criterion_id,
+          criterion_label, weight_percent, score, status, evidence_summary,
+          evaluator_note, evaluated_at, evaluated_by
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+        on conflict (criterion_evaluation_id) do update set
+          criterion_label = excluded.criterion_label,
+          weight_percent = excluded.weight_percent,
+          score = excluded.score,
+          status = excluded.status,
+          evidence_summary = excluded.evidence_summary,
+          evaluator_note = excluded.evaluator_note,
+          evaluated_at = excluded.evaluated_at,
+          evaluated_by = excluded.evaluated_by
+        returning criterion_evaluation_id, candidate_id, submission_id, criterion_id,
+          criterion_label, weight_percent, score, status, evidence_summary,
+          evaluator_note, evaluated_at, evaluated_by`,
+        [
+          evaluation.criterion_evaluation_id,
+          evaluation.candidate_id,
+          evaluation.submission_id,
+          evaluation.criterion_id,
+          evaluation.criterion_label,
+          evaluation.weight_percent,
+          evaluation.score,
+          evaluation.status,
+          evaluation.evidence_summary,
+          evaluation.evaluator_note,
+          evaluation.evaluated_at,
+          evaluation.evaluated_by,
+        ],
+      );
+      const savedResult = await client.query(
+        `insert into evaluation_results (
+          evaluation_result_id, candidate_id, submission_id, status,
+          completed_criteria, total_criteria, calculated_at, calculated_by, notes
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        on conflict (evaluation_result_id) do update set
+          status = excluded.status,
+          completed_criteria = excluded.completed_criteria,
+          total_criteria = excluded.total_criteria,
+          calculated_at = excluded.calculated_at,
+          calculated_by = excluded.calculated_by,
+          notes = excluded.notes
+        returning evaluation_result_id, candidate_id, submission_id, status,
+          completed_criteria, total_criteria, calculated_at, calculated_by, notes`,
+        [
+          result.evaluation_result_id,
+          result.candidate_id,
+          result.submission_id,
+          result.status,
+          result.completed_criteria,
+          result.total_criteria,
+          result.calculated_at,
+          result.calculated_by,
+          result.notes,
+        ],
+      );
+
+      await insertAuditEvent(client, {
+        action: 'CRITERION_EVALUATION_UPDATED',
+        entityType: 'CriterionEvaluation',
+        entityId: saved.rows[0].criterion_evaluation_id,
+        actor,
+        previousValue: current.rows[0] ? sanitizeCriterionEvaluationAuditValue(current.rows[0]) : null,
+        newValue: sanitizeCriterionEvaluationAuditValue(saved.rows[0]),
+        reason,
+      });
+      await insertAuditEvent(client, {
+        action: 'EVALUATION_RESULT_UPDATED',
+        entityType: 'EvaluationResult',
+        entityId: savedResult.rows[0].evaluation_result_id,
+        actor,
+        previousValue: null,
+        newValue: sanitizeEvaluationResultAuditValue(savedResult.rows[0]),
+        reason: 'Operational evaluation summary refreshed.',
+      });
+
+      await client.query('COMMIT');
+      return {
+        criterion_evaluation: saved.rows[0],
+        evaluation_result: savedResult.rows[0],
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async getEligibilityInput(submissionId) {
@@ -1066,6 +1224,32 @@ function sanitizeEligibilityAuditValue(assessment) {
     manual_note: assessment.manual_note || '',
     reviewed_at: assessment.reviewed_at || null,
     reviewed_by: assessment.reviewed_by || '',
+  };
+}
+
+function sanitizeCriterionEvaluationAuditValue(evaluation) {
+  return {
+    criterion_evaluation_id: evaluation.criterion_evaluation_id,
+    candidate_id: evaluation.candidate_id,
+    submission_id: evaluation.submission_id,
+    criterion_id: evaluation.criterion_id,
+    status: evaluation.status,
+    score: evaluation.score === null || evaluation.score === undefined ? null : Number(evaluation.score),
+    evaluated_at: evaluation.evaluated_at || null,
+    evaluated_by: evaluation.evaluated_by || '',
+  };
+}
+
+function sanitizeEvaluationResultAuditValue(result) {
+  return {
+    evaluation_result_id: result.evaluation_result_id,
+    candidate_id: result.candidate_id,
+    submission_id: result.submission_id,
+    status: result.status,
+    completed_criteria: result.completed_criteria,
+    total_criteria: result.total_criteria,
+    calculated_at: result.calculated_at || null,
+    calculated_by: result.calculated_by || '',
   };
 }
 

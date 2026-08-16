@@ -24,7 +24,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -52,12 +53,18 @@ button.compact {
 }
 
 input,
-select {
+select,
+textarea {
   min-height: 38px;
   border: 1px solid var(--line);
   background: white;
   color: var(--text);
   padding: 0 10px;
+}
+
+textarea {
+  padding: 8px 10px;
+  resize: vertical;
 }
 
 .shell {
@@ -154,7 +161,7 @@ p {
 
 .toolbar {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) repeat(4, minmax(160px, 210px)) auto;
+  grid-template-columns: minmax(220px, 1fr) repeat(5, minmax(140px, 190px)) auto;
   gap: 10px;
 }
 
@@ -363,6 +370,35 @@ tbody tr.selected {
   margin-top: 8px;
 }
 
+.evaluation-grid {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.criterion {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--line);
+  padding: 10px;
+  background: #fbfcfc;
+}
+
+.criterion-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+}
+
+.score-input {
+  min-width: 92px;
+}
+
+.criterion .action-row {
+  grid-template-columns: minmax(150px, 1fr) minmax(92px, 110px) auto;
+}
+
 .action-row.single {
   grid-template-columns: auto;
   justify-content: start;
@@ -416,6 +452,10 @@ tbody tr.selected {
   }
 
   .action-row {
+    grid-template-columns: 1fr;
+  }
+
+  .criterion .action-row {
     grid-template-columns: 1fr;
   }
 

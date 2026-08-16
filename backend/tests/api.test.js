@@ -9,6 +9,7 @@ const { MemoryRepository } = require('../src/repositories/memoryRepository');
 const root = path.resolve(__dirname, '..', '..');
 const publicSchema = JSON.parse(fs.readFileSync(path.join(root, 'config', 'fdf-2026-public-schema.json'), 'utf8'));
 const eligibilityConfig = JSON.parse(fs.readFileSync(path.join(root, 'config', 'fdf-2026-eligibility-baseline.json'), 'utf8'));
+const evaluationConfig = JSON.parse(fs.readFileSync(path.join(root, 'config', 'fdf-2026-evaluation-baseline.json'), 'utf8'));
 
 function validResponses(overrides = {}) {
   const responses = {};
@@ -63,6 +64,7 @@ async function withServer(t, handler, configOverrides = {}) {
     adminToken: 'admin-token',
     publicSchema,
     eligibilityConfig,
+    evaluationConfig,
     ...configOverrides,
   };
   const app = createApp({ config, repository });
@@ -262,6 +264,17 @@ test('role permissions separate intake and review operations', async (t) => {
   }, { adminToken: '' });
 });
 
+test('admin API exposes evaluation criteria catalog', async (t) => {
+  await withServer(t, async ({ port }) => {
+    const response = await adminRequest(port, 'GET', '/api/admin/evaluation/criteria');
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.body.schema_version, 'FDF-2026-EVALUATION-BASELINE-1');
+    assert.equal(response.body.criteria.length, 4);
+    assert.ok(response.body.criteria.some(item => item.criterion_id === 'TRAINING_AND_TECHNICAL_CAPACITY'));
+  });
+});
+
 test('ingests Google Form API payload and preserves raw data', async (t) => {
   await withServer(t, async ({ port, repository }) => {
     const payload = {
@@ -360,6 +373,84 @@ test('admin API recalculates and manually reviews preliminary eligibility with a
       event.action === 'ELIGIBILITY_REVIEW_UPDATED'
     ));
   });
+});
+
+test('reviewer captures manual technical criterion evaluation without ranking', async (t) => {
+  await withServer(t, async ({ port, repository }) => {
+    await request(port, 'POST', '/api/submissions/google-form', {
+      sourceReference: 'google-response-technical-review',
+      responses: validResponses(),
+      documents: requiredDocuments(),
+    });
+    const submissionId = Array.from(repository.submissions.values())[0].submission_id;
+
+    const saved = await adminJsonRequest(
+      port,
+      'PUT',
+      `/api/admin/submissions/${submissionId}/evaluation/criteria/TRAINING_AND_TECHNICAL_CAPACITY`,
+      {
+        status: 'COMPLETED',
+        score: 82,
+        evidence_summary: 'Revision tecnica sintetica.',
+        evaluator_note: 'Nota interna sintetica.',
+      },
+    );
+
+    assert.equal(saved.statusCode, 200);
+    assert.equal(saved.body.criterion_evaluation.status, 'COMPLETED');
+    assert.equal(saved.body.evaluation_result.status, 'IN_PROGRESS');
+    assert.equal(saved.body.evaluation_result.completed_criteria, 1);
+    assert.equal(saved.body.evaluation_result.total_criteria, 4);
+    assert.equal(saved.body.evaluation_result.total_score, undefined);
+    assert.ok(Array.from(repository.auditEvents.values()).some(event =>
+      event.action === 'CRITERION_EVALUATION_UPDATED'
+    ));
+
+    const detail = await adminRequest(port, 'GET', `/api/admin/submissions/${submissionId}`);
+    assert.equal(detail.statusCode, 200);
+    assert.equal(detail.body.evaluation_criteria.length, 4);
+    assert.equal(detail.body.criterion_evaluations.length, 1);
+    assert.equal(detail.body.evaluation_result.status, 'IN_PROGRESS');
+  });
+});
+
+test('technical evaluation requires review role and validates inputs', async (t) => {
+  await withServer(t, async ({ port }) => {
+    const adminCookie = await loginCookie(port, 'admin', 'admin-password');
+    await requestWithHeaders(port, 'POST', '/api/admin/users', {
+      username: 'viewer',
+      password: 'viewer-password',
+      role: 'VIEWER',
+    }, { cookie: adminCookie, 'content-type': 'application/json' });
+    const viewerCookie = await loginCookie(port, 'viewer', 'viewer-password');
+
+    await request(port, 'POST', '/api/submissions/google-form', {
+      sourceReference: 'google-response-technical-permissions',
+      responses: validResponses(),
+      documents: requiredDocuments(),
+    });
+    const list = await requestWithHeaders(port, 'GET', '/api/admin/submissions', undefined, { cookie: viewerCookie });
+    const submissionId = list.body.submissions[0].submission_id;
+
+    const forbidden = await requestWithHeaders(
+      port,
+      'PUT',
+      `/api/admin/submissions/${submissionId}/evaluation/criteria/INSTITUTIONAL_LINK`,
+      { status: 'COMPLETED', score: 60 },
+      { cookie: viewerCookie, 'content-type': 'application/json' },
+    );
+    assert.equal(forbidden.statusCode, 403);
+
+    const invalid = await requestWithHeaders(
+      port,
+      'PUT',
+      `/api/admin/submissions/${submissionId}/evaluation/criteria/INSTITUTIONAL_LINK`,
+      { status: 'COMPLETED', score: 101 },
+      { cookie: adminCookie, 'content-type': 'application/json' },
+    );
+    assert.equal(invalid.statusCode, 400);
+    assert.equal(invalid.body.error, 'INVALID_EVALUATION_SCORE');
+  }, { adminToken: '' });
 });
 
 test('admin API updates document status with audit event', async (t) => {

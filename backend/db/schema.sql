@@ -96,6 +96,33 @@ create table if not exists eligibility_assessments (
   reviewed_by text not null default ''
 );
 
+create table if not exists criterion_evaluations (
+  criterion_evaluation_id text primary key,
+  candidate_id text not null references candidates(candidate_id),
+  submission_id text not null references submissions(submission_id),
+  criterion_id text not null,
+  criterion_label text not null,
+  weight_percent numeric(5,2),
+  score numeric(8,2),
+  status text not null,
+  evidence_summary text not null default '',
+  evaluator_note text not null default '',
+  evaluated_at timestamptz not null,
+  evaluated_by text not null
+);
+
+create table if not exists evaluation_results (
+  evaluation_result_id text primary key,
+  candidate_id text not null references candidates(candidate_id),
+  submission_id text not null references submissions(submission_id),
+  status text not null,
+  completed_criteria integer not null default 0,
+  total_criteria integer not null default 0,
+  calculated_at timestamptz not null,
+  calculated_by text not null,
+  notes text not null default ''
+);
+
 create table if not exists admin_users (
   admin_user_id text primary key,
   username text not null unique,
@@ -121,6 +148,10 @@ create index if not exists idx_documents_candidate_id on documents(candidate_id)
 create index if not exists idx_normalization_issues_submission_id on normalization_issues(submission_id);
 create index if not exists idx_eligibility_assessments_submission_id on eligibility_assessments(submission_id);
 create index if not exists idx_eligibility_assessments_candidate_id on eligibility_assessments(candidate_id);
+create index if not exists idx_criterion_evaluations_submission_id on criterion_evaluations(submission_id);
+create index if not exists idx_criterion_evaluations_candidate_id on criterion_evaluations(candidate_id);
+create index if not exists idx_evaluation_results_submission_id on evaluation_results(submission_id);
+create index if not exists idx_evaluation_results_candidate_id on evaluation_results(candidate_id);
 create index if not exists idx_admin_sessions_token_hash on admin_sessions(session_token_hash);
 create index if not exists idx_admin_sessions_user_id on admin_sessions(admin_user_id);
 

@@ -8,6 +8,8 @@ class MemoryRepository {
     this.issues = new Map();
     this.auditEvents = new Map();
     this.eligibilityAssessments = new Map();
+    this.criterionEvaluations = new Map();
+    this.evaluationResults = new Map();
     this.adminUsers = new Map();
     this.adminSessions = new Map();
   }
@@ -74,6 +76,12 @@ class MemoryRepository {
         .filter(item => item.status === 'BLOCKED_BY_MISSING_REQUIREMENTS').length,
       eligibility_review: Array.from(this.eligibilityAssessments.values())
         .filter(item => item.status === 'REQUIRES_MANUAL_REVIEW').length,
+      evaluation_completed: Array.from(this.evaluationResults.values())
+        .filter(item => item.status === 'COMPLETED').length,
+      evaluation_in_progress: Array.from(this.evaluationResults.values())
+        .filter(item => item.status === 'IN_PROGRESS').length,
+      evaluation_needs_review: Array.from(this.evaluationResults.values())
+        .filter(item => item.status === 'NEEDS_REVIEW').length,
       documents_needs_review: Array.from(this.documents.values())
         .filter(item => item.status === 'NEEDS_REVIEW').length,
       documents_rejected: Array.from(this.documents.values())
@@ -84,9 +92,11 @@ class MemoryRepository {
   }
 
   async ensureBootstrapAdminUser({ username, password, role }) {
+    const normalizedUsername = String(username || '').trim().toLowerCase();
+    if (this.adminUsers.has(normalizedUsername)) return;
     const user = {
-      admin_user_id: `admin_${username.toLowerCase()}`,
-      username: username.toLowerCase(),
+      admin_user_id: `admin_${normalizedUsername}`,
+      username: normalizedUsername,
       password_hash: `plain:${password}`,
       role: role || 'ADMIN',
       active: true,
@@ -215,6 +225,10 @@ class MemoryRepository {
           Array.from(this.eligibilityAssessments.values())
             .filter(item => item.submission_id === submission.submission_id)
         );
+        const evaluationResult = latestEvaluationResult(
+          Array.from(this.evaluationResults.values())
+            .filter(item => item.submission_id === submission.submission_id)
+        );
         const documentStatuses = Array.from(new Set(documents.map(document => document.status))).sort();
         const openIssueCount = issues.filter(issue =>
           ['OPEN', 'NEEDS_SOURCE_REVIEW'].includes(issue.review_status || 'OPEN')
@@ -236,6 +250,7 @@ class MemoryRepository {
           received_at: submission.received_at,
           normalization_status: submission.normalization_status,
           eligibility_status: eligibility?.status || '',
+          evaluation_status: evaluationResult?.status || 'NOT_STARTED',
           document_statuses: documentStatuses.join(','),
           open_issue_count: openIssueCount,
           issue_count: issues.length,
@@ -260,11 +275,20 @@ class MemoryRepository {
       Array.from(this.eligibilityAssessments.values())
         .filter(item => item.submission_id === submissionId)
     );
+    const criterionEvaluations = Array.from(this.criterionEvaluations.values())
+      .filter(item => item.submission_id === submissionId)
+      .sort((a, b) => a.criterion_id.localeCompare(b.criterion_id));
+    const evaluationResult = latestEvaluationResult(
+      Array.from(this.evaluationResults.values())
+        .filter(item => item.submission_id === submissionId)
+    );
     const entityIds = new Set([
       submissionId,
       ...documents.map(document => document.document_id),
       ...issues.map(issue => issue.normalization_issue_id),
       ...(eligibility ? [eligibility.eligibility_assessment_id] : []),
+      ...criterionEvaluations.map(item => item.criterion_evaluation_id),
+      ...(evaluationResult ? [evaluationResult.evaluation_result_id] : []),
     ]);
     const auditEvents = Array.from(this.auditEvents.values())
       .filter(event => entityIds.has(event.entity_id))
@@ -277,8 +301,51 @@ class MemoryRepository {
       documents,
       issues,
       eligibility_assessment: eligibility || null,
+      criterion_evaluations: criterionEvaluations,
+      evaluation_result: evaluationResult || null,
       audit_events: auditEvents,
     };
+  }
+
+  async getSubmission(submissionId) {
+    return this.submissions.get(submissionId) || null;
+  }
+
+  async listCriterionEvaluations(submissionId) {
+    return Array.from(this.criterionEvaluations.values())
+      .filter(item => item.submission_id === submissionId)
+      .sort((a, b) => a.criterion_id.localeCompare(b.criterion_id));
+  }
+
+  async saveCriterionEvaluation(evaluation, result, { actor, reason } = {}) {
+    const previous = this.criterionEvaluations.get(evaluation.criterion_evaluation_id);
+    this.criterionEvaluations.set(evaluation.criterion_evaluation_id, evaluation);
+    this.evaluationResults.set(result.evaluation_result_id, result);
+    this.auditEvents.set(
+      `audit_${this.auditEvents.size + 1}`,
+      auditEvent(
+        'CRITERION_EVALUATION_UPDATED',
+        'CriterionEvaluation',
+        evaluation.criterion_evaluation_id,
+        actor || evaluation.evaluated_by,
+        previous ? sanitizeCriterionEvaluationAuditValue(previous) : null,
+        sanitizeCriterionEvaluationAuditValue(evaluation),
+        reason,
+      ),
+    );
+    this.auditEvents.set(
+      `audit_${this.auditEvents.size + 1}`,
+      auditEvent(
+        'EVALUATION_RESULT_UPDATED',
+        'EvaluationResult',
+        result.evaluation_result_id,
+        actor || result.calculated_by,
+        null,
+        sanitizeEvaluationResultAuditValue(result),
+        'Operational evaluation summary refreshed.',
+      ),
+    );
+    return { criterion_evaluation: evaluation, evaluation_result: result };
   }
 
   async getEligibilityInput(submissionId) {
@@ -494,8 +561,38 @@ function sanitizeEligibilityAuditValue(assessment) {
   };
 }
 
+function sanitizeCriterionEvaluationAuditValue(evaluation) {
+  return {
+    criterion_evaluation_id: evaluation.criterion_evaluation_id,
+    candidate_id: evaluation.candidate_id,
+    submission_id: evaluation.submission_id,
+    criterion_id: evaluation.criterion_id,
+    status: evaluation.status,
+    score: evaluation.score,
+    evaluated_at: evaluation.evaluated_at || null,
+    evaluated_by: evaluation.evaluated_by || '',
+  };
+}
+
+function sanitizeEvaluationResultAuditValue(result) {
+  return {
+    evaluation_result_id: result.evaluation_result_id,
+    candidate_id: result.candidate_id,
+    submission_id: result.submission_id,
+    status: result.status,
+    completed_criteria: result.completed_criteria,
+    total_criteria: result.total_criteria,
+    calculated_at: result.calculated_at || null,
+    calculated_by: result.calculated_by || '',
+  };
+}
+
 function latestEligibility(items) {
   return items.sort((a, b) => String(b.assessed_at).localeCompare(String(a.assessed_at)))[0] || null;
+}
+
+function latestEvaluationResult(items) {
+  return items.sort((a, b) => String(b.calculated_at).localeCompare(String(a.calculated_at)))[0] || null;
 }
 
 function sanitizeAdminUser(user) {

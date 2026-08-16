@@ -20,6 +20,40 @@ evaluacion tecnica.
 
 La ingestión deja respuestas normalizadas por `FDF-xx`, lo que permite agregar posteriormente evaluaciones por criterio sin redisenar los canales de entrada.
 
+## Evaluacion tecnica manual
+
+Configuracion: `config/fdf-2026-evaluation-baseline.json`.
+
+Entidades persistidas:
+
+- `criterion_evaluations`
+- `evaluation_results`
+
+La version actual solo captura revision humana por criterio. No calcula
+puntuacion desde respuestas, no genera ranking, no aplica cupos y no registra
+decision final. Los porcentajes se conservan como metadatos oficiales del
+catalogo para orientar al revisor interno, no se muestran al postulante.
+
+Criterios configurados:
+
+- `INSTITUTIONAL_LINK`
+- `TRAINING_AND_TECHNICAL_CAPACITY`
+- `TERRITORIAL_REPLICATION_POTENTIAL`
+- `INCLUSION_GENDER_SUSTAINABILITY`
+
+Estados operativos de evaluacion:
+
+- `NOT_STARTED`
+- `IN_PROGRESS`
+- `COMPLETED`
+- `NEEDS_REVIEW`
+
+Cada actualizacion de criterio registra `CRITERION_EVALUATION_UPDATED`. Cada
+refresco del resumen operativo registra `EVALUATION_RESULT_UPDATED`.
+
+Restriccion: el resumen operativo solo indica avance de captura. No representa
+seleccion, orden de merito ni recomendacion final.
+
 ## Admisibilidad preliminar operativa
 
 Configuracion: `config/fdf-2026-eligibility-baseline.json`.

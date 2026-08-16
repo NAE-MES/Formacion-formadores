@@ -251,12 +251,35 @@ Entrar como `ADMIN` y abrir **Usuarios**.
 Roles disponibles:
 
 - `ADMIN`: usuarios, entrada offline, revision y consulta.
-- `REVIEWER`: revision documental, incidencias y admisibilidad.
+- `REVIEWER`: revision documental, incidencias, admisibilidad y evaluacion
+  tecnica manual.
 - `INTAKE`: entrada offline JSON/manual y consulta.
 - `VIEWER`: solo consulta y apertura auditada de documentos.
 
 Para desactivar un usuario, cambiar `Activo` a `Inactivo` y guardar. Para
 cambiar contrasena, escribir una nueva en la fila del usuario y guardar.
+
+## 6.6 Evaluacion tecnica manual
+
+Entrar como `ADMIN` o `REVIEWER`, abrir **Postulaciones** y seleccionar un
+expediente.
+
+En **Evaluacion tecnica** se puede registrar por criterio:
+
+- estado operativo;
+- puntaje manual, si el Equipo Tecnico ya lo tiene definido para esa revision;
+- elementos que sustentan la revision;
+- nota interna.
+
+Estados disponibles:
+
+- `NOT_STARTED`
+- `IN_PROGRESS`
+- `COMPLETED`
+- `NEEDS_REVIEW`
+
+El sistema solo guarda la captura manual y el avance por criterio. No calcula
+ranking, no aplica cupos y no registra decision final.
 
 ## 7. Generar Google Forms
 

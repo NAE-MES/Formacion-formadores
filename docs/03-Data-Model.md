@@ -26,7 +26,7 @@ El modelo converge tres canales de entrada hacia un postulante unico:
 
 - RAW: se conserva exactamente como fue recibido.
 - Normalizado: valores transformados por codigo `FDF-xx`.
-- Evaluacion: pendiente para Sprint 3.
+- Evaluacion: captura manual separada del RAW y del dato normalizado.
 - Decision final: pendiente para Sprint 7.
 - Auditoria: eventos tecnicos sin copiar CV, Carta Aval ni datos personales completos.
 
@@ -34,13 +34,12 @@ El modelo converge tres canales de entrada hacia un postulante unico:
 
 El modelo reserva extension para:
 
-- `CriterionEvaluation`
-- `EvaluationResult`
 - `RankingEntry`
 - `FinalDecision`
 - `Notification`
 
-Estas entidades no se implementan funcionalmente en Sprint 1.
+`CriterionEvaluation` y `EvaluationResult` ya existen como soporte de captura
+manual. No contienen ranking, cupos ni decision final.
 
 ## Extension Sprint 2
 
@@ -49,3 +48,12 @@ Sprint 2 incorpora:
 - `EligibilityAssessment`: evaluacion preliminar de completitud documental y declaraciones habilitantes configuradas.
 
 Esta evaluacion usa el alcance `PRELIMINARY_OPERATIONAL_READINESS` y no representa una aprobacion final del Equipo Tecnico.
+
+## Extension Sprint 3
+
+Sprint 3 incorpora:
+
+- `CriterionEvaluation`: revision humana por criterio tecnico.
+- `EvaluationResult`: resumen operativo del avance de revision.
+
+El estado de `EvaluationResult` indica avance de captura, no seleccion final.

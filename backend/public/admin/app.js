@@ -15,6 +15,7 @@ const detailPanel = document.querySelector('#detailPanel');
 const searchInput = document.querySelector('#searchInput');
 const statusFilter = document.querySelector('#statusFilter');
 const eligibilityFilter = document.querySelector('#eligibilityFilter');
+const evaluationFilter = document.querySelector('#evaluationFilter');
 const originFilter = document.querySelector('#originFilter');
 const workFilter = document.querySelector('#workFilter');
 const refreshButton = document.querySelector('#refreshButton');
@@ -77,6 +78,7 @@ refreshButton.addEventListener('click', loadData);
 searchInput.addEventListener('input', renderTable);
 statusFilter.addEventListener('change', renderTable);
 eligibilityFilter.addEventListener('change', renderTable);
+evaluationFilter.addEventListener('change', renderTable);
 originFilter.addEventListener('change', renderTable);
 workFilter.addEventListener('change', renderTable);
 offlineJsonForm.addEventListener('submit', importOfflineJson);
@@ -357,6 +359,8 @@ function renderStats(summary) {
     ['Incidencias abiertas', summary.open_issues || 0],
     ['Listas revision', summary.eligibility_ready || 0],
     ['Bloqueadas', summary.eligibility_blocked || 0],
+    ['Eval. curso', summary.evaluation_in_progress || 0],
+    ['Eval. completas', summary.evaluation_completed || 0],
     ['Rev. manual', summary.eligibility_review || 0],
     ['Docs rev.', summary.documents_needs_review || 0],
   ];
@@ -372,12 +376,15 @@ function renderTable() {
   const query = normalize(searchInput.value);
   const status = statusFilter.value;
   const eligibility = eligibilityFilter.value;
+  const evaluation = evaluationFilter.value;
   const origin = originFilter.value;
   const work = workFilter.value;
   const filtered = submissions.filter(item => {
     const matchesStatus = !status || item.normalization_status === status;
     const itemEligibility = item.eligibility_status || 'SIN_EVALUAR';
+    const itemEvaluation = item.evaluation_status || 'NOT_STARTED';
     const matchesEligibility = !eligibility || itemEligibility === eligibility;
+    const matchesEvaluation = !evaluation || itemEvaluation === evaluation;
     const matchesOrigin = !origin || item.source_channel === origin;
     const docStatuses = String(item.document_statuses || '').split(',').filter(Boolean);
     const matchesWork = !work ||
@@ -392,7 +399,7 @@ function renderTable() {
       item.candidate_id,
       item.source_channel,
     ].join(' '));
-    return matchesStatus && matchesEligibility && matchesOrigin && matchesWork && (!query || haystack.includes(query));
+    return matchesStatus && matchesEligibility && matchesEvaluation && matchesOrigin && matchesWork && (!query || haystack.includes(query));
   });
 
   table.innerHTML = filtered.map(item => `
@@ -403,6 +410,7 @@ function renderTable() {
       <td><span class="badge">${escapeHtml(item.source_channel)}</span></td>
       <td>${statusBadge(item.normalization_status)}</td>
       <td>${eligibilityBadge(item.eligibility_status)}</td>
+      <td>${evaluationBadge(item.evaluation_status)}</td>
       <td>${documentSummary(item)}</td>
       <td>${issueSummary(item)}</td>
     </tr>
@@ -430,12 +438,16 @@ async function selectSubmission(submissionId) {
       <dt>Recibido</dt><dd>${formatDate(submission.received_at)}</dd>
       <dt>Estado</dt><dd>${statusBadge(submission.normalization_status)}</dd>
       <dt>Admisibilidad</dt><dd>${eligibilityBadge(detail.eligibility_assessment?.status || '')}</dd>
+      <dt>Evaluacion</dt><dd>${evaluationBadge(detail.evaluation_result?.status || 'NOT_STARTED')}</dd>
       <dt>Provincia</dt><dd>${escapeHtml(candidate.province || '')}</dd>
       <dt>CI</dt><dd>${escapeHtml(candidate.identification_number || '')}</dd>
     </dl>
 
     <h3>Admisibilidad preliminar</h3>
     ${renderEligibility(detail.eligibility_assessment, submission.submission_id)}
+
+    <h3>Evaluacion tecnica</h3>
+    ${renderTechnicalEvaluation(detail)}
 
     <h3>Incidencias</h3>
     ${renderIssues(detail.issues || [])}
@@ -493,6 +505,44 @@ function renderEligibilityChecks(checks) {
   `).join('')}</div>`;
 }
 
+function renderTechnicalEvaluation(detail) {
+  const criteria = detail.evaluation_criteria || [];
+  if (!criteria.length) return '<p class="muted">Catalogo de criterios no configurado.</p>';
+  const evaluations = new Map((detail.criterion_evaluations || []).map(item => [item.criterion_id, item]));
+  const result = detail.evaluation_result || {};
+  return `
+    <div class="item">
+      <strong>${evaluationBadge(result.status || 'NOT_STARTED')}</strong>
+      <span class="muted">${escapeHtml(result.completed_criteria || 0)} de ${escapeHtml(result.total_criteria || criteria.length)} criterios completados</span>
+      <div class="evaluation-grid">
+        ${criteria.map(criterion => renderCriterionReview(detail.submission.submission_id, criterion, evaluations.get(criterion.criterion_id))).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderCriterionReview(submissionId, criterion, evaluation = {}) {
+  return `
+    <div class="criterion">
+      <div class="criterion-head">
+        <strong>${escapeHtml(criterion.label)}</strong>
+        <span class="badge">${escapeHtml(criterion.weight_percent)}%</span>
+      </div>
+      <span class="muted">${escapeHtml(criterion.criterion_id)}</span>
+      <div class="action-row">
+        <select data-evaluation-status="${escapeHtml(criterion.criterion_id)}">
+          ${evaluationStatusOptions(evaluation.status || 'NOT_STARTED')}
+        </select>
+        <input class="score-input" data-evaluation-score="${escapeHtml(criterion.criterion_id)}" type="number" min="0" max="100" step="0.01" value="${escapeHtml(evaluation.score ?? '')}" placeholder="Puntaje">
+        <button type="button" data-evaluation-save="${escapeHtml(criterion.criterion_id)}" data-submission-id="${escapeHtml(submissionId)}">Guardar</button>
+      </div>
+      <textarea data-evaluation-evidence="${escapeHtml(criterion.criterion_id)}" rows="2" placeholder="Elementos que sustentan la revision">${escapeHtml(evaluation.evidence_summary || '')}</textarea>
+      <textarea data-evaluation-note="${escapeHtml(criterion.criterion_id)}" rows="2" placeholder="Nota interna">${escapeHtml(evaluation.evaluator_note || '')}</textarea>
+      <span class="muted">${escapeHtml(evaluation.evaluated_by || '')} ${evaluation.evaluated_at ? formatDate(evaluation.evaluated_at) : ''}</span>
+    </div>
+  `;
+}
+
 function renderIssues(issues) {
   if (!issues.length) return '<p class="muted">Sin incidencias.</p>';
   return `<div class="list">${issues.map(issue => `
@@ -545,7 +595,7 @@ function documentLink(document) {
 
 function bindDetailActions() {
   if (!hasRole('ADMIN', 'REVIEWER')) {
-    detailPanel.querySelectorAll('button[data-document-save], button[data-issue-save], button[data-eligibility-save], button[data-eligibility-recalculate]')
+    detailPanel.querySelectorAll('button[data-document-save], button[data-issue-save], button[data-eligibility-save], button[data-eligibility-recalculate], button[data-evaluation-save]')
       .forEach(button => button.disabled = true);
   }
 
@@ -621,6 +671,28 @@ function bindDetailActions() {
       await loadData();
     });
   });
+
+  detailPanel.querySelectorAll('[data-evaluation-save]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const criterionId = button.dataset.evaluationSave;
+      const submissionId = button.dataset.submissionId;
+      const status = detailPanel.querySelector(`[data-evaluation-status="${cssEscape(criterionId)}"]`);
+      const score = detailPanel.querySelector(`[data-evaluation-score="${cssEscape(criterionId)}"]`);
+      const evidence = detailPanel.querySelector(`[data-evaluation-evidence="${cssEscape(criterionId)}"]`);
+      const note = detailPanel.querySelector(`[data-evaluation-note="${cssEscape(criterionId)}"]`);
+      await api(`/api/admin/submissions/${encodeURIComponent(submissionId)}/evaluation/criteria/${encodeURIComponent(criterionId)}`, {
+        method: 'PUT',
+        body: {
+          status: status.value,
+          score: score.value,
+          evidence_summary: evidence.value,
+          evaluator_note: note.value,
+          reason: 'Admin technical criterion review update',
+        },
+      });
+      await loadData();
+    });
+  });
 }
 
 function documentStatusOptions(selected) {
@@ -637,6 +709,12 @@ function issueStatusOptions(selected) {
 
 function eligibilityStatusOptions(selected) {
   return ['READY_FOR_TECHNICAL_REVIEW', 'BLOCKED_BY_MISSING_REQUIREMENTS', 'REQUIRES_MANUAL_REVIEW']
+    .map(status => `<option value="${status}" ${status === selected ? 'selected' : ''}>${status}</option>`)
+    .join('');
+}
+
+function evaluationStatusOptions(selected) {
+  return ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'NEEDS_REVIEW']
     .map(status => `<option value="${status}" ${status === selected ? 'selected' : ''}>${status}</option>`)
     .join('');
 }
@@ -691,6 +769,17 @@ function eligibilityBadge(status) {
         ? 'warn'
         : '';
   return `<span class="badge ${cls}">${escapeHtml(status || 'SIN_EVALUAR')}</span>`;
+}
+
+function evaluationBadge(status) {
+  const cls = status === 'COMPLETED'
+    ? 'ok'
+    : status === 'NEEDS_REVIEW'
+      ? 'bad'
+      : status === 'IN_PROGRESS'
+        ? 'warn'
+        : '';
+  return `<span class="badge ${cls}">${escapeHtml(status || 'NOT_STARTED')}</span>`;
 }
 
 function checkStatusBadge(status) {
