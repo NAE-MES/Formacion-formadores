@@ -130,6 +130,7 @@ function createApp({ config, repository }) {
         return sendJson(res, 200, {
           ...detail,
           evaluation_criteria: criteriaFromConfig(config.evaluationConfig),
+          field_catalog: fieldCatalogFromConfig(config.publicSchema),
         });
       }
 
@@ -272,6 +273,15 @@ function adminOfflineJsonPayload(payload, actor) {
     actor: actor || offlinePayload.actor || 'ADMIN_UI',
     documents: normalizeAdminOfflineDocuments(payload.documents || offlinePayload.documents || []),
   };
+}
+
+function fieldCatalogFromConfig(publicSchema = {}) {
+  return (publicSchema.fields || []).map(field => ({
+    code: field.code,
+    section: field.section,
+    section_title: field.section_title,
+    question: field.question,
+  }));
 }
 
 function adminOfflineManualPayload(payload, actor) {

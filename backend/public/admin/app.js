@@ -82,6 +82,7 @@ const logoutButton = document.querySelector('#logoutButton');
 const stats = document.querySelector('#stats');
 const table = document.querySelector('#submissionsTable');
 const detailPanel = document.querySelector('#detailPanel');
+const submissionsCount = document.querySelector('#submissionsCount');
 const searchInput = document.querySelector('#searchInput');
 const statusFilter = document.querySelector('#statusFilter');
 const eligibilityFilter = document.querySelector('#eligibilityFilter');
@@ -96,6 +97,7 @@ const reviewEligibilityFilter = document.querySelector('#reviewEligibilityFilter
 const exportReviewCsvButton = document.querySelector('#exportReviewCsvButton');
 const clearReviewFiltersButton = document.querySelector('#clearReviewFiltersButton');
 const reviewSummaryTable = document.querySelector('#reviewSummaryTable');
+const reviewCount = document.querySelector('#reviewCount');
 const quickFilterButtons = Array.from(document.querySelectorAll('[data-quick-filter]'));
 const currentUserBadge = document.querySelector('#currentUserBadge');
 const tabs = Array.from(document.querySelectorAll('[data-view]'));
@@ -505,6 +507,7 @@ function renderTable() {
       <td>${issueSummary(item)}</td>
     </tr>
   `).join('');
+  submissionsCount.textContent = resultCountLabel(filtered.length, submissions.length, 'expediente', 'expedientes');
 
   table.querySelectorAll('tr').forEach(row => {
     row.addEventListener('click', () => selectSubmission(row.dataset.id));
@@ -541,6 +544,7 @@ function renderReviewSummary() {
       <td>${issueSummary({ issue_count: item.open_issue_count, open_issue_count: item.open_issue_count })}</td>
     </tr>
   `).join('');
+  reviewCount.textContent = resultCountLabel(rows.length, reviewSummaries.length, 'postulación', 'postulaciones');
 
   reviewSummaryTable.querySelectorAll('tr').forEach(row => {
     row.addEventListener('click', async () => {
@@ -671,7 +675,7 @@ async function selectSubmission(submissionId) {
 
     <details class="detail-section">
       <summary>Respuestas normalizadas</summary>
-      ${renderResponses(detail.responses || [])}
+      ${renderResponses(detail.responses || [], detail.field_catalog || [])}
     </details>
 
     <details class="detail-section">
@@ -941,13 +945,28 @@ function evaluationStatusOptions(selected) {
     .join('');
 }
 
-function renderResponses(responses) {
+function renderResponses(responses, fieldCatalog = []) {
   if (!responses.length) return '<p class="muted">Sin respuestas normalizadas.</p>';
-  return `<div class="list">${responses.map(response => `
-    <div class="item">
-      <strong>${escapeHtml(response.field_code)}</strong><br>
-      ${escapeHtml(formatValue(response.value))}
-    </div>
+  const fields = new Map(fieldCatalog.map(field => [field.code, field]));
+  const grouped = responses.reduce((groups, response) => {
+    const field = fields.get(response.field_code) || {};
+    const section = field.section_title || 'Sin sección';
+    if (!groups.has(section)) groups.set(section, []);
+    groups.get(section).push({ response, field });
+    return groups;
+  }, new Map());
+
+  return `<div class="response-groups">${Array.from(grouped.entries()).map(([section, items]) => `
+    <section class="response-group">
+      <h4>${escapeHtml(section)}</h4>
+      <div class="list">${items.map(({ response, field }) => `
+        <div class="item response-item">
+          <strong>${escapeHtml(field.question || response.field_code)}</strong>
+          <span class="muted">${escapeHtml(response.field_code)}</span>
+          <div>${escapeHtml(formatValue(response.value))}</div>
+        </div>
+      `).join('')}</div>
+    </section>
   `).join('')}</div>`;
 }
 
@@ -1233,6 +1252,8 @@ function summaryHtml(detail) {
     issue.field_code || issue.code,
     `${label('issues', issue.review_status || 'OPEN')}. ${issue.message}`,
   ]))}
+  <h2>Respuestas normalizadas</h2>
+  ${summaryResponses(detail.responses || [], detail.field_catalog || [])}
   <p class="foot">Generado desde la consola administrativa FdF 2026 el ${escapeHtml(formatDate(new Date().toISOString()))}.</p>
 </body>
 </html>`;
@@ -1243,4 +1264,21 @@ function summaryTable(rows) {
   return `<table><tbody>${rows.map(([key, value]) => `
     <tr><th>${escapeHtml(key)}</th><td>${escapeHtml(value)}</td></tr>
   `).join('')}</tbody></table>`;
+}
+
+function summaryResponses(responses, fieldCatalog) {
+  const fields = new Map(fieldCatalog.map(field => [field.code, field]));
+  return summaryTable(responses.map(response => {
+    const field = fields.get(response.field_code) || {};
+    return [
+      `${field.question || response.field_code} (${response.field_code})`,
+      formatValue(response.value),
+    ];
+  }));
+}
+
+function resultCountLabel(filtered, total, singular, plural) {
+  const noun = filtered === 1 ? singular : plural;
+  if (filtered === total) return `${filtered} ${noun}`;
+  return `${filtered} de ${total} ${plural}`;
 }
