@@ -50,6 +50,24 @@ const LABELS = {
   checks: {
     PASS: 'Cumple',
     FAIL: 'No cumple',
+    CONSENT_ACCEPTED: 'Consentimiento aceptado',
+    CARTA_AVAL_RECEIVED: 'Carta aval recibida',
+    CURRICULUM_RECEIVED: 'Currículum recibido',
+    VERACITY_CONFIRMED: 'Veracidad confirmada',
+    VALIDATION_AUTHORIZED: 'Validación institucional autorizada',
+    MULTIPLICATION_COMMITMENT_NOT_NEGATIVE: 'Compromiso de multiplicación',
+    AVAILABILITY_NOT_NEGATIVE: 'Disponibilidad para participar',
+    INSTITUTIONAL_LINK_REVIEW: 'Vínculo institucional',
+  },
+  checkDescriptions: {
+    CONSENT_ACCEPTED: 'Consentimiento para usar la información en el proceso FdF.',
+    CARTA_AVAL_RECEIVED: 'Carta aval institucional recibida.',
+    CURRICULUM_RECEIVED: 'Currículum vitae recibido.',
+    VERACITY_CONFIRMED: 'Confirmación de veracidad de la información.',
+    VALIDATION_AUTHORIZED: 'Autorización para validación institucional.',
+    MULTIPLICATION_COMMITMENT_NOT_NEGATIVE: 'No declara ausencia de compromiso de multiplicación.',
+    AVAILABILITY_NOT_NEGATIVE: 'No declara falta de disponibilidad para participar.',
+    INSTITUTIONAL_LINK_REVIEW: 'Requiere revisión si declara no acreditar vínculo institucional activo.',
   },
 };
 
@@ -641,8 +659,8 @@ function renderEligibilityChecks(checks) {
     <div class="check-row">
       ${checkStatusBadge(check.status)}
       <div>
-        <strong>${escapeHtml(check.check_id)}</strong><br>
-        <span class="muted">${escapeHtml(check.description || '')}</span>
+        <strong>${escapeHtml(label('checks', check.check_id))}</strong><br>
+        <span class="muted">${escapeHtml(checkDescription(check))}</span>
       </div>
     </div>
   `).join('')}</div>`;
@@ -1008,6 +1026,10 @@ function cssEscape(value) {
 function label(group, value) {
   const key = String(value || '');
   return LABELS[group]?.[key] || key || '';
+}
+
+function checkDescription(check) {
+  return LABELS.checkDescriptions[check.check_id] || check.description || '';
 }
 
 function actionLabel(action) {
