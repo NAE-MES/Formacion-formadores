@@ -243,6 +243,7 @@ test('admin API lists and returns submission detail', async (t) => {
     assert.equal(detail.statusCode, 200);
     assert.equal(detail.body.documents.length, 2);
     assert.ok(detail.body.responses.length > 0);
+    assert.ok(Array.isArray(detail.body.audit_events));
   });
 });
 
@@ -268,6 +269,30 @@ test('admin API updates document status with audit event', async (t) => {
     assert.equal(repository.documents.get(documentId).status, 'VALIDATED');
     assert.ok(Array.from(repository.auditEvents.values()).some(event =>
       event.action === 'DOCUMENT_STATUS_UPDATED'
+    ));
+  });
+});
+
+test('admin API records document open events', async (t) => {
+  await withServer(t, async ({ port, repository }) => {
+    await request(port, 'POST', '/api/submissions/google-form', {
+      sourceReference: 'google-response-document-open',
+      responses: validResponses(),
+      documents: requiredDocuments(),
+    });
+    const documentId = Array.from(repository.documents.values())[0].document_id;
+
+    const opened = await adminJsonRequest(
+      port,
+      'POST',
+      `/api/admin/documents/${documentId}/open`,
+      {},
+    );
+
+    assert.equal(opened.statusCode, 200);
+    assert.equal(opened.body.status, 'ok');
+    assert.ok(Array.from(repository.auditEvents.values()).some(event =>
+      event.action === 'DOCUMENT_OPENED'
     ));
   });
 });

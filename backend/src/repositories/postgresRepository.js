@@ -381,6 +381,19 @@ class PostgresRepository {
        order by created_at desc`,
       [submissionId],
     );
+    const auditEvents = await this.pool.query(
+      `select audit_event_id, action, entity_type, entity_id, occurred_at,
+        source_channel, actor, reason
+       from audit_events
+       where entity_id = any($1)
+       order by occurred_at desc
+       limit 100`,
+      [[
+        submissionId,
+        ...documents.rows.map(document => document.document_id),
+        ...issues.rows.map(issue => issue.normalization_issue_id),
+      ]],
+    );
 
     return {
       submission: submission.rows[0],
@@ -388,7 +401,43 @@ class PostgresRepository {
       responses: responses.rows,
       documents: documents.rows,
       issues: issues.rows,
+      audit_events: auditEvents.rows,
     };
+  }
+
+  async recordDocumentOpen(documentId, { actor, reason }) {
+    const current = await this.pool.query(
+      `select document_id, candidate_id, document_type, status
+       from documents where document_id = $1`,
+      [documentId],
+    );
+    if (current.rowCount === 0) {
+      const error = new Error('Document not found.');
+      error.statusCode = 404;
+      error.code = 'NOT_FOUND';
+      throw error;
+    }
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await insertAuditEvent(client, {
+        action: 'DOCUMENT_OPENED',
+        entityType: 'Document',
+        entityId: documentId,
+        actor,
+        previousValue: null,
+        newValue: sanitizeDocumentAuditValue(current.rows[0]),
+        reason,
+      });
+      await client.query('COMMIT');
+      return { status: 'ok' };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async updateDocumentStatus(documentId, { status, actor, reason }) {

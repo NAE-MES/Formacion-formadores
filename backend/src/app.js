@@ -81,6 +81,16 @@ function createApp({ config, repository }) {
         return sendJson(res, 200, { document });
       }
 
+      if (req.method === 'POST' && req.url.startsWith('/api/admin/documents/') && req.url.endsWith('/open')) {
+        const admin = await authorizeAdmin(req, config, repository);
+        const documentId = decodeURIComponent(req.url.slice('/api/admin/documents/'.length, -'/open'.length));
+        const result = await repository.recordDocumentOpen(documentId, {
+          actor: admin.username || 'ADMIN_UI',
+          reason: 'Admin opened document reference.',
+        });
+        return sendJson(res, 200, result);
+      }
+
       if (req.method === 'PATCH' && req.url.startsWith('/api/admin/issues/') && req.url.endsWith('/review')) {
         const admin = await authorizeAdmin(req, config, repository);
         const issueId = decodeURIComponent(req.url.slice('/api/admin/issues/'.length, -'/review'.length));

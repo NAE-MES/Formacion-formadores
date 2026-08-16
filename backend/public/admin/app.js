@@ -186,6 +186,9 @@ async function selectSubmission(submissionId) {
 
     <h3>Respuestas</h3>
     ${renderResponses(detail.responses || [])}
+
+    <h3>Auditoria</h3>
+    ${renderAuditEvents(detail.audit_events || [])}
   `;
   bindDetailActions();
 }
@@ -213,7 +216,7 @@ function renderDocuments(documents) {
   return `<div class="list">${documents.map(document => `
     <div class="item">
       <strong>${escapeHtml(document.document_type)}</strong><br>
-      ${escapeHtml(document.original_name || document.storage_reference || '')}<br>
+      ${documentLink(document)}
       <span class="muted">${escapeHtml(document.status)} - ${formatDate(document.received_at)}</span>
       <div class="action-row">
         <select data-document-status="${escapeHtml(document.document_id)}">
@@ -226,6 +229,20 @@ function renderDocuments(documents) {
   `).join('')}</div>`;
 }
 
+function documentLink(document) {
+  const label = escapeHtml(document.original_name || document.storage_reference || 'Documento');
+  if (!isSafeHttpUrl(document.storage_reference)) {
+    return `${label}<br>`;
+  }
+
+  return `
+    <div class="doc-link-row">
+      <a href="${escapeHtml(document.storage_reference)}" target="_blank" rel="noopener noreferrer" data-document-open="${escapeHtml(document.document_id)}">${label}</a>
+      <button type="button" class="ghost compact" data-copy="${escapeHtml(document.storage_reference)}">Copiar</button>
+    </div>
+  `;
+}
+
 function bindDetailActions() {
   detailPanel.querySelectorAll('[data-document-save]').forEach(button => {
     button.addEventListener('click', async () => {
@@ -236,6 +253,24 @@ function bindDetailActions() {
         body: { status: select.value, reason: 'Admin document status update' },
       });
       await loadData();
+    });
+  });
+
+  detailPanel.querySelectorAll('[data-document-open]').forEach(link => {
+    link.addEventListener('click', () => {
+      api(`/api/admin/documents/${encodeURIComponent(link.dataset.documentOpen)}/open`, {
+        method: 'POST',
+      }).catch(() => {});
+    });
+  });
+
+  detailPanel.querySelectorAll('[data-copy]').forEach(button => {
+    button.addEventListener('click', async () => {
+      await navigator.clipboard.writeText(button.dataset.copy);
+      button.textContent = 'Copiado';
+      setTimeout(() => {
+        button.textContent = 'Copiar';
+      }, 1200);
     });
   });
 
@@ -275,6 +310,17 @@ function renderResponses(responses) {
     <div class="item">
       <strong>${escapeHtml(response.field_code)}</strong><br>
       ${escapeHtml(formatValue(response.value))}
+    </div>
+  `).join('')}</div>`;
+}
+
+function renderAuditEvents(events) {
+  if (!events.length) return '<p class="muted">Sin eventos de auditoria relacionados.</p>';
+  return `<div class="list">${events.map(event => `
+    <div class="item">
+      <strong>${escapeHtml(event.action)}</strong><br>
+      <span class="muted">${escapeHtml(event.entity_type)} - ${escapeHtml(event.actor || '')} - ${formatDate(event.occurred_at)}</span><br>
+      ${escapeHtml(event.reason || '')}
     </div>
   `).join('')}</div>`;
 }
@@ -327,6 +373,15 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+function isSafeHttpUrl(value) {
+  try {
+    const url = new URL(String(value || ''));
+    return url.protocol === 'https:' || url.protocol === 'http:';
+  } catch (error) {
+    return false;
+  }
 }
 
 function cssEscape(value) {

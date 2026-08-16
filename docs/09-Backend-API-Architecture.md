@@ -65,6 +65,7 @@ Endpoints iniciales:
 - `GET /api/admin/submissions`
 - `GET /api/admin/submissions/:submission_id`
 - `PATCH /api/admin/documents/:document_id/status`
+- `POST /api/admin/documents/:document_id/open`
 - `PATCH /api/admin/issues/:normalization_issue_id/review`
 
 Autenticacion:
@@ -130,11 +131,13 @@ Alcance:
 - detalle de postulante, respuestas normalizadas, documentos asociados e
   incidencias.
 - revision operativa de estado de documentos;
+- apertura de referencias documentales desde el repositorio original;
 - seguimiento operativo de incidencias de normalizacion.
 
 Restricciones:
 
 - no expone el RAW completo en la UI inicial;
+- no descarga ni almacena fisicamente documentos de Drive en el servidor;
 - no implementa ranking, cupos ni decision final;
 - no permite modificar respuestas ni documentos en esta fase;
 - no convierte estados operativos en decisiones de admisibilidad,
@@ -157,3 +160,5 @@ Estados operativos de incidencias:
 
 Cada cambio administrativo registra un evento en `audit_events` sin guardar
 CV, carta aval ni datos personales completos dentro del log tecnico.
+La accion de abrir una referencia documental tambien queda auditada como
+`DOCUMENT_OPENED`.

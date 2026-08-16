@@ -167,8 +167,32 @@ class MemoryRepository {
       .filter(document => document.candidate_id === submission.candidate_id);
     const issues = Array.from(this.issues.values())
       .filter(issue => issue.submission_id === submissionId);
+    const entityIds = new Set([
+      submissionId,
+      ...documents.map(document => document.document_id),
+      ...issues.map(issue => issue.normalization_issue_id),
+    ]);
+    const auditEvents = Array.from(this.auditEvents.values())
+      .filter(event => entityIds.has(event.entity_id))
+      .sort((a, b) => String(b.occurred_at).localeCompare(String(a.occurred_at)));
 
-    return { submission, candidate, responses, documents, issues };
+    return { submission, candidate, responses, documents, issues, audit_events: auditEvents };
+  }
+
+  async recordDocumentOpen(documentId, { actor, reason }) {
+    const current = this.documents.get(documentId);
+    if (!current) {
+      const error = new Error('Document not found.');
+      error.statusCode = 404;
+      error.code = 'NOT_FOUND';
+      throw error;
+    }
+
+    this.auditEvents.set(
+      `audit_${this.auditEvents.size + 1}`,
+      auditEvent('DOCUMENT_OPENED', 'Document', documentId, actor || 'ADMIN', null, sanitizeDocumentAuditValue(current), reason),
+    );
+    return { status: 'ok' };
   }
 
   async updateDocumentStatus(documentId, { status, actor, reason }) {
