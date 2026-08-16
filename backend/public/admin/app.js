@@ -1153,12 +1153,17 @@ function pendingWorkBadge(detail) {
 
 function printCurrentSummary() {
   if (!selectedDetail) return;
-  const summaryWindow = window.open('', '_blank', 'noopener,noreferrer,width=980,height=760');
-  if (!summaryWindow) return;
+  const summaryWindow = window.open('', '_blank', 'width=980,height=760');
+  if (!summaryWindow) {
+    alert('El navegador bloqueó la ventana del resumen. Permita ventanas emergentes para este sitio.');
+    return;
+  }
+  summaryWindow.document.open();
   summaryWindow.document.write(summaryHtml(selectedDetail));
   summaryWindow.document.close();
   summaryWindow.focus();
-  setTimeout(() => summaryWindow.print(), 250);
+  summaryWindow.addEventListener('load', () => summaryWindow.print(), { once: true });
+  setTimeout(() => summaryWindow.print(), 500);
 }
 
 function summaryHtml(detail) {
