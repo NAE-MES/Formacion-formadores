@@ -160,11 +160,29 @@ Instalar un trigger de envio de formulario para:
 FdF_onFormSubmitToApi
 ```
 
+Funciones operativas del puente:
+
+- `FdF_verificarApiBridgeConfig`: valida propiedades, capa publica y hoja de
+  respuestas detectada.
+- `FdF_probarConexionApi`: verifica `GET /health` contra el backend y registra
+  el resultado en `23_API_Bridge_Log`.
+- `FdF_instalarTriggerApiBridge`: reinstala un unico trigger
+  `On form submit` para `FdF_onFormSubmitToApi`.
+- `FdF_reenviarUltimaRespuestaAApi`: reenvia la ultima fila de la hoja real de
+  respuestas detectada.
+- `FdF_reenviarFilaActivaAApi`: reenvia la fila seleccionada.
+- `FdF_reenviarErroresApiBridge`: reenvia hasta 25 errores registrados en
+  `23_API_Bridge_Log` cuando la referencia sea `google-form-row-N`.
+
 Ese trigger envia la respuesta al endpoint:
 
 ```text
 POST /api/submissions/google-form
 ```
+
+La hoja `23_API_Bridge_Log` registra estado, `source_reference`, HTTP status,
+`candidate_id`, `submission_id`, `eligibility_status`, estado de normalizacion,
+respuesta del API y hash del payload. No guarda el token.
 
 ## 7. Generar Google Forms
 

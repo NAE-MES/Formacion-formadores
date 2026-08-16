@@ -97,6 +97,15 @@ Funcion principal:
 
 - `FdF_onFormSubmitToApi(e)`
 
+Funciones operativas:
+
+- `FdF_verificarApiBridgeConfig`
+- `FdF_probarConexionApi`
+- `FdF_instalarTriggerApiBridge`
+- `FdF_reenviarUltimaRespuestaAApi`
+- `FdF_reenviarFilaActivaAApi`
+- `FdF_reenviarErroresApiBridge`
+
 Requiere Script Properties:
 
 - `FDF_API_URL`
@@ -120,6 +129,11 @@ bridge, se puede usar `FdF_reenviarFilaActivaAApi` o
 `FdF_reenviarUltimaRespuestaAApi`. El backend reprocesa la misma combinacion
 `source_channel + source_reference`, conserva un nuevo RAW y actualiza la
 normalizacion sin crear otra postulacion.
+
+`FdF_reenviarErroresApiBridge` permite reintentar errores registrados en
+`23_API_Bridge_Log` cuando la referencia corresponde a una fila de Google
+Sheets. El puente usa `LockService` para evitar ejecuciones simultaneas del
+trigger sobre el mismo proyecto.
 
 ## Panel administrativo inicial
 
