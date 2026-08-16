@@ -165,6 +165,10 @@ p {
   gap: 10px;
 }
 
+.review-toolbar {
+  grid-template-columns: minmax(240px, 1fr) minmax(160px, 210px) minmax(190px, 260px) auto;
+}
+
 .tabs {
   display: flex;
   gap: 8px;

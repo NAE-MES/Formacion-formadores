@@ -111,8 +111,40 @@ function requestWithHeaders(port, method, url, body, extraHeaders = {}) {
   });
 }
 
+function rawRequestWithHeaders(port, method, url, body, extraHeaders = {}) {
+  return new Promise((resolve, reject) => {
+    const payload = body === undefined ? '' : JSON.stringify(body);
+    const req = http.request({
+      port,
+      method,
+      path: url,
+      headers: {
+        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+        'content-length': Buffer.byteLength(payload),
+        ...extraHeaders,
+      },
+    }, res => {
+      let responseBody = '';
+      res.on('data', chunk => responseBody += chunk);
+      res.on('end', () => resolve({
+        statusCode: res.statusCode,
+        headers: res.headers,
+        body: responseBody,
+      }));
+    });
+    req.on('error', reject);
+    req.end(payload);
+  });
+}
+
 function adminRequest(port, method, url, token = 'admin-token') {
   return request(port, method, url, undefined, token);
+}
+
+function adminRawRequest(port, method, url, token = 'admin-token') {
+  return rawRequestWithHeaders(port, method, url, undefined, {
+    ...(token ? { authorization: `Bearer ${token}` } : {}),
+  });
 }
 
 function adminJsonRequest(port, method, url, body, token = 'admin-token') {
@@ -411,6 +443,41 @@ test('reviewer captures manual technical criterion evaluation without ranking', 
     assert.equal(detail.body.evaluation_criteria.length, 4);
     assert.equal(detail.body.criterion_evaluations.length, 1);
     assert.equal(detail.body.evaluation_result.status, 'IN_PROGRESS');
+  });
+});
+
+test('admin API exports operational review summary as JSON and CSV', async (t) => {
+  await withServer(t, async ({ port }) => {
+    await request(port, 'POST', '/api/submissions/google-form', {
+      sourceReference: 'google-response-review-summary',
+      responses: validResponses(),
+      documents: requiredDocuments(),
+    });
+    const list = await adminRequest(port, 'GET', '/api/admin/submissions');
+    const submissionId = list.body.submissions[0].submission_id;
+    await adminJsonRequest(
+      port,
+      'PUT',
+      `/api/admin/submissions/${submissionId}/evaluation/criteria/INSTITUTIONAL_LINK`,
+      {
+        status: 'COMPLETED',
+        score: 75,
+        evidence_summary: 'Resumen sintetico.',
+      },
+    );
+
+    const json = await adminRequest(port, 'GET', '/api/admin/review-summary');
+    assert.equal(json.statusCode, 200);
+    assert.equal(json.body.summaries.length, 1);
+    assert.equal(json.body.summaries[0].evaluation_status, 'IN_PROGRESS');
+    assert.equal(json.body.summaries[0].completed_criteria, 1);
+    assert.equal(json.body.summaries[0].total_score, undefined);
+
+    const csv = await adminRawRequest(port, 'GET', '/api/admin/review-summary.csv');
+    assert.equal(csv.statusCode, 200);
+    assert.match(csv.headers['content-type'], /text\/csv/);
+    assert.match(csv.body, /submission_id,candidate_id,full_name/);
+    assert.match(csv.body, /IN_PROGRESS/);
   });
 });
 

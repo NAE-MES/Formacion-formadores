@@ -481,6 +481,71 @@ class PostgresRepository {
     return result.rows;
   }
 
+  async listReviewSummaries() {
+    const result = await this.pool.query(`
+      select
+        s.submission_id,
+        s.candidate_id,
+        trim(concat_ws(' ',
+          c.first_name,
+          nullif(c.second_name, ''),
+          c.first_surname,
+          nullif(c.second_surname, '')
+        )) as full_name,
+        c.email,
+        c.province,
+        s.source_channel,
+        s.received_at,
+        s.normalization_status,
+        coalesce(ea.status, 'SIN_EVALUAR') as eligibility_status,
+        coalesce(er.status, 'NOT_STARTED') as evaluation_status,
+        coalesce(er.completed_criteria, 0)::int as completed_criteria,
+        coalesce(er.total_criteria, 0)::int as total_criteria,
+        count(distinct d.document_id)::int as document_count,
+        count(distinct case when d.status = 'VALIDATED' then d.document_id end)::int as documents_validated,
+        count(distinct case when d.status = 'NEEDS_REVIEW' then d.document_id end)::int as documents_needs_review,
+        count(distinct case when d.status = 'REJECTED' then d.document_id end)::int as documents_rejected,
+        count(distinct case when ni.review_status in ('OPEN', 'NEEDS_SOURCE_REVIEW') then ni.normalization_issue_id end)::int as open_issue_count
+      from submissions s
+      left join candidates c on c.candidate_id = s.candidate_id
+      left join documents d on d.candidate_id = s.candidate_id
+      left join normalization_issues ni on ni.submission_id = s.submission_id
+      left join lateral (
+        select status
+        from eligibility_assessments
+        where submission_id = s.submission_id
+        order by assessed_at desc
+        limit 1
+      ) ea on true
+      left join lateral (
+        select status, completed_criteria, total_criteria
+        from evaluation_results
+        where submission_id = s.submission_id
+        order by calculated_at desc
+        limit 1
+      ) er on true
+      group by
+        s.submission_id,
+        s.candidate_id,
+        c.first_name,
+        c.second_name,
+        c.first_surname,
+        c.second_surname,
+        c.email,
+        c.province,
+        s.source_channel,
+        s.received_at,
+        s.normalization_status,
+        ea.status,
+        er.status,
+        er.completed_criteria,
+        er.total_criteria
+      order by s.received_at desc
+      limit 1000
+    `);
+    return result.rows;
+  }
+
   async getAdminSubmissionDetail(submissionId) {
     const submission = await this.pool.query(
       `select * from submissions where submission_id = $1`,

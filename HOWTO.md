@@ -281,6 +281,19 @@ Estados disponibles:
 El sistema solo guarda la captura manual y el avance por criterio. No calcula
 ranking, no aplica cupos y no registra decision final.
 
+## 6.7 Seguimiento consolidado
+
+Abrir **Seguimiento** para ver una fila por postulacion con:
+
+- admisibilidad preliminar;
+- avance de evaluacion tecnica;
+- criterios completados;
+- estado agregado de documentos;
+- incidencias abiertas.
+
+Usar **Exportar CSV** para descargar el resumen operativo interno. Este archivo
+no es una lista de seleccion ni un ranking.
+
 ## 7. Generar Google Forms
 
 Seleccionar la función:

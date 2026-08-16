@@ -112,6 +112,16 @@ function createApp({ config, repository }) {
         return sendJson(res, 200, { submissions: await repository.listAdminSubmissions() });
       }
 
+      if (req.method === 'GET' && req.url === '/api/admin/review-summary') {
+        await authorizeAdmin(req, config, repository);
+        return sendJson(res, 200, { summaries: await repository.listReviewSummaries() });
+      }
+
+      if (req.method === 'GET' && req.url === '/api/admin/review-summary.csv') {
+        await authorizeAdmin(req, config, repository);
+        return sendCsv(res, 'fdf-2026-review-summary.csv', reviewSummaryCsv(await repository.listReviewSummaries()));
+      }
+
       if (req.method === 'GET' && req.url.startsWith('/api/admin/submissions/')) {
         await authorizeAdmin(req, config, repository);
         const submissionId = decodeURIComponent(req.url.slice('/api/admin/submissions/'.length));
@@ -580,6 +590,48 @@ function sendJson(res, statusCode, body) {
     'content-length': Buffer.byteLength(payload),
   });
   res.end(payload);
+}
+
+function sendCsv(res, filename, content) {
+  const body = Buffer.from(content, 'utf8');
+  res.writeHead(200, {
+    'content-type': 'text/csv; charset=utf-8',
+    'content-disposition': `attachment; filename="${filename}"`,
+    'content-length': body.length,
+    'cache-control': 'no-store',
+  });
+  res.end(body);
+}
+
+function reviewSummaryCsv(rows) {
+  const headers = [
+    'submission_id',
+    'candidate_id',
+    'full_name',
+    'email',
+    'province',
+    'source_channel',
+    'received_at',
+    'normalization_status',
+    'eligibility_status',
+    'evaluation_status',
+    'completed_criteria',
+    'total_criteria',
+    'document_count',
+    'documents_validated',
+    'documents_needs_review',
+    'documents_rejected',
+    'open_issue_count',
+  ];
+  return [
+    headers.join(','),
+    ...rows.map(row => headers.map(header => csvCell(row[header])).join(',')),
+  ].join('\n');
+}
+
+function csvCell(value) {
+  const text = String(value ?? '');
+  return `"${text.replace(/"/g, '""')}"`;
 }
 
 module.exports = {

@@ -259,6 +259,52 @@ class MemoryRepository {
       });
   }
 
+  async listReviewSummaries() {
+    return Array.from(this.submissions.values())
+      .sort((a, b) => String(b.received_at).localeCompare(String(a.received_at)))
+      .map(submission => {
+        const candidate = this.candidates.get(submission.candidate_id) || {};
+        const documents = Array.from(this.documents.values())
+          .filter(document => document.candidate_id === submission.candidate_id);
+        const issues = Array.from(this.issues.values())
+          .filter(issue => issue.submission_id === submission.submission_id);
+        const eligibility = latestEligibility(
+          Array.from(this.eligibilityAssessments.values())
+            .filter(item => item.submission_id === submission.submission_id)
+        );
+        const evaluationResult = latestEvaluationResult(
+          Array.from(this.evaluationResults.values())
+            .filter(item => item.submission_id === submission.submission_id)
+        );
+        return {
+          submission_id: submission.submission_id,
+          candidate_id: submission.candidate_id,
+          full_name: [
+            candidate.first_name,
+            candidate.second_name,
+            candidate.first_surname,
+            candidate.second_surname,
+          ].filter(Boolean).join(' '),
+          email: candidate.email || '',
+          province: candidate.province || '',
+          source_channel: submission.source_channel,
+          received_at: submission.received_at,
+          normalization_status: submission.normalization_status,
+          eligibility_status: eligibility?.status || 'SIN_EVALUAR',
+          evaluation_status: evaluationResult?.status || 'NOT_STARTED',
+          completed_criteria: evaluationResult?.completed_criteria || 0,
+          total_criteria: evaluationResult?.total_criteria || 0,
+          document_count: documents.length,
+          documents_validated: documents.filter(document => document.status === 'VALIDATED').length,
+          documents_needs_review: documents.filter(document => document.status === 'NEEDS_REVIEW').length,
+          documents_rejected: documents.filter(document => document.status === 'REJECTED').length,
+          open_issue_count: issues.filter(issue =>
+            ['OPEN', 'NEEDS_SOURCE_REVIEW'].includes(issue.review_status || 'OPEN')
+          ).length,
+        };
+      });
+  }
+
   async getAdminSubmissionDetail(submissionId) {
     const submission = this.submissions.get(submissionId);
     if (!submission) return null;

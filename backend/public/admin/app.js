@@ -1,4 +1,5 @@
 let submissions = [];
+let reviewSummaries = [];
 let selectedId = '';
 let currentUser = null;
 
@@ -19,6 +20,11 @@ const evaluationFilter = document.querySelector('#evaluationFilter');
 const originFilter = document.querySelector('#originFilter');
 const workFilter = document.querySelector('#workFilter');
 const refreshButton = document.querySelector('#refreshButton');
+const reviewSearchInput = document.querySelector('#reviewSearchInput');
+const reviewEvaluationFilter = document.querySelector('#reviewEvaluationFilter');
+const reviewEligibilityFilter = document.querySelector('#reviewEligibilityFilter');
+const exportReviewCsvButton = document.querySelector('#exportReviewCsvButton');
+const reviewSummaryTable = document.querySelector('#reviewSummaryTable');
 const currentUserBadge = document.querySelector('#currentUserBadge');
 const tabs = Array.from(document.querySelectorAll('[data-view]'));
 const views = Array.from(document.querySelectorAll('.view'));
@@ -81,6 +87,10 @@ eligibilityFilter.addEventListener('change', renderTable);
 evaluationFilter.addEventListener('change', renderTable);
 originFilter.addEventListener('change', renderTable);
 workFilter.addEventListener('change', renderTable);
+reviewSearchInput.addEventListener('input', renderReviewSummary);
+reviewEvaluationFilter.addEventListener('change', renderReviewSummary);
+reviewEligibilityFilter.addEventListener('change', renderReviewSummary);
+exportReviewCsvButton.addEventListener('click', exportReviewCsv);
 offlineJsonForm.addEventListener('submit', importOfflineJson);
 offlineManualForm.addEventListener('submit', importOfflineManual);
 userForm.addEventListener('submit', createUser);
@@ -119,13 +129,16 @@ function showLogin(message = '') {
 }
 
 async function loadData() {
-  const [summary, list] = await Promise.all([
+  const [summary, list, review] = await Promise.all([
     api('/api/admin/summary'),
     api('/api/admin/submissions'),
+    api('/api/admin/review-summary'),
   ]);
   submissions = list.submissions || [];
+  reviewSummaries = review.summaries || [];
   renderStats(summary);
   renderTable();
+  renderReviewSummary();
   if (selectedId) await selectSubmission(selectedId);
   if (currentUser?.role === 'ADMIN') await loadUsers();
 }
@@ -149,6 +162,7 @@ function showView(name) {
   tabs.forEach(tab => tab.classList.toggle('active', tab.dataset.view === name));
   views.forEach(view => view.classList.toggle('active', view.id === `view-${name}`));
   if (name === 'users' && currentUser?.role === 'ADMIN') loadUsers();
+  if (name === 'review') renderReviewSummary();
 }
 
 async function api(url, options = {}) {
@@ -419,6 +433,62 @@ function renderTable() {
   table.querySelectorAll('tr').forEach(row => {
     row.addEventListener('click', () => selectSubmission(row.dataset.id));
   });
+}
+
+function renderReviewSummary() {
+  const query = normalize(reviewSearchInput.value);
+  const evaluation = reviewEvaluationFilter.value;
+  const eligibility = reviewEligibilityFilter.value;
+  const rows = reviewSummaries.filter(item => {
+    const matchesEvaluation = !evaluation || (item.evaluation_status || 'NOT_STARTED') === evaluation;
+    const matchesEligibility = !eligibility || (item.eligibility_status || 'SIN_EVALUAR') === eligibility;
+    const haystack = normalize([
+      item.full_name,
+      item.email,
+      item.province,
+      item.submission_id,
+      item.candidate_id,
+      item.source_channel,
+    ].join(' '));
+    return matchesEvaluation && matchesEligibility && (!query || haystack.includes(query));
+  });
+
+  reviewSummaryTable.innerHTML = rows.map(item => `
+    <tr data-review-id="${escapeHtml(item.submission_id)}">
+      <td><strong>${escapeHtml(item.full_name || 'Sin nombre')}</strong><br><span class="muted">${escapeHtml(item.email || '')}</span></td>
+      <td>${escapeHtml(item.province || '')}</td>
+      <td><span class="badge">${escapeHtml(item.source_channel)}</span></td>
+      <td>${eligibilityBadge(item.eligibility_status)}</td>
+      <td>${evaluationBadge(item.evaluation_status)}</td>
+      <td>${escapeHtml(item.completed_criteria || 0)} / ${escapeHtml(item.total_criteria || 0)}</td>
+      <td>${reviewDocumentSummary(item)}</td>
+      <td>${issueSummary({ issue_count: item.open_issue_count, open_issue_count: item.open_issue_count })}</td>
+    </tr>
+  `).join('');
+
+  reviewSummaryTable.querySelectorAll('tr').forEach(row => {
+    row.addEventListener('click', async () => {
+      showView('submissions');
+      await selectSubmission(row.dataset.reviewId);
+    });
+  });
+}
+
+async function exportReviewCsv() {
+  const response = await fetch('/api/admin/review-summary.csv', {
+    credentials: 'same-origin',
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.message || body.error || `HTTP ${response.status}`);
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'fdf-2026-review-summary.csv';
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 async function selectSubmission(submissionId) {
@@ -752,6 +822,14 @@ function documentSummary(item) {
     return `<span class="badge ${cls}">${escapeHtml(status)}</span>`;
   }).join(' ');
   return `${escapeHtml(item.document_count)} ${flags}`;
+}
+
+function reviewDocumentSummary(item) {
+  const flags = [];
+  if (Number(item.documents_validated || 0)) flags.push(`<span class="badge ok">${escapeHtml(item.documents_validated)} val.</span>`);
+  if (Number(item.documents_needs_review || 0)) flags.push(`<span class="badge warn">${escapeHtml(item.documents_needs_review)} rev.</span>`);
+  if (Number(item.documents_rejected || 0)) flags.push(`<span class="badge bad">${escapeHtml(item.documents_rejected)} rech.</span>`);
+  return `${escapeHtml(item.document_count || 0)} ${flags.join(' ')}`;
 }
 
 function issueSummary(item) {

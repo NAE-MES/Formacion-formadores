@@ -88,6 +88,8 @@ Endpoints iniciales:
 - `GET /api/admin/summary`
 - `GET /api/admin/submissions`
 - `GET /api/admin/submissions/:submission_id`
+- `GET /api/admin/review-summary`
+- `GET /api/admin/review-summary.csv`
 - `GET /api/admin/evaluation/criteria`
 - `POST /api/admin/submissions/offline-json`
 - `POST /api/admin/submissions/offline-manual`
@@ -187,6 +189,9 @@ Alcance:
 - registro manual controlado para postulaciones offline recibidas sin JSON.
 - captura manual de evaluacion tecnica por criterio, sin ranking ni decision
   final.
+- seguimiento consolidado de postulaciones, admisibilidad, avance de
+  evaluacion, documentos e incidencias.
+- exportacion CSV operativa para revision interna.
 
 Restricciones:
 
@@ -243,6 +248,22 @@ La accion de abrir una referencia documental tambien queda auditada como
 Las actualizaciones de criterios se auditan como
 `CRITERION_EVALUATION_UPDATED` y el resumen operativo como
 `EVALUATION_RESULT_UPDATED`.
+
+## Resumen operativo de revision
+
+`GET /api/admin/review-summary` devuelve una fila por postulacion con:
+
+- identidad operativa minima del postulante;
+- canal de origen;
+- estado de normalizacion;
+- estado de admisibilidad preliminar;
+- estado de evaluacion tecnica;
+- criterios completados;
+- conteo de documentos por estado;
+- incidencias abiertas.
+
+`GET /api/admin/review-summary.csv` entrega el mismo contenido en CSV para
+trabajo interno. Esta exportacion no representa ranking ni lista propuesta.
 El recalculo de admisibilidad registra `ELIGIBILITY_ASSESSED`; la revision
 manual registra `ELIGIBILITY_REVIEW_UPDATED`.
 
