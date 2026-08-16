@@ -197,6 +197,29 @@ p {
   grid-template-columns: minmax(240px, 1fr) minmax(160px, 210px) minmax(190px, 260px) auto;
 }
 
+.matrix-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+.matrix-stat {
+  display: grid;
+  min-height: 54px;
+  justify-items: start;
+  align-content: center;
+}
+
+.matrix-stat strong {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.matrix-stat span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .tabs {
   display: flex;
   gap: 8px;
@@ -517,12 +540,37 @@ tbody tr.selected {
   gap: 6px;
 }
 
-.matrix-wrap td {
-  min-width: 150px;
+.matrix-cell {
+  min-width: 230px;
 }
 
 .matrix-wrap td:first-child {
   min-width: 240px;
+}
+
+.matrix-cell-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.matrix-editor {
+  display: grid;
+  grid-template-columns: minmax(118px, 1fr) minmax(78px, 92px);
+  gap: 6px;
+}
+
+.matrix-editor textarea {
+  grid-column: 1 / -1;
+  min-height: 54px;
+  padding: 7px;
+}
+
+.matrix-editor button {
+  grid-column: 1 / -1;
+  justify-self: start;
 }
 
 .check-list {
@@ -561,6 +609,7 @@ tbody tr.selected {
   .review-toolbar,
   .document-toolbar,
   .matrix-toolbar,
+  .matrix-stats,
   .content-grid,
   .doc-grid,
   .intake-grid,

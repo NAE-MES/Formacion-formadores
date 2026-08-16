@@ -115,6 +115,7 @@ const clearMatrixFiltersButton = document.querySelector('#clearMatrixFiltersButt
 const evaluationMatrixHead = document.querySelector('#evaluationMatrixHead');
 const evaluationMatrixTable = document.querySelector('#evaluationMatrixTable');
 const evaluationMatrixCount = document.querySelector('#evaluationMatrixCount');
+const evaluationMatrixStats = document.querySelector('#evaluationMatrixStats');
 const quickFilterButtons = Array.from(document.querySelectorAll('[data-quick-filter]'));
 const currentUserBadge = document.querySelector('#currentUserBadge');
 const tabs = Array.from(document.querySelectorAll('[data-view]'));
@@ -694,13 +695,38 @@ function renderEvaluationMatrix() {
     </tr>
   `).join('');
   evaluationMatrixCount.textContent = resultCountLabel(rows.length, evaluationMatrixRows.length, 'postulación', 'postulaciones');
+  evaluationMatrixStats.innerHTML = matrixStatsHtml(rows);
 
   evaluationMatrixTable.querySelectorAll('tr').forEach(row => {
-    row.addEventListener('click', async () => {
+    row.addEventListener('click', async event => {
+      if (event.target.closest('button, input, select, textarea')) return;
       showView('submissions');
       await selectSubmission(row.dataset.matrixId);
     });
   });
+  evaluationMatrixTable.querySelectorAll('[data-matrix-save]').forEach(button => {
+    button.addEventListener('click', saveMatrixCriterion);
+  });
+  evaluationMatrixStats.querySelectorAll('[data-matrix-status-shortcut]').forEach(button => {
+    button.addEventListener('click', () => {
+      matrixEvaluationFilter.value = button.dataset.matrixStatusShortcut;
+      renderEvaluationMatrix();
+    });
+  });
+}
+
+function matrixStatsHtml(rows) {
+  const counts = rows.reduce((acc, item) => {
+    const status = item.evaluation_status || 'NOT_STARTED';
+    acc[status] = (acc[status] || 0) + 1;
+    return acc;
+  }, {});
+  return ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'NEEDS_REVIEW'].map(status => `
+    <button class="ghost matrix-stat" type="button" data-matrix-status-shortcut="${escapeHtml(status)}">
+      <strong>${escapeHtml(counts[status] || 0)}</strong>
+      <span>${escapeHtml(label('evaluation', status))}</span>
+    </button>
+  `).join('');
 }
 
 async function exportReviewCsv() {
@@ -1016,17 +1042,56 @@ function documentReviewCell(item, prefix) {
 function matrixCriterionCell(item, criterion) {
   const evaluations = Array.isArray(item.criteria) ? item.criteria : [];
   const evaluation = evaluations.find(candidate => candidate.criterion_id === criterion.criterion_id);
-  if (!evaluation) {
-    return '<td><span class="badge">No iniciada</span></td>';
-  }
-  const score = evaluation.score === null || evaluation.score === undefined ? '' : `<br><span class="muted">Puntaje: ${escapeHtml(evaluation.score)}</span>`;
+  const status = evaluation?.status || 'NOT_STARTED';
+  const score = evaluation?.score ?? '';
+  const canReview = hasRole('ADMIN', 'REVIEWER');
+  const readOnly = canReview ? '' : 'disabled';
   return `
-    <td>
-      ${evaluationBadge(evaluation.status || 'NOT_STARTED')}
-      ${score}
-      ${evaluation.evidence_summary ? `<br><span class="muted">${escapeHtml(evaluation.evidence_summary)}</span>` : ''}
+    <td class="matrix-cell">
+      <div class="matrix-cell-head">
+        ${evaluationBadge(status)}
+        <span class="muted">${escapeHtml(criterion.weight_percent)}%</span>
+      </div>
+      <div class="matrix-editor">
+        <select data-matrix-status="${escapeHtml(item.submission_id)}:${escapeHtml(criterion.criterion_id)}" ${readOnly}>
+          ${evaluationStatusOptions(status)}
+        </select>
+        <input data-matrix-score="${escapeHtml(item.submission_id)}:${escapeHtml(criterion.criterion_id)}" type="number" min="0" max="100" step="0.01" value="${escapeHtml(score)}" placeholder="Puntaje" ${readOnly}>
+        <textarea data-matrix-evidence="${escapeHtml(item.submission_id)}:${escapeHtml(criterion.criterion_id)}" rows="2" placeholder="Síntesis" ${readOnly}>${escapeHtml(evaluation?.evidence_summary || '')}</textarea>
+        ${canReview ? `<button class="compact" type="button" data-matrix-save="${escapeHtml(item.submission_id)}:${escapeHtml(criterion.criterion_id)}">Guardar</button>` : ''}
+      </div>
     </td>
   `;
+}
+
+async function saveMatrixCriterion(event) {
+  event.stopPropagation();
+  const button = event.currentTarget;
+  const [submissionId, criterionId] = String(button.dataset.matrixSave || '').split(':');
+  if (!submissionId || !criterionId) return;
+  const key = `${submissionId}:${criterionId}`;
+  const status = evaluationMatrixTable.querySelector(`[data-matrix-status="${cssEscape(key)}"]`);
+  const score = evaluationMatrixTable.querySelector(`[data-matrix-score="${cssEscape(key)}"]`);
+  const evidence = evaluationMatrixTable.querySelector(`[data-matrix-evidence="${cssEscape(key)}"]`);
+  button.disabled = true;
+  button.textContent = 'Guardando';
+  try {
+    await api(`/api/admin/submissions/${encodeURIComponent(submissionId)}/evaluation/criteria/${encodeURIComponent(criterionId)}`, {
+      method: 'PUT',
+      body: {
+        status: status.value,
+        score: score.value,
+        evidence_summary: evidence.value,
+        evaluator_note: '',
+        reason: 'Actualización de criterio técnico desde la matriz',
+      },
+    });
+    await loadData();
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = 'Guardar';
+    alert(error.message);
+  }
 }
 
 function bindDetailActions() {
