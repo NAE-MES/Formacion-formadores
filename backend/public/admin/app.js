@@ -1162,8 +1162,6 @@ function printCurrentSummary() {
   summaryWindow.document.write(summaryHtml(selectedDetail));
   summaryWindow.document.close();
   summaryWindow.focus();
-  summaryWindow.addEventListener('load', () => summaryWindow.print(), { once: true });
-  setTimeout(() => summaryWindow.print(), 500);
 }
 
 function summaryHtml(detail) {
@@ -1189,9 +1187,13 @@ function summaryHtml(detail) {
     .muted{color:#63707b}
     .status{display:inline-block;border:1px solid #cfd8dc;padding:2px 6px;margin:2px 4px 2px 0}
     .foot{margin-top:22px;font-size:12px;color:#63707b}
+    .actions{display:flex;justify-content:flex-end;margin-bottom:16px}
+    button{min-height:34px;border:1px solid #115e59;border-radius:6px;background:#0f766e;color:white;padding:0 12px;cursor:pointer}
+    @media print{.actions{display:none}}
   </style>
 </head>
 <body>
+  <div class="actions"><button type="button" onclick="window.print()">Imprimir</button></div>
   <h1>Resumen de expediente FdF 2026</h1>
   <p class="muted">Documento operativo interno. No constituye ranking, selección ni decisión final.</p>
   <h2>Identificación</h2>
