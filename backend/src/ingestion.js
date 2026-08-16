@@ -3,6 +3,7 @@ const crypto = require('node:crypto');
 const SOURCE_CHANNELS = Object.freeze({
   GOOGLE_FORM: 'GOOGLE_FORM',
   OFFLINE_JSON: 'OFFLINE_JSON',
+  OFFLINE_MANUAL: 'OFFLINE_MANUAL',
 });
 
 const DOCUMENT_TYPES = Object.freeze({
@@ -75,6 +76,26 @@ function importOfflineJsonSubmission(payload, config) {
     actor: payload.actor || 'OFFLINE_JSON_API',
     rawPayload: payload,
     responses: payload.respuestas,
+    documents: payload.documents || [],
+  }, config);
+}
+
+function importOfflineManualSubmission(payload, config) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return rejectedImport(SOURCE_CHANNELS.OFFLINE_MANUAL, '', payload, 'INVALID_STRUCTURE', 'Offline manual payload must be an object.');
+  }
+  const responses = payload.responses || payload.respuestas || {};
+  if (!responses || typeof responses !== 'object' || Array.isArray(responses)) {
+    return rejectedImport(SOURCE_CHANNELS.OFFLINE_MANUAL, '', payload, 'INVALID_STRUCTURE', 'Offline manual payload must include responses as an object.');
+  }
+
+  return importSubmission({
+    sourceChannel: SOURCE_CHANNELS.OFFLINE_MANUAL,
+    sourceReference: payload.sourceReference || hash(`offline-manual:${canonicalJson(payload)}`),
+    receivedAt: payload.receivedAt || new Date().toISOString(),
+    actor: payload.actor || 'OFFLINE_MANUAL_REGISTRY',
+    rawPayload: payload,
+    responses,
     documents: payload.documents || [],
   }, config);
 }
@@ -336,5 +357,6 @@ module.exports = {
   hash,
   importGoogleFormSubmission,
   importOfflineJsonSubmission,
+  importOfflineManualSubmission,
   validateResponses,
 };

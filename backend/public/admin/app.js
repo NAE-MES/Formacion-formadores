@@ -23,6 +23,15 @@ const offlineCartaRef = document.querySelector('#offlineCartaRef');
 const offlineCvName = document.querySelector('#offlineCvName');
 const offlineCvRef = document.querySelector('#offlineCvRef');
 const offlineImportResult = document.querySelector('#offlineImportResult');
+const offlineManualForm = document.querySelector('#offlineManualForm');
+const manualSourceReference = document.querySelector('#manualSourceReference');
+const manualRegistrationNote = document.querySelector('#manualRegistrationNote');
+const manualResponsesPayload = document.querySelector('#manualResponsesPayload');
+const manualCartaName = document.querySelector('#manualCartaName');
+const manualCartaRef = document.querySelector('#manualCartaRef');
+const manualCvName = document.querySelector('#manualCvName');
+const manualCvRef = document.querySelector('#manualCvRef');
+const manualImportResult = document.querySelector('#manualImportResult');
 
 loginForm.addEventListener('submit', async event => {
   event.preventDefault();
@@ -56,6 +65,7 @@ refreshButton.addEventListener('click', loadData);
 searchInput.addEventListener('input', renderTable);
 statusFilter.addEventListener('change', renderTable);
 offlineJsonForm.addEventListener('submit', importOfflineJson);
+offlineManualForm.addEventListener('submit', importOfflineManual);
 
 boot();
 
@@ -165,6 +175,58 @@ function offlineDocumentsFromForm() {
       document_type: 'CURRICULUM_VITAE',
       original_name: offlineCvName.value.trim(),
       storage_reference: offlineCvRef.value.trim(),
+      status: 'RECEIVED',
+    },
+  ].filter(document => document.original_name || document.storage_reference);
+}
+
+async function importOfflineManual(event) {
+  event.preventDefault();
+  manualImportResult.textContent = '';
+  let responses;
+  try {
+    responses = JSON.parse(manualResponsesPayload.value);
+  } catch (error) {
+    manualImportResult.textContent = 'JSON de respuestas invalido.';
+    return;
+  }
+
+  try {
+    const result = await api('/api/admin/submissions/offline-manual', {
+      method: 'POST',
+      body: {
+        sourceReference: manualSourceReference.value.trim(),
+        registrationNote: manualRegistrationNote.value.trim(),
+        responses,
+        documents: manualDocumentsFromForm(),
+      },
+    });
+    manualImportResult.textContent = [
+      result.status,
+      result.normalization_status,
+      result.eligibility_status,
+      result.submission_id,
+    ].filter(Boolean).join(' - ');
+    offlineManualForm.reset();
+    await loadData();
+    if (result.submission_id) await selectSubmission(result.submission_id);
+  } catch (error) {
+    manualImportResult.textContent = error.message;
+  }
+}
+
+function manualDocumentsFromForm() {
+  return [
+    {
+      document_type: 'CARTA_AVAL',
+      original_name: manualCartaName.value.trim(),
+      storage_reference: manualCartaRef.value.trim(),
+      status: 'RECEIVED',
+    },
+    {
+      document_type: 'CURRICULUM_VITAE',
+      original_name: manualCvName.value.trim(),
+      storage_reference: manualCvRef.value.trim(),
       status: 'RECEIVED',
     },
   ].filter(document => document.original_name || document.storage_reference);

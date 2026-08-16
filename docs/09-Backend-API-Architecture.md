@@ -47,6 +47,18 @@ Mismo importador OFFLINE_JSON
 PostgreSQL
 ```
 
+Para casos recibidos por correo sin JSON exportado:
+
+```text
+Admin UI
+        |
+POST /api/admin/submissions/offline-manual
+        |
+Importador OFFLINE_MANUAL
+        |
+Mismo modelo normalizado
+```
+
 ## Restricciones
 
 - No tocar el Google Form.
@@ -77,6 +89,7 @@ Endpoints iniciales:
 - `GET /api/admin/submissions`
 - `GET /api/admin/submissions/:submission_id`
 - `POST /api/admin/submissions/offline-json`
+- `POST /api/admin/submissions/offline-manual`
 - `POST /api/admin/submissions/:submission_id/eligibility/recalculate`
 - `PATCH /api/admin/eligibility/:eligibility_assessment_id/review`
 - `PATCH /api/admin/documents/:document_id/status`
@@ -166,6 +179,7 @@ Alcance:
   y documentos asociados.
 - carga administrativa de JSON offline con referencias de Carta Aval y CV
   recibidos por correo.
+- registro manual controlado para postulaciones offline recibidas sin JSON.
 
 Restricciones:
 
@@ -241,3 +255,39 @@ El `payload` se conserva como RAW. Las referencias documentales se guardan en
 Los JSON rechazados por version o estructura tambien generan una `submission`
 tecnica con `normalization_status = REJECTED` para poder conservar RAW e
 incidencias de validacion en PostgreSQL.
+
+## Registro offline manual
+
+El registro manual se usa solo cuando el correo incluye formulario offline/PDF
+y adjuntos, pero no incluye JSON exportado.
+
+El cuerpo aceptado por el endpoint administrativo es:
+
+```json
+{
+  "sourceReference": "correo-manual-001",
+  "registrationNote": "Formulario recibido por correo sin JSON",
+  "responses": {
+    "FDF-01": "..."
+  },
+  "documents": [
+    {
+      "document_type": "CARTA_AVAL",
+      "original_name": "carta.pdf",
+      "storage_reference": "drive://referencia-o-ruta",
+      "status": "RECEIVED"
+    },
+    {
+      "document_type": "CURRICULUM_VITAE",
+      "original_name": "cv.pdf",
+      "storage_reference": "drive://referencia-o-ruta",
+      "status": "RECEIVED"
+    }
+  ]
+}
+```
+
+La captura manual se valida con la misma capa publica y produce las mismas
+entidades: `Candidate`, `Submission`, `SubmissionRaw`, `CandidateResponse`,
+`Document`, `NormalizationIssue`, `DuplicateReview` y auditoria. El canal
+queda como `OFFLINE_MANUAL` solo para trazabilidad.

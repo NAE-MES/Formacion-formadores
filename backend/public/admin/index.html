@@ -75,6 +75,40 @@
           </form>
         </details>
 
+        <details class="import-panel">
+          <summary>Registrar offline manual</summary>
+          <form id="offlineManualForm" class="offline-form">
+            <label for="manualSourceReference">Referencia</label>
+            <input id="manualSourceReference" type="text" placeholder="correo-manual-2026-08-16-001">
+            <label for="manualRegistrationNote">Nota de registro</label>
+            <input id="manualRegistrationNote" type="text" placeholder="Formulario recibido por correo sin JSON">
+            <label for="manualResponsesPayload">Respuestas por código FDF</label>
+            <textarea id="manualResponsesPayload" rows="9" spellcheck="false" required></textarea>
+            <div class="doc-grid">
+              <label>
+                Carta Aval
+                <input id="manualCartaName" type="text" placeholder="Nombre del archivo">
+              </label>
+              <label>
+                Referencia Carta Aval
+                <input id="manualCartaRef" type="text" placeholder="drive://, ruta o URL">
+              </label>
+              <label>
+                Currículum Vitae
+                <input id="manualCvName" type="text" placeholder="Nombre del archivo">
+              </label>
+              <label>
+                Referencia CV
+                <input id="manualCvRef" type="text" placeholder="drive://, ruta o URL">
+              </label>
+            </div>
+            <div class="action-row single">
+              <button type="submit">Registrar</button>
+            </div>
+            <p id="manualImportResult" class="muted"></p>
+          </form>
+        </details>
+
         <section class="content-grid">
           <div class="table-wrap">
             <table>

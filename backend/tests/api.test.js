@@ -442,6 +442,33 @@ test('admin API imports offline JSON with document references', async (t) => {
   });
 });
 
+test('admin API registers offline manual submission with the common model', async (t) => {
+  await withServer(t, async ({ port, repository }) => {
+    const response = await adminJsonRequest(port, 'POST', '/api/admin/submissions/offline-manual', {
+      sourceReference: 'correo-offline-manual-1',
+      registrationNote: 'Synthetic manual registration from email.',
+      responses: validResponses(),
+      documents: requiredDocuments(),
+    });
+
+    assert.equal(response.statusCode, 201);
+    assert.equal(response.body.status, 'IMPORTED');
+    assert.equal(response.body.eligibility_status, 'READY_FOR_TECHNICAL_REVIEW');
+    assert.equal(repository.candidates.size, 1);
+    assert.equal(repository.submissions.size, 1);
+    assert.equal(repository.raws.size, 1);
+    assert.equal(repository.documents.size, 2);
+
+    const submission = Array.from(repository.submissions.values())[0];
+    assert.equal(submission.source_channel, 'OFFLINE_MANUAL');
+    assert.equal(submission.source_reference, 'correo-offline-manual-1');
+
+    const raw = Array.from(repository.raws.values())[0];
+    assert.equal(raw.raw_payload.registrationNote, 'Synthetic manual registration from email.');
+    assert.equal(raw.raw_payload.responses['FDF-01'], 'Ana');
+  });
+});
+
 test('reimporting same Google payload is idempotent', async (t) => {
   await withServer(t, async ({ port, repository }) => {
     const payload = {

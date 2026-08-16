@@ -210,6 +210,40 @@ Al importar:
 - se calcula admisibilidad preliminar;
 - cualquier incidencia queda visible en el detalle de la postulacion.
 
+## 6.4 Registro offline manual
+
+Usar esta via solo si la postulacion llego por correo sin JSON exportado.
+
+Entrar a:
+
+```text
+https://fdf-nae.mes.gob.cu/admin
+```
+
+Abrir **Registrar offline manual**.
+
+Completar:
+
+- `Referencia`: codigo operativo del correo o recepcion.
+- `Nota de registro`: breve descripcion interna.
+- `Respuestas por codigo FDF`: objeto JSON con pares `FDF-xx`.
+- `Carta Aval` y `Curriculum Vitae`: nombres de archivos recibidos.
+- Referencias documentales: ruta, URL o referencia de almacenamiento.
+
+Ejemplo minimo de respuestas:
+
+```json
+{
+  "FDF-01": "Nombre",
+  "FDF-03": "Primer apellido",
+  "FDF-04": "Segundo apellido"
+}
+```
+
+El sistema aplicara las mismas validaciones del modelo comun. Si faltan campos
+obligatorios o hay opciones invalidas, la postulacion quedara con incidencias
+para revision.
+
 ## 7. Generar Google Forms
 
 Seleccionar la función:

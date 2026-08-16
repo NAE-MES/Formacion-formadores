@@ -2,7 +2,11 @@ const http = require('node:http');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const { importGoogleFormSubmission, importOfflineJsonSubmission } = require('./ingestion');
+const {
+  importGoogleFormSubmission,
+  importOfflineJsonSubmission,
+  importOfflineManualSubmission,
+} = require('./ingestion');
 const { assessEligibility } = require('./eligibility');
 
 function createApp({ config, repository }) {
@@ -135,6 +139,16 @@ function createApp({ config, repository }) {
         return sendJson(res, statusCodeFor(saved.status), responseBody(saved, assessment));
       }
 
+      if (req.method === 'POST' && req.url === '/api/admin/submissions/offline-manual') {
+        const admin = await authorizeAdmin(req, config, repository);
+        const payload = await readJson(req);
+        const manualPayload = adminOfflineManualPayload(payload, admin.username || 'ADMIN_UI');
+        const imported = importOfflineManualSubmission(manualPayload, config);
+        const saved = await repository.saveImportedSubmission(imported);
+        const assessment = await assessSavedImport(saved, config, repository);
+        return sendJson(res, statusCodeFor(saved.status), responseBody(saved, assessment));
+      }
+
       if (req.method === 'POST' && req.url === '/api/submissions/google-form') {
         authorize(req, config);
         const payload = await readJson(req);
@@ -187,6 +201,17 @@ function adminOfflineJsonPayload(payload, actor) {
     receivedAt: payload.receivedAt || payload.received_at || offlinePayload.receivedAt || '',
     actor: actor || offlinePayload.actor || 'ADMIN_UI',
     documents: normalizeAdminOfflineDocuments(payload.documents || offlinePayload.documents || []),
+  };
+}
+
+function adminOfflineManualPayload(payload, actor) {
+  return {
+    sourceReference: payload.sourceReference || payload.source_reference || '',
+    receivedAt: payload.receivedAt || payload.received_at || '',
+    actor: actor || 'ADMIN_UI',
+    registrationNote: String(payload.registrationNote || payload.registration_note || ''),
+    responses: payload.responses || payload.respuestas || {},
+    documents: normalizeAdminOfflineDocuments(payload.documents || []),
   };
 }
 
