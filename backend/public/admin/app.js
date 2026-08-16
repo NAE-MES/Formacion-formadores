@@ -5,7 +5,6 @@ let evaluationMatrixRows = [];
 let matrixCriteria = [];
 let issueReviewRows = [];
 let issueFieldCatalog = [];
-let currentSummary = {};
 let selectedId = '';
 let selectedDetail = null;
 let currentUser = null;
@@ -189,7 +188,6 @@ logoutButton.addEventListener('click', async () => {
   matrixCriteria = [];
   issueReviewRows = [];
   issueFieldCatalog = [];
-  currentSummary = {};
   currentUser = null;
   showLogin();
 });
@@ -275,7 +273,6 @@ async function loadData() {
   matrixCriteria = matrix.criteria || [];
   issueReviewRows = issues.issues || [];
   issueFieldCatalog = issues.field_catalog || [];
-  currentSummary = summary || {};
   renderStats(summary);
   renderWorkboard();
   renderTable();
@@ -544,24 +541,30 @@ function renderWorkboard() {
     (row.eligibility_status || 'SIN_EVALUAR') === 'READY_FOR_TECHNICAL_REVIEW' &&
     (row.evaluation_status || 'NOT_STARTED') === 'NOT_STARTED'
   );
+  const eligibilityReview = reviewSummaries.filter(row =>
+    ['BLOCKED_BY_MISSING_REQUIREMENTS', 'REQUIRES_MANUAL_REVIEW'].includes(row.eligibility_status || 'SIN_EVALUAR')
+  );
   const inProgress = evaluationMatrixRows.filter(row => (row.evaluation_status || 'NOT_STARTED') === 'IN_PROGRESS');
   const completed = evaluationMatrixRows.filter(row => (row.evaluation_status || 'NOT_STARTED') === 'COMPLETED');
 
   workboardStats.innerHTML = [
     workboardStat('Incidencias abiertas', openIssues.length, 'issues', 'OPEN'),
     workboardStat('Documentos pendientes', documentTasks.length, 'documents', ''),
+    workboardStat('Admisibilidad por revisar', eligibilityReview.length, 'submissions', 'ELIGIBILITY_REVIEW'),
     workboardStat('Listas por evaluar', readyToEvaluate.length, 'matrix', 'READY_TO_EVALUATE'),
     workboardStat('Evaluación en curso', inProgress.length, 'matrix', 'IN_PROGRESS'),
     workboardStat('Evaluación completa', completed.length, 'review', 'COMPLETED'),
   ].join('');
 
-  workboardSections.innerHTML = [
-    workboardIssueSection(openIssues),
-    workboardDocumentSection(documentTasks),
-    workboardSubmissionSection('Listas para evaluación técnica', readyToEvaluate, 'matrix', 'Capturar evaluación'),
-    workboardSubmissionSection('Evaluación en curso', inProgress, 'matrix', 'Continuar'),
-    workboardSubmissionSection('Evaluación completa', completed, 'review', 'Ver seguimiento'),
-  ].join('');
+  const sections = [
+    { key: 'issues', html: workboardIssueSection(openIssues) },
+    { key: 'documents', html: workboardDocumentSection(documentTasks) },
+    { key: 'eligibility', html: workboardSubmissionSection('Admisibilidad por revisar', eligibilityReview, 'submissions', 'Revisar expedientes') },
+    { key: 'ready', html: workboardSubmissionSection('Listas para evaluación técnica', readyToEvaluate, 'matrix', 'Capturar evaluación') },
+    { key: 'progress', html: workboardSubmissionSection('Evaluación en curso', inProgress, 'matrix', 'Continuar') },
+    { key: 'completed', html: workboardSubmissionSection('Evaluación completa', completed, 'review', 'Ver seguimiento') },
+  ];
+  workboardSections.innerHTML = orderWorkboardSections(sections).map(section => section.html).join('');
 
   workboardStats.querySelectorAll('[data-workboard-open]').forEach(button => {
     button.addEventListener('click', () => openWorkboardTarget(button.dataset.workboardOpen, button.dataset.workboardFilter));
@@ -584,6 +587,17 @@ function workboardStat(title, value, target, filter) {
       <span>${escapeHtml(title)}</span>
     </button>
   `;
+}
+
+function orderWorkboardSections(sections) {
+  const roleOrders = {
+    INTAKE: ['issues', 'documents', 'eligibility', 'ready', 'progress', 'completed'],
+    REVIEWER: ['ready', 'progress', 'eligibility', 'issues', 'documents', 'completed'],
+    VIEWER: ['progress', 'completed', 'issues', 'documents', 'eligibility', 'ready'],
+    ADMIN: ['issues', 'documents', 'eligibility', 'ready', 'progress', 'completed'],
+  };
+  const order = roleOrders[currentUser?.role] || roleOrders.ADMIN;
+  return sections.slice().sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
 }
 
 function workboardIssueSection(issues) {
@@ -617,6 +631,7 @@ function workboardSubmissionSection(title, rows, target, actionText) {
       <span class="muted">${escapeHtml(row.province || '')} - ${escapeHtml(label('sourceChannels', row.source_channel))}</span>
     </div>
     <div>
+      ${operationalBadge(row)}
       ${eligibilityBadge(row.eligibility_status)}
       ${evaluationBadge(row.evaluation_status)}
     </div>
@@ -664,6 +679,12 @@ function openWorkboardTarget(target, filter = '') {
     clearReviewFilters();
     if (filter === 'COMPLETED') reviewEvaluationFilter.value = 'COMPLETED';
     renderReviewSummary();
+  } else if (target === 'submissions') {
+    clearSubmissionFilters();
+    if (filter === 'ELIGIBILITY_REVIEW') {
+      workFilter.value = 'ELIGIBILITY_REVIEW';
+    }
+    renderTable();
   }
   showView(target);
 }
@@ -685,6 +706,7 @@ function renderTable() {
     const docStatuses = String(item.document_statuses || '').split(',').filter(Boolean);
     const matchesWork = !work ||
       (work === 'OPEN_ISSUES' && Number(item.open_issue_count || item.issue_count || 0) > 0) ||
+      (work === 'ELIGIBILITY_REVIEW' && ['BLOCKED_BY_MISSING_REQUIREMENTS', 'REQUIRES_MANUAL_REVIEW'].includes(itemEligibility)) ||
       (work === 'DOCS_NEED_REVIEW' && docStatuses.includes('NEEDS_REVIEW')) ||
       (work === 'DOCS_REJECTED' && docStatuses.includes('REJECTED'));
     const haystack = normalize([
@@ -704,6 +726,7 @@ function renderTable() {
       <td><strong>${escapeHtml(item.full_name || 'Sin nombre')}</strong><br><span class="muted">${escapeHtml(item.email || '')}</span></td>
       <td>${escapeHtml(item.province || '')}</td>
       <td><span class="badge">${escapeHtml(label('sourceChannels', item.source_channel))}</span></td>
+      <td>${operationalBadge(item)}</td>
       <td>${statusBadge(item.normalization_status)}</td>
       <td>${eligibilityBadge(item.eligibility_status)}</td>
       <td>${evaluationBadge(item.evaluation_status)}</td>
@@ -1625,6 +1648,32 @@ function severityBadge(severity) {
   };
   const cls = normalized === 'ERROR' ? 'bad' : normalized === 'WARNING' ? 'warn' : '';
   return `<span class="badge ${cls}">${escapeHtml(labels[normalized] || normalized || 'Incidencia')}</span>`;
+}
+
+function operationalBadge(item) {
+  const status = operationalStatus(item);
+  return `<span class="badge ${status.cls}">${escapeHtml(status.label)}</span>`;
+}
+
+function operationalStatus(item) {
+  const eligibility = item.eligibility_status || 'SIN_EVALUAR';
+  const evaluation = item.evaluation_status || 'NOT_STARTED';
+  const openIssues = Number(item.open_issue_count || 0);
+  const docsRejected = Number(item.documents_rejected || 0);
+  const docsReview = Number(item.documents_needs_review || 0);
+  const documentStatuses = String(item.document_statuses || '').split(',').filter(Boolean);
+
+  if (openIssues > 0) return { label: 'Revisar incidencias', cls: 'bad' };
+  if (docsRejected > 0 || documentStatuses.includes('REJECTED')) return { label: 'Documento rechazado', cls: 'bad' };
+  if (docsReview > 0 || documentStatuses.includes('NEEDS_REVIEW')) return { label: 'Revisar documentos', cls: 'warn' };
+  if (eligibility === 'BLOCKED_BY_MISSING_REQUIREMENTS') return { label: 'Bloqueada por requisitos', cls: 'bad' };
+  if (eligibility === 'REQUIRES_MANUAL_REVIEW') return { label: 'Revisión manual', cls: 'warn' };
+  if (eligibility === 'READY_FOR_TECHNICAL_REVIEW' && evaluation === 'NOT_STARTED') return { label: 'Por evaluar', cls: 'warn' };
+  if (evaluation === 'IN_PROGRESS') return { label: 'Evaluación en curso', cls: 'warn' };
+  if (evaluation === 'NEEDS_REVIEW') return { label: 'Evaluación por revisar', cls: 'bad' };
+  if (evaluation === 'COMPLETED') return { label: 'Evaluación completa', cls: 'ok' };
+  if (eligibility === 'SIN_EVALUAR') return { label: 'Sin admisibilidad', cls: '' };
+  return { label: 'En seguimiento', cls: '' };
 }
 
 function eligibilityBadge(status) {
