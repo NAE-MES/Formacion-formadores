@@ -34,6 +34,13 @@
 
       <section id="appPanel" class="workspace" hidden>
         <div class="stats" id="stats"></div>
+        <div class="quick-actions" aria-label="Atajos de trabajo">
+          <button type="button" class="ghost" data-quick-filter="READY_TO_EVALUATE">Listas por evaluar</button>
+          <button type="button" class="ghost" data-quick-filter="EVALUATION_IN_PROGRESS">Evaluación en curso</button>
+          <button type="button" class="ghost" data-quick-filter="OPEN_ISSUES">Incidencias abiertas</button>
+          <button type="button" class="ghost" data-quick-filter="DOCS_TO_REVIEW">Documentos por revisar</button>
+          <button type="button" class="ghost" data-quick-filter="CLEAR">Limpiar filtros</button>
+        </div>
 
         <nav class="tabs" aria-label="Vistas administrativas">
           <button class="tab active" type="button" data-view="submissions">Expedientes</button>
@@ -77,6 +84,7 @@
             <option value="DOCS_NEED_REVIEW">Documentos en revisión</option>
             <option value="DOCS_REJECTED">Documentos rechazados</option>
           </select>
+          <button id="clearFiltersButton" class="ghost" type="button">Limpiar</button>
           <button id="refreshButton" type="button">Actualizar</button>
         </div>
 
@@ -101,7 +109,7 @@
           </div>
 
           <aside class="detail" id="detailPanel">
-            <p class="muted">Seleccione una postulacion.</p>
+            <p class="muted">Seleccione una postulación.</p>
           </aside>
         </section>
         </section>
@@ -123,6 +131,7 @@
               <option value="REQUIRES_MANUAL_REVIEW">Requiere revisión manual</option>
               <option value="SIN_EVALUAR">Sin evaluar</option>
             </select>
+            <button id="clearReviewFiltersButton" class="ghost" type="button">Limpiar</button>
             <button id="exportReviewCsvButton" type="button">Exportar CSV</button>
           </div>
           <div class="table-wrap">

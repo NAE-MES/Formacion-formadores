@@ -1,6 +1,7 @@
 let submissions = [];
 let reviewSummaries = [];
 let selectedId = '';
+let selectedDetail = null;
 let currentUser = null;
 
 const LABELS = {
@@ -88,11 +89,14 @@ const evaluationFilter = document.querySelector('#evaluationFilter');
 const originFilter = document.querySelector('#originFilter');
 const workFilter = document.querySelector('#workFilter');
 const refreshButton = document.querySelector('#refreshButton');
+const clearFiltersButton = document.querySelector('#clearFiltersButton');
 const reviewSearchInput = document.querySelector('#reviewSearchInput');
 const reviewEvaluationFilter = document.querySelector('#reviewEvaluationFilter');
 const reviewEligibilityFilter = document.querySelector('#reviewEligibilityFilter');
 const exportReviewCsvButton = document.querySelector('#exportReviewCsvButton');
+const clearReviewFiltersButton = document.querySelector('#clearReviewFiltersButton');
 const reviewSummaryTable = document.querySelector('#reviewSummaryTable');
+const quickFilterButtons = Array.from(document.querySelectorAll('[data-quick-filter]'));
 const currentUserBadge = document.querySelector('#currentUserBadge');
 const tabs = Array.from(document.querySelectorAll('[data-view]'));
 const views = Array.from(document.querySelectorAll('.view'));
@@ -143,12 +147,14 @@ loginForm.addEventListener('submit', async event => {
 logoutButton.addEventListener('click', async () => {
   await api('/api/auth/logout', { method: 'POST', skipAuthRedirect: true }).catch(() => {});
   selectedId = '';
+  selectedDetail = null;
   submissions = [];
   currentUser = null;
   showLogin();
 });
 
 refreshButton.addEventListener('click', loadData);
+clearFiltersButton.addEventListener('click', clearSubmissionFilters);
 searchInput.addEventListener('input', renderTable);
 statusFilter.addEventListener('change', renderTable);
 eligibilityFilter.addEventListener('change', renderTable);
@@ -159,6 +165,8 @@ reviewSearchInput.addEventListener('input', renderReviewSummary);
 reviewEvaluationFilter.addEventListener('change', renderReviewSummary);
 reviewEligibilityFilter.addEventListener('change', renderReviewSummary);
 exportReviewCsvButton.addEventListener('click', exportReviewCsv);
+clearReviewFiltersButton.addEventListener('click', clearReviewFilters);
+quickFilterButtons.forEach(button => button.addEventListener('click', () => applyQuickFilter(button.dataset.quickFilter)));
 offlineJsonForm.addEventListener('submit', importOfflineJson);
 offlineManualForm.addEventListener('submit', importOfflineManual);
 userForm.addEventListener('submit', createUser);
@@ -260,7 +268,7 @@ async function importOfflineJson(event) {
   try {
     payload = JSON.parse(offlineJsonPayload.value);
   } catch (error) {
-    offlineImportResult.textContent = 'JSON invalido.';
+    offlineImportResult.textContent = 'JSON inválido.';
     return;
   }
 
@@ -311,7 +319,7 @@ async function importOfflineManual(event) {
   try {
     responses = JSON.parse(manualResponsesPayload.value);
   } catch (error) {
-    manualImportResult.textContent = 'JSON de respuestas invalido.';
+    manualImportResult.textContent = 'JSON de respuestas inválido.';
     return;
   }
 
@@ -559,11 +567,57 @@ async function exportReviewCsv() {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+function clearSubmissionFilters() {
+  searchInput.value = '';
+  statusFilter.value = '';
+  eligibilityFilter.value = '';
+  evaluationFilter.value = '';
+  originFilter.value = '';
+  workFilter.value = '';
+  renderTable();
+}
+
+function clearReviewFilters() {
+  reviewSearchInput.value = '';
+  reviewEvaluationFilter.value = '';
+  reviewEligibilityFilter.value = '';
+  renderReviewSummary();
+}
+
+function applyQuickFilter(filter) {
+  clearSubmissionFilters();
+  clearReviewFilters();
+  if (filter === 'CLEAR') {
+    showView('submissions');
+    return;
+  }
+  if (filter === 'READY_TO_EVALUATE') {
+    eligibilityFilter.value = 'READY_FOR_TECHNICAL_REVIEW';
+    evaluationFilter.value = 'NOT_STARTED';
+    reviewEligibilityFilter.value = 'READY_FOR_TECHNICAL_REVIEW';
+    reviewEvaluationFilter.value = 'NOT_STARTED';
+    showView('review');
+  } else if (filter === 'EVALUATION_IN_PROGRESS') {
+    evaluationFilter.value = 'IN_PROGRESS';
+    reviewEvaluationFilter.value = 'IN_PROGRESS';
+    showView('review');
+  } else if (filter === 'OPEN_ISSUES') {
+    workFilter.value = 'OPEN_ISSUES';
+    showView('submissions');
+  } else if (filter === 'DOCS_TO_REVIEW') {
+    workFilter.value = 'DOCS_NEED_REVIEW';
+    showView('submissions');
+  }
+  renderTable();
+  renderReviewSummary();
+}
+
 async function selectSubmission(submissionId) {
   selectedId = submissionId;
   renderTable();
   detailPanel.innerHTML = '<p class="muted">Cargando...</p>';
   const detail = await api(`/api/admin/submissions/${encodeURIComponent(submissionId)}`);
+  selectedDetail = detail;
   const candidate = detail.candidate || {};
   const submission = detail.submission || {};
   detailPanel.innerHTML = `
@@ -572,7 +626,10 @@ async function selectSubmission(submissionId) {
         <h2>${escapeHtml(fullName(candidate) || 'Sin nombre')}</h2>
         <p class="muted">${escapeHtml(candidate.email || '')}</p>
       </div>
-      ${evaluationBadge(detail.evaluation_result?.status || 'NOT_STARTED')}
+      <div class="detail-actions">
+        ${evaluationBadge(detail.evaluation_result?.status || 'NOT_STARTED')}
+        <button type="button" class="ghost compact" data-print-summary="${escapeHtml(submission.submission_id)}">Resumen</button>
+      </div>
     </div>
     <div class="status-strip">
       ${statusBadge(submission.normalization_status)}
@@ -628,7 +685,7 @@ async function selectSubmission(submissionId) {
 function renderEligibility(assessment, submissionId) {
   if (!assessment) {
     return `
-      <p class="muted">Sin evaluacion preliminar registrada.</p>
+      <p class="muted">Sin evaluación preliminar registrada.</p>
       <button type="button" data-eligibility-recalculate="${escapeHtml(submissionId)}">Recalcular</button>
     `;
   }
@@ -644,7 +701,7 @@ function renderEligibility(assessment, submissionId) {
         </select>
         <button type="button" data-eligibility-save="${escapeHtml(assessment.eligibility_assessment_id)}">Guardar</button>
       </div>
-      <input class="note-input" data-eligibility-note="${escapeHtml(assessment.eligibility_assessment_id)}" type="text" value="${escapeHtml(assessment.manual_note || '')}" placeholder="Nota de revision">
+      <input class="note-input" data-eligibility-note="${escapeHtml(assessment.eligibility_assessment_id)}" type="text" value="${escapeHtml(assessment.manual_note || '')}" placeholder="Nota de revisión">
       <div class="action-row single">
         <button type="button" class="ghost" data-eligibility-recalculate="${escapeHtml(submissionId)}">Recalcular</button>
       </div>
@@ -654,7 +711,7 @@ function renderEligibility(assessment, submissionId) {
 }
 
 function renderEligibilityChecks(checks) {
-  if (!checks.length) return '<p class="muted">Sin checks registrados.</p>';
+  if (!checks.length) return '<p class="muted">Sin comprobaciones registradas.</p>';
   return `<div class="check-list">${checks.map(check => `
     <div class="check-row">
       ${checkStatusBadge(check.status)}
@@ -668,7 +725,7 @@ function renderEligibilityChecks(checks) {
 
 function renderTechnicalEvaluation(detail) {
   const criteria = detail.evaluation_criteria || [];
-  if (!criteria.length) return '<p class="muted">Catalogo de criterios no configurado.</p>';
+  if (!criteria.length) return '<p class="muted">Catálogo de criterios no configurado.</p>';
   const evaluations = new Map((detail.criterion_evaluations || []).map(item => [item.criterion_id, item]));
   const result = detail.evaluation_result || {};
   return `
@@ -697,7 +754,7 @@ function renderCriterionReview(submissionId, criterion, evaluation = {}) {
         <input class="score-input" data-evaluation-score="${escapeHtml(criterion.criterion_id)}" type="number" min="0" max="100" step="0.01" value="${escapeHtml(evaluation.score ?? '')}" placeholder="Puntaje">
         <button type="button" data-evaluation-save="${escapeHtml(criterion.criterion_id)}" data-submission-id="${escapeHtml(submissionId)}">Guardar</button>
       </div>
-      <textarea data-evaluation-evidence="${escapeHtml(criterion.criterion_id)}" rows="2" placeholder="Elementos que sustentan la revision">${escapeHtml(evaluation.evidence_summary || '')}</textarea>
+      <textarea data-evaluation-evidence="${escapeHtml(criterion.criterion_id)}" rows="2" placeholder="Elementos que sustentan la revisión">${escapeHtml(evaluation.evidence_summary || '')}</textarea>
       <textarea data-evaluation-note="${escapeHtml(criterion.criterion_id)}" rows="2" placeholder="Nota interna">${escapeHtml(evaluation.evaluator_note || '')}</textarea>
       <span class="muted">${escapeHtml(evaluation.evaluated_by || '')} ${evaluation.evaluated_at ? formatDate(evaluation.evaluated_at) : ''}</span>
     </div>
@@ -716,7 +773,7 @@ function renderIssues(issues) {
         </select>
         <button type="button" data-issue-save="${escapeHtml(issue.normalization_issue_id)}">Guardar</button>
       </div>
-      <input class="note-input" data-issue-note="${escapeHtml(issue.normalization_issue_id)}" type="text" value="${escapeHtml(issue.review_note || '')}" placeholder="Nota de revision">
+      <input class="note-input" data-issue-note="${escapeHtml(issue.normalization_issue_id)}" type="text" value="${escapeHtml(issue.review_note || '')}" placeholder="Nota de revisión">
       <span class="muted">${escapeHtml(issue.reviewed_by || '')} ${issue.reviewed_at ? formatDate(issue.reviewed_at) : ''}</span>
     </div>
   `).join('')}</div>`;
@@ -853,6 +910,10 @@ function bindDetailActions() {
       });
       await loadData();
     });
+  });
+
+  detailPanel.querySelectorAll('[data-print-summary]').forEach(button => {
+    button.addEventListener('click', printCurrentSummary);
   });
 }
 
@@ -1088,4 +1149,91 @@ function pendingWorkBadge(detail) {
   if (docsToReview) badges.push(`<span class="badge warn">${escapeHtml(docsToReview)} documentos por revisar</span>`);
   if (!badges.length) badges.push('<span class="badge ok">Sin pendientes operativos</span>');
   return badges.join('');
+}
+
+function printCurrentSummary() {
+  if (!selectedDetail) return;
+  const summaryWindow = window.open('', '_blank', 'noopener,noreferrer,width=980,height=760');
+  if (!summaryWindow) return;
+  summaryWindow.document.write(summaryHtml(selectedDetail));
+  summaryWindow.document.close();
+  summaryWindow.focus();
+  setTimeout(() => summaryWindow.print(), 250);
+}
+
+function summaryHtml(detail) {
+  const candidate = detail.candidate || {};
+  const submission = detail.submission || {};
+  const eligibility = detail.eligibility_assessment || {};
+  const evaluation = detail.evaluation_result || {};
+  const criteria = detail.criterion_evaluations || [];
+  const documents = detail.documents || [];
+  const issues = detail.issues || [];
+  return `<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Resumen FdF 2026 - ${escapeHtml(fullName(candidate) || submission.submission_id)}</title>
+  <style>
+    body{font:13px/1.45 Arial,sans-serif;color:#1d252c;margin:28px}
+    h1{font-size:22px;margin:0 0 4px}
+    h2{font-size:15px;margin:22px 0 8px;border-bottom:1px solid #cfd8dc;padding-bottom:4px}
+    table{width:100%;border-collapse:collapse;margin-top:8px}
+    th,td{border:1px solid #d8dee3;padding:7px;text-align:left;vertical-align:top}
+    th{background:#eef2f3}
+    .muted{color:#63707b}
+    .status{display:inline-block;border:1px solid #cfd8dc;padding:2px 6px;margin:2px 4px 2px 0}
+    .foot{margin-top:22px;font-size:12px;color:#63707b}
+  </style>
+</head>
+<body>
+  <h1>Resumen de expediente FdF 2026</h1>
+  <p class="muted">Documento operativo interno. No constituye ranking, selección ni decisión final.</p>
+  <h2>Identificación</h2>
+  ${summaryTable([
+    ['Postulante', fullName(candidate) || 'Sin nombre'],
+    ['Correo', candidate.email || ''],
+    ['Provincia', candidate.province || ''],
+    ['Identificación', candidate.identification_number || ''],
+    ['Postulación', submission.submission_id || ''],
+    ['Origen', label('sourceChannels', submission.source_channel)],
+    ['Referencia', submission.source_reference || ''],
+    ['Recibido', formatDate(submission.received_at)],
+  ])}
+  <h2>Estados operativos</h2>
+  <p>
+    <span class="status">${escapeHtml(label('normalization', submission.normalization_status))}</span>
+    <span class="status">${escapeHtml(label('eligibility', eligibility.status || 'SIN_EVALUAR'))}</span>
+    <span class="status">${escapeHtml(label('evaluation', evaluation.status || 'NOT_STARTED'))}</span>
+  </p>
+  <h2>Documentos</h2>
+  ${summaryTable(documents.map(document => [
+    label('documents', document.document_type),
+    `${label('documents', document.status)} - ${document.original_name || document.storage_reference || ''}`,
+  ]))}
+  <h2>Admisibilidad preliminar</h2>
+  ${summaryTable((eligibility.check_results || []).map(check => [
+    label('checks', check.check_id),
+    `${label('checks', check.status)}. ${checkDescription(check)}`,
+  ]))}
+  <h2>Evaluación técnica</h2>
+  ${summaryTable(criteria.map(item => [
+    item.criterion_label,
+    `${label('evaluation', item.status)}${item.score === null || item.score === undefined ? '' : ` - Puntaje: ${item.score}`}${item.evidence_summary ? `. ${item.evidence_summary}` : ''}`,
+  ]))}
+  <h2>Incidencias</h2>
+  ${summaryTable(issues.map(issue => [
+    issue.field_code || issue.code,
+    `${label('issues', issue.review_status || 'OPEN')}. ${issue.message}`,
+  ]))}
+  <p class="foot">Generado desde la consola administrativa FdF 2026 el ${escapeHtml(formatDate(new Date().toISOString()))}.</p>
+</body>
+</html>`;
+}
+
+function summaryTable(rows) {
+  if (!rows.length) return '<p class="muted">Sin registros.</p>';
+  return `<table><tbody>${rows.map(([key, value]) => `
+    <tr><th>${escapeHtml(key)}</th><td>${escapeHtml(value)}</td></tr>
+  `).join('')}</tbody></table>`;
 }
