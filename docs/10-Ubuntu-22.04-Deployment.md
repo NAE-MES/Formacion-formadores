@@ -26,6 +26,8 @@ Scripts disponibles:
 ```bash
 deploy/ubuntu/check-server.sh
 deploy/ubuntu/install-api.sh
+deploy/ubuntu/clean-operational-data.sh
+deploy/ubuntu/install-db-backups.sh
 ```
 
 `check-server.sh` no modifica el servidor.
@@ -33,11 +35,20 @@ deploy/ubuntu/install-api.sh
 `install-api.sh` solo debe ejecutarse despues de revisar la salida del
 check.
 
+`clean-operational-data.sh` elimina datos operativos de prueba, pero
+conserva la estructura de la base y los usuarios administrativos
+registrados en `admin_users`.
+
+`install-db-backups.sh` instala una salva diaria de PostgreSQL con
+systemd timer y guarda los respaldos fuera del proyecto.
+
 Antes de ejecutar en el servidor:
 
 ```bash
 bash -n deploy/ubuntu/check-server.sh
 bash -n deploy/ubuntu/install-api.sh
+bash -n deploy/ubuntu/clean-operational-data.sh
+bash -n deploy/ubuntu/install-db-backups.sh
 ```
 
 ## Variables de entorno
@@ -144,3 +155,61 @@ curl https://TU_DOMINIO/health
 ```
 
 Para pruebas de ingesta, usar datos sinteticos.
+
+## Limpieza de datos de prueba
+
+Para limpiar datos operativos antes de comenzar una etapa real de
+recepcion, ejecutar en el servidor:
+
+```bash
+cd /home/ituser/formacion-formadores
+sudo CONFIRM_CLEAN_FDF_2026=YES deploy/ubuntu/clean-operational-data.sh
+```
+
+Por defecto el script crea una salva previa en:
+
+```text
+/var/backups/fdf-2026/postgres
+```
+
+Tablas limpiadas:
+
+- `admin_sessions`
+- `audit_events`
+- `evaluation_results`
+- `criterion_evaluations`
+- `eligibility_assessments`
+- `normalization_issues`
+- `documents`
+- `candidate_responses`
+- `submission_raws`
+- `submissions`
+- `candidates`
+
+No se limpia `admin_users`.
+
+## Salvas diarias de base de datos
+
+Para configurar salvas diarias:
+
+```bash
+cd /home/ituser/formacion-formadores
+sudo deploy/ubuntu/install-db-backups.sh
+```
+
+Configuracion por defecto:
+
+- directorio: `/var/backups/fdf-2026/postgres`
+- hora: 02:15 del servidor
+- retencion: 30 dias
+- timer: `fdf-db-backup.timer`
+- servicio: `fdf-db-backup.service`
+
+Comandos utiles:
+
+```bash
+systemctl list-timers fdf-db-backup.timer
+sudo systemctl start fdf-db-backup.service
+sudo journalctl -u fdf-db-backup.service -n 50 --no-pager
+sudo ls -lh /var/backups/fdf-2026/postgres
+```
