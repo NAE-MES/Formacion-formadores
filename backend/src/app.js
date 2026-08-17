@@ -22,7 +22,7 @@ function createApp({ config, repository }) {
         return sendJson(res, 200, { status: 'ok' });
       }
 
-      if (req.method === 'GET' && req.url === '/') {
+      if ((req.method === 'GET' || req.method === 'HEAD') && req.url === '/') {
         return redirect(res, '/admin');
       }
 
