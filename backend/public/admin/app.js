@@ -1147,17 +1147,36 @@ async function selectSubmission(submissionId, options = {}) {
       <span class="badge">${escapeHtml(label('sourceChannels', submission.source_channel))}</span>
       ${pendingWorkBadge(detail)}
     </div>
-    <dl class="kv">
-      <dt>Postulación</dt><dd>${escapeHtml(submission.submission_id)}</dd>
-      <dt>Origen</dt><dd>${escapeHtml(label('sourceChannels', submission.source_channel))}</dd>
-      <dt>Referencia</dt><dd>${escapeHtml(submission.source_reference)}</dd>
-      <dt>Recibido</dt><dd>${formatDate(submission.received_at)}</dd>
-      <dt>Normalización</dt><dd>${statusBadge(submission.normalization_status)}</dd>
-      <dt>Admisibilidad</dt><dd>${eligibilityBadge(detail.eligibility_assessment?.status || '')}</dd>
-      <dt>Evaluación</dt><dd>${evaluationBadge(detail.evaluation_result?.status || 'NOT_STARTED')}</dd>
-      <dt>Provincia</dt><dd>${escapeHtml(candidate.province || '')}</dd>
-      <dt>CI</dt><dd>${escapeHtml(candidate.identification_number || '')}</dd>
-    </dl>
+    <div class="detail-overview">
+      <section class="detail-info-card">
+        <h3>Datos del postulante</h3>
+        <dl class="kv">
+          <dt>Nombre</dt><dd>${escapeHtml(fullName(candidate) || 'Sin nombre')}</dd>
+          <dt>Correo</dt><dd>${escapeHtml(candidate.email || 'No registrado')}</dd>
+          <dt>Provincia</dt><dd>${escapeHtml(candidate.province || 'No registrada')}</dd>
+          <dt>CI</dt><dd>${escapeHtml(candidate.identification_number || 'No registrado')}</dd>
+        </dl>
+      </section>
+
+      <section class="detail-info-card">
+        <h3>Entrada y trazabilidad</h3>
+        <dl class="kv">
+          <dt>Postulación</dt><dd>${escapeHtml(submission.submission_id)}</dd>
+          <dt>Origen</dt><dd>${escapeHtml(label('sourceChannels', submission.source_channel))}</dd>
+          <dt>Referencia</dt><dd>${escapeHtml(submission.source_reference || 'No registrada')}</dd>
+          <dt>Recibido</dt><dd>${formatDate(submission.received_at)}</dd>
+        </dl>
+      </section>
+
+      <section class="detail-info-card">
+        <h3>Estado del expediente</h3>
+        <dl class="kv">
+          <dt>Normalización</dt><dd>${statusBadge(submission.normalization_status)}</dd>
+          <dt>Admisibilidad</dt><dd>${eligibilityBadge(detail.eligibility_assessment?.status || '')}</dd>
+          <dt>Evaluación</dt><dd>${evaluationBadge(detail.evaluation_result?.status || 'NOT_STARTED')}</dd>
+        </dl>
+      </section>
+    </div>
 
     <section class="detail-section">
       <h3>Admisibilidad preliminar</h3>
