@@ -538,6 +538,10 @@ function renderWorkboard() {
     ['BLOCKED_BY_MISSING_REQUIREMENTS', 'REQUIRES_MANUAL_REVIEW'].includes(row.eligibility_status || 'SIN_EVALUAR')
   );
   const inProgress = evaluationMatrixRows.filter(row => (row.evaluation_status || 'NOT_STARTED') === 'IN_PROGRESS');
+  const technicalEvaluation = [
+    ...readyToEvaluate.map(row => ({ ...row, workboard_evaluation_state: 'Pendiente' })),
+    ...inProgress.map(row => ({ ...row, workboard_evaluation_state: 'En curso' })),
+  ].sort((a, b) => String(b.received_at).localeCompare(String(a.received_at)));
   const pendingAttention = openIssues.length + documentTasks.length + eligibilityReview.length;
   const attentionTarget = openIssues.length
     ? ['issues', 'OPEN']
@@ -547,16 +551,14 @@ function renderWorkboard() {
 
   workboardStats.innerHTML = [
     workboardStat('Por atender', pendingAttention, attentionTarget[0], attentionTarget[1]),
-    workboardStat('Listas por evaluar', readyToEvaluate.length, 'matrix', 'READY_TO_EVALUATE'),
-    workboardStat('Evaluación en curso', inProgress.length, 'matrix', 'IN_PROGRESS'),
+    workboardStat('Evaluación técnica', technicalEvaluation.length, 'matrix', ''),
   ].join('');
 
   const sections = [
     workboardIssueSection(openIssues),
     workboardDocumentSection(documentTasks),
     workboardSubmissionSection('eligibility', 'Admisibilidad por revisar', eligibilityReview, 'submissions', 'Revisar expedientes'),
-    workboardSubmissionSection('ready', 'Listas para evaluación técnica', readyToEvaluate, 'matrix', 'Capturar evaluación'),
-    workboardSubmissionSection('progress', 'Evaluación en curso', inProgress, 'matrix', 'Continuar'),
+    workboardEvaluationSection(technicalEvaluation),
   ].filter(section => section.count > 0);
   workboardSections.innerHTML = sections.length
     ? orderWorkboardSections(sections).slice(0, 4).map(section => section.html).join('')
@@ -587,10 +589,10 @@ function workboardStat(title, value, target, filter) {
 
 function orderWorkboardSections(sections) {
   const roleOrders = {
-    INTAKE: ['issues', 'documents', 'eligibility', 'ready', 'progress'],
-    REVIEWER: ['ready', 'progress', 'eligibility', 'issues', 'documents'],
-    VIEWER: ['progress', 'issues', 'documents', 'eligibility', 'ready'],
-    ADMIN: ['issues', 'documents', 'eligibility', 'ready', 'progress'],
+    INTAKE: ['issues', 'documents', 'eligibility', 'evaluation'],
+    REVIEWER: ['evaluation', 'eligibility', 'issues', 'documents'],
+    VIEWER: ['evaluation', 'issues', 'documents', 'eligibility'],
+    ADMIN: ['issues', 'documents', 'eligibility', 'evaluation'],
   };
   const order = roleOrders[currentUser?.role] || roleOrders.ADMIN;
   return sections.slice().sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
@@ -640,6 +642,23 @@ function workboardSubmissionSection(key, title, rows, target, actionText) {
     <div>
       ${operationalBadge(row)}
       ${eligibilityBadge(row.eligibility_status)}
+      ${evaluationBadge(row.evaluation_status)}
+    </div>
+  `),
+  };
+}
+
+function workboardEvaluationSection(rows) {
+  return {
+    key: 'evaluation',
+    count: rows.length,
+    html: workboardSection('Evaluación técnica', rows, 'matrix', 'Ver matriz técnica', row => `
+    <div>
+      <strong>${escapeHtml(row.full_name || 'Sin nombre')}</strong><br>
+      <span class="muted">${escapeHtml(row.province || '')} - ${escapeHtml(label('sourceChannels', row.source_channel))}</span>
+    </div>
+    <div>
+      <span class="badge">${escapeHtml(row.workboard_evaluation_state || 'Pendiente')}</span>
       ${evaluationBadge(row.evaluation_status)}
     </div>
   `),
