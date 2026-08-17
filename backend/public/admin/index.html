@@ -1,15 +1,732 @@
 <!doctype html>
 <html lang="es">
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>FdF 2026 - Gestión</title>
-    <link rel="stylesheet" href="/admin/styles.css">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FdF 2026 · Gestión</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
+    <style>
+      /* ============================================================
+         ROOT & RESET
+         ============================================================ */
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      :root {
+        color-scheme: light;
+        --blue: #002c43;
+        --blue-dark: #001f30;
+        --blue-light: #e3eef9;
+        --blue-muted: #7faec9;
+        --bg: #f4f8fd;
+        --panel: #ffffff;
+        --text: #0b1c28;
+        --muted: #4b6a7e;
+        --line: #dce7f2;
+        --shadow: 0 8px 24px -8px rgba(0, 44, 67, 0.10);
+        --radius: 16px;
+        --radius-sm: 10px;
+        --font: "Inter", system-ui, -apple-system, sans-serif;
+      }
+
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--font);
+        font-size: 14px;
+        line-height: 1.5;
+        min-height: 100vh;
+        padding: 0;
+        margin: 0;
+      }
+
+      /* ============================================================
+         TOPBAR
+         ============================================================ */
+      .topbar {
+        background: var(--panel);
+        padding: 16px 28px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        box-shadow: 0 2px 8px rgba(0, 44, 67, 0.02);
+      }
+
+      .topbar-left h1 {
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--blue);
+        letter-spacing: -0.02em;
+      }
+
+      .topbar-left p {
+        color: var(--muted);
+        font-weight: 450;
+        font-size: 0.85rem;
+      }
+
+      .top-actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .top-actions .badge {
+        background: var(--blue-light);
+        border: 1px solid #cdddee;
+        border-radius: 40px;
+        padding: 4px 14px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--blue-dark);
+      }
+
+      .top-actions button,
+      .top-actions .button-link {
+        background: transparent;
+        border: none;
+        padding: 6px 14px;
+        font-weight: 500;
+        font-size: 0.8rem;
+        color: var(--muted);
+        cursor: pointer;
+        border-radius: 40px;
+        transition: 0.12s;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .top-actions button:hover,
+      .top-actions .button-link:hover {
+        background: var(--blue-light);
+        color: var(--blue);
+      }
+
+      .top-actions button.ghost-active {
+        background: var(--blue);
+        color: #fff;
+      }
+
+      #logoutButton {
+        color: #b34a4a;
+      }
+      #logoutButton:hover {
+        background: #fee8e8;
+        color: #a13333;
+      }
+
+      /* ============================================================
+         SHELL
+         ============================================================ */
+      .shell {
+        max-width: 1480px;
+        margin: 0 auto;
+        padding: 24px 28px 40px;
+      }
+
+      /* ============================================================
+         LOGIN PANEL
+         ============================================================ */
+      .login-panel {
+        max-width: 420px;
+        margin: 40px auto;
+        background: var(--panel);
+        border-radius: var(--radius);
+        padding: 32px 28px;
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow);
+      }
+
+      .login-form {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+
+      .login-form label {
+        font-weight: 600;
+        font-size: 0.8rem;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      .login-form input {
+        padding: 10px 14px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        font: inherit;
+        background: #fafcfe;
+        transition: 0.1s;
+      }
+
+      .login-form input:focus {
+        border-color: var(--blue);
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(0, 44, 67, 0.08);
+      }
+
+      .token-row {
+        display: flex;
+        gap: 10px;
+      }
+      .token-row input {
+        flex: 1;
+      }
+      .token-row button {
+        background: var(--blue);
+        color: #fff;
+        border: none;
+        border-radius: var(--radius-sm);
+        padding: 0 20px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: 0.1s;
+      }
+      .token-row button:hover {
+        background: var(--blue-dark);
+      }
+
+      .error {
+        color: #b34a4a;
+        font-weight: 500;
+        min-height: 24px;
+      }
+
+      /* ============================================================
+         WORKSPACE
+         ============================================================ */
+      .workspace {
+        display: block;
+        margin-top: 20px;
+      }
+
+      .view {
+        display: none;
+        animation: fadeUp 0.2s ease;
+      }
+      .view.active {
+        display: block;
+      }
+
+      @keyframes fadeUp {
+        0% { opacity: 0; transform: translateY(6px); }
+        100% { opacity: 1; transform: translateY(0); }
+      }
+
+      /* ============================================================
+         WORKBOARD
+         ============================================================ */
+      .workboard-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+
+      .workboard-head h2 {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: var(--blue);
+      }
+
+      .workboard-head .muted {
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      .workboard-head button {
+        background: var(--blue);
+        color: #fff;
+        border: none;
+        border-radius: 40px;
+        padding: 8px 22px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: 0.1s;
+      }
+      .workboard-head button:hover {
+        background: var(--blue-dark);
+      }
+
+      .workboard-sections {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 20px;
+      }
+
+      .board-card {
+        background: var(--panel);
+        border-radius: var(--radius);
+        border: 1px solid var(--line);
+        padding: 16px 18px 18px;
+        box-shadow: var(--shadow);
+      }
+
+      .board-card h3 {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-bottom: 12px;
+      }
+
+      .board-item {
+        padding: 10px 12px;
+        background: var(--bg);
+        border-radius: var(--radius-sm);
+        margin-bottom: 8px;
+        border-left: 4px solid var(--blue);
+        font-weight: 500;
+        font-size: 0.9rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .board-item .meta {
+        color: var(--muted);
+        font-weight: 400;
+        font-size: 0.75rem;
+      }
+
+      .board-item .tag {
+        background: var(--blue-light);
+        color: var(--blue-dark);
+        border-radius: 40px;
+        padding: 0 10px;
+        font-size: 0.7rem;
+        font-weight: 600;
+      }
+
+      /* ============================================================
+         TOOLBARS
+         ============================================================ */
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 16px;
+        background: var(--panel);
+        padding: 12px 16px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--line);
+      }
+
+      .toolbar input,
+      .toolbar select {
+        padding: 7px 12px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        font: inherit;
+        background: #fafcfe;
+        min-width: 120px;
+        flex: 1 0 auto;
+      }
+
+      .toolbar input:focus,
+      .toolbar select:focus {
+        border-color: var(--blue);
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(0, 44, 67, 0.06);
+      }
+
+      .toolbar button {
+        background: var(--blue);
+        color: #fff;
+        border: none;
+        border-radius: 40px;
+        padding: 7px 18px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: 0.1s;
+        white-space: nowrap;
+      }
+      .toolbar button:hover {
+        background: var(--blue-dark);
+      }
+
+      .toolbar button.ghost {
+        background: transparent;
+        color: var(--muted);
+        border: 1px solid var(--line);
+        padding: 6px 16px;
+      }
+      .toolbar button.ghost:hover {
+        background: var(--blue-light);
+        color: var(--blue);
+        border-color: var(--blue);
+      }
+
+      .result-count {
+        color: var(--muted);
+        font-size: 0.85rem;
+        margin-bottom: 12px;
+      }
+
+      /* ============================================================
+         TABLES
+         ============================================================ */
+      .table-wrap {
+        overflow-x: auto;
+        background: var(--panel);
+        border-radius: var(--radius);
+        border: 1px solid var(--line);
+        padding: 4px 0;
+        box-shadow: var(--shadow);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+      }
+
+      thead {
+        background: var(--bg);
+        border-bottom: 2px solid var(--line);
+      }
+
+      th {
+        text-align: left;
+        padding: 12px 14px;
+        font-weight: 600;
+        color: var(--muted);
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      td {
+        padding: 11px 14px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: middle;
+      }
+
+      tr:last-child td {
+        border-bottom: none;
+      }
+
+      tr:hover td {
+        background: #fafcfe;
+      }
+
+      .status-badge {
+        display: inline-block;
+        padding: 2px 10px;
+        border-radius: 40px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        background: var(--blue-light);
+        color: var(--blue-dark);
+      }
+
+      .status-badge.danger {
+        background: #fee8e8;
+        color: #b34a4a;
+      }
+      .status-badge.success {
+        background: #e2f3ed;
+        color: #0f766e;
+      }
+      .status-badge.warning {
+        background: #fff3e0;
+        color: #b45309;
+      }
+
+      /* ============================================================
+         DETAIL PANEL (submissions)
+         ============================================================ */
+      .content-grid {
+        display: grid;
+        grid-template-columns: 1fr 340px;
+        gap: 20px;
+        margin-top: 4px;
+      }
+
+      .detail {
+        background: var(--panel);
+        border-radius: var(--radius);
+        border: 1px solid var(--line);
+        padding: 18px;
+        box-shadow: var(--shadow);
+        min-height: 200px;
+      }
+
+      .detail .muted {
+        color: var(--muted);
+      }
+
+      /* ============================================================
+         BULK BARS
+         ============================================================ */
+      .bulk-bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+        background: var(--panel);
+        padding: 10px 16px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--line);
+        margin-bottom: 16px;
+      }
+
+      .bulk-bar select,
+      .bulk-bar input {
+        padding: 6px 12px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        font: inherit;
+        background: #fafcfe;
+      }
+
+      .bulk-bar button {
+        background: var(--blue);
+        color: #fff;
+        border: none;
+        border-radius: 40px;
+        padding: 6px 18px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .bulk-bar button:hover {
+        background: var(--blue-dark);
+      }
+
+      /* ============================================================
+         INTAKE (offline)
+         ============================================================ */
+      .intake-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+      }
+
+      .import-panel {
+        background: var(--panel);
+        border-radius: var(--radius);
+        border: 1px solid var(--line);
+        padding: 18px 20px 22px;
+        box-shadow: var(--shadow);
+      }
+
+      .import-panel summary {
+        font-weight: 700;
+        font-size: 1rem;
+        cursor: pointer;
+        color: var(--blue);
+        padding: 4px 0 10px;
+      }
+
+      .offline-form {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin-top: 6px;
+      }
+
+      .offline-form label {
+        font-weight: 600;
+        font-size: 0.75rem;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      .offline-form input,
+      .offline-form textarea,
+      .offline-form select {
+        padding: 8px 12px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        font: inherit;
+        background: #fafcfe;
+        width: 100%;
+      }
+
+      .offline-form textarea {
+        resize: vertical;
+        font-family: monospace;
+        font-size: 0.8rem;
+      }
+
+      .doc-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      .offline-form .action-row {
+        display: flex;
+        gap: 12px;
+        margin-top: 4px;
+      }
+
+      .offline-form button {
+        background: var(--blue);
+        color: #fff;
+        border: none;
+        border-radius: 40px;
+        padding: 8px 28px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: 0.1s;
+      }
+      .offline-form button:hover {
+        background: var(--blue-dark);
+      }
+
+      .offline-form .muted {
+        color: var(--muted);
+        font-size: 0.85rem;
+        min-height: 20px;
+      }
+
+      /* ============================================================
+         USERS
+         ============================================================ */
+      .users-grid {
+        display: grid;
+        grid-template-columns: 340px 1fr;
+        gap: 24px;
+      }
+
+      .user-table-wrap {
+        overflow-x: auto;
+        background: var(--panel);
+        border-radius: var(--radius);
+        border: 1px solid var(--line);
+        padding: 4px 0;
+        box-shadow: var(--shadow);
+      }
+
+      /* ============================================================
+         MATRIX / STATS
+         ============================================================ */
+      .matrix-stats,
+      .issue-stats {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+
+      .stat-chip {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 40px;
+        padding: 4px 16px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        color: var(--muted);
+      }
+
+      .stat-chip strong {
+        color: var(--text);
+        font-weight: 700;
+      }
+
+      /* ============================================================
+         RESPONSIVE
+         ============================================================ */
+      @media (max-width: 1024px) {
+        .content-grid {
+          grid-template-columns: 1fr;
+        }
+        .intake-grid {
+          grid-template-columns: 1fr;
+        }
+        .users-grid {
+          grid-template-columns: 1fr;
+        }
+        .topbar {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+        .top-actions {
+          width: 100%;
+          justify-content: flex-start;
+        }
+        .shell {
+          padding: 16px 16px 32px;
+        }
+        .doc-grid {
+          grid-template-columns: 1fr;
+        }
+        .workboard-sections {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+
+      @media (max-width: 600px) {
+        .workboard-sections {
+          grid-template-columns: 1fr;
+        }
+        .toolbar {
+          flex-direction: column;
+          align-items: stretch;
+        }
+        .toolbar input,
+        .toolbar select {
+          flex: 1;
+        }
+        .bulk-bar {
+          flex-direction: column;
+          align-items: stretch;
+        }
+        .top-actions button,
+        .top-actions .button-link {
+          font-size: 0.75rem;
+          padding: 4px 10px;
+        }
+        .login-panel {
+          padding: 24px 18px;
+        }
+      }
+
+      /* ============================================================
+         MISC
+         ============================================================ */
+      .muted {
+        color: var(--muted);
+      }
+      .hidden {
+        display: none !important;
+      }
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+    </style>
   </head>
   <body>
     <main class="shell">
+      <!-- TOPBAR -->
       <section class="topbar">
-        <div>
+        <div class="topbar-left">
           <h1>FdF 2026</h1>
           <p>Sistema de postulaciones</p>
         </div>
@@ -26,20 +743,23 @@
         </div>
       </section>
 
+      <!-- LOGIN -->
       <section id="loginPanel" class="login-panel" hidden>
         <form id="loginForm" class="login-form">
           <label for="adminUsername">Usuario</label>
-          <input id="adminUsername" name="adminUsername" type="text" autocomplete="username" required>
+          <input id="adminUsername" name="adminUsername" type="text" autocomplete="username" required />
           <label for="adminPassword">Contraseña</label>
           <div class="token-row">
-            <input id="adminPassword" name="adminPassword" type="password" autocomplete="current-password" required>
+            <input id="adminPassword" name="adminPassword" type="password" autocomplete="current-password" required />
             <button type="submit">Entrar</button>
           </div>
           <p id="loginError" class="error" role="alert"></p>
         </form>
       </section>
 
+      <!-- APP -->
       <section id="appPanel" class="workspace" hidden>
+        <!-- VIEW: WORKBOARD -->
         <section id="view-workboard" class="view active">
           <div class="workboard-head">
             <div>
@@ -51,236 +771,110 @@
           <div id="workboardSections" class="workboard-sections"></div>
         </section>
 
+        <!-- VIEW: SUBMISSIONS (expedientes) -->
         <section id="view-submissions" class="view">
-        <div class="view-head">
-          <div>
-            <h2>Expedientes</h2>
-            <p class="muted">Búsqueda y revisión completa de postulaciones.</p>
+          <div class="view-head" style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;">
+            <div>
+              <h2 style="font-size:1.2rem;color:var(--blue);">Expedientes</h2>
+              <p class="muted" style="font-size:0.85rem;">Búsqueda y revisión completa de postulaciones.</p>
+            </div>
+            <a class="button-link ghost" href="/admin" style="background:transparent;border:1px solid var(--line);padding:6px 18px;border-radius:40px;text-decoration:none;color:var(--muted);font-weight:500;">Volver a Bandeja</a>
           </div>
-          <a class="button-link ghost" href="/admin">Volver a Bandeja</a>
-        </div>
-        <div class="toolbar">
-          <input id="searchInput" type="search" placeholder="Buscar por nombre, correo, provincia o ID">
-          <select id="statusFilter">
-            <option value="">Normalización</option>
-            <option value="NORMALIZED">Normalizada</option>
-            <option value="WITH_ISSUES">Con incidencias</option>
-            <option value="REJECTED">Rechazada</option>
-          </select>
-          <select id="eligibilityFilter">
-            <option value="">Admisibilidad</option>
-            <option value="READY_FOR_TECHNICAL_REVIEW">Lista para revisión técnica</option>
-            <option value="BLOCKED_BY_MISSING_REQUIREMENTS">Bloqueada por requisitos</option>
-            <option value="REQUIRES_MANUAL_REVIEW">Requiere revisión manual</option>
-            <option value="SIN_EVALUAR">Sin evaluar</option>
-          </select>
-          <select id="evaluationFilter">
-            <option value="">Evaluación</option>
-            <option value="NOT_STARTED">No iniciada</option>
-            <option value="IN_PROGRESS">En curso</option>
-            <option value="COMPLETED">Completada</option>
-            <option value="NEEDS_REVIEW">Necesita revisión</option>
-          </select>
-          <select id="originFilter">
-            <option value="">Origen</option>
-            <option value="GOOGLE_FORM">Formulario en línea</option>
-            <option value="OFFLINE_JSON">Offline con JSON</option>
-            <option value="OFFLINE_MANUAL">Offline manual</option>
-          </select>
-          <select id="workFilter">
-            <option value="">Trabajo pendiente</option>
-            <option value="OPEN_ISSUES">Incidencias abiertas</option>
-            <option value="ELIGIBILITY_REVIEW">Admisibilidad por revisar</option>
-            <option value="DOCS_NEED_REVIEW">Documentos en revisión</option>
-            <option value="DOCS_REJECTED">Documentos rechazados</option>
-          </select>
-          <button id="clearFiltersButton" class="ghost" type="button">Limpiar</button>
-          <button id="refreshButton" type="button">Actualizar</button>
-        </div>
-        <p id="submissionsCount" class="result-count"></p>
-
-        <section class="content-grid">
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Postulante</th>
-                  <th>Admisibilidad</th>
-                  <th>Evaluación</th>
-                  <th>Inc.</th>
-                </tr>
-              </thead>
-              <tbody id="submissionsTable"></tbody>
-            </table>
+          <div class="toolbar">
+            <input id="searchInput" type="search" placeholder="Buscar por nombre, correo, provincia o ID" />
+            <select id="statusFilter"><option value="">Normalización</option><option value="NORMALIZED">Normalizada</option><option value="WITH_ISSUES">Con incidencias</option><option value="REJECTED">Rechazada</option></select>
+            <select id="eligibilityFilter"><option value="">Admisibilidad</option><option value="READY_FOR_TECHNICAL_REVIEW">Lista para revisión técnica</option><option value="BLOCKED_BY_MISSING_REQUIREMENTS">Bloqueada por requisitos</option><option value="REQUIRES_MANUAL_REVIEW">Requiere revisión manual</option><option value="SIN_EVALUAR">Sin evaluar</option></select>
+            <select id="evaluationFilter"><option value="">Evaluación</option><option value="NOT_STARTED">No iniciada</option><option value="IN_PROGRESS">En curso</option><option value="COMPLETED">Completada</option><option value="NEEDS_REVIEW">Necesita revisión</option></select>
+            <select id="originFilter"><option value="">Origen</option><option value="GOOGLE_FORM">Formulario en línea</option><option value="OFFLINE_JSON">Offline con JSON</option><option value="OFFLINE_MANUAL">Offline manual</option></select>
+            <select id="workFilter"><option value="">Trabajo pendiente</option><option value="OPEN_ISSUES">Incidencias abiertas</option><option value="ELIGIBILITY_REVIEW">Admisibilidad por revisar</option><option value="DOCS_NEED_REVIEW">Documentos en revisión</option><option value="DOCS_REJECTED">Documentos rechazados</option></select>
+            <button id="clearFiltersButton" class="ghost" type="button">Limpiar</button>
+            <button id="refreshButton" type="button">Actualizar</button>
           </div>
-
-          <aside class="detail" id="detailPanel">
-            <p class="muted">Seleccione una postulación.</p>
-          </aside>
-        </section>
+          <p id="submissionsCount" class="result-count"></p>
+          <div class="content-grid">
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Postulante</th><th>Admisibilidad</th><th>Evaluación</th><th>Inc.</th></tr></thead>
+                <tbody id="submissionsTable"></tbody>
+              </table>
+            </div>
+            <aside class="detail" id="detailPanel"><p class="muted">Seleccione una postulación.</p></aside>
+          </div>
         </section>
 
+        <!-- VIEW: REVIEW (seguimiento) -->
         <section id="view-review" class="view">
           <div class="toolbar review-toolbar">
-            <input id="reviewSearchInput" type="search" placeholder="Buscar en seguimiento">
-            <select id="reviewEvaluationFilter">
-              <option value="">Evaluación</option>
-              <option value="NOT_STARTED">No iniciada</option>
-              <option value="IN_PROGRESS">En curso</option>
-              <option value="COMPLETED">Completada</option>
-              <option value="NEEDS_REVIEW">Necesita revisión</option>
-            </select>
-            <select id="reviewEligibilityFilter">
-              <option value="">Admisibilidad</option>
-              <option value="READY_FOR_TECHNICAL_REVIEW">Lista para revisión técnica</option>
-              <option value="BLOCKED_BY_MISSING_REQUIREMENTS">Bloqueada por requisitos</option>
-              <option value="REQUIRES_MANUAL_REVIEW">Requiere revisión manual</option>
-              <option value="SIN_EVALUAR">Sin evaluar</option>
-            </select>
+            <input id="reviewSearchInput" type="search" placeholder="Buscar en seguimiento" />
+            <select id="reviewEvaluationFilter"><option value="">Evaluación</option><option value="NOT_STARTED">No iniciada</option><option value="IN_PROGRESS">En curso</option><option value="COMPLETED">Completada</option><option value="NEEDS_REVIEW">Necesita revisión</option></select>
+            <select id="reviewEligibilityFilter"><option value="">Admisibilidad</option><option value="READY_FOR_TECHNICAL_REVIEW">Lista para revisión técnica</option><option value="BLOCKED_BY_MISSING_REQUIREMENTS">Bloqueada por requisitos</option><option value="REQUIRES_MANUAL_REVIEW">Requiere revisión manual</option><option value="SIN_EVALUAR">Sin evaluar</option></select>
             <button id="clearReviewFiltersButton" class="ghost" type="button">Limpiar</button>
             <button id="exportReviewCsvButton" type="button">Exportar CSV</button>
           </div>
           <p id="reviewCount" class="result-count"></p>
           <div class="table-wrap">
             <table>
-              <thead>
-                <tr>
-                  <th>Postulante</th>
-                  <th>Provincia</th>
-                  <th>Origen</th>
-                  <th>Admisibilidad</th>
-                  <th>Evaluación</th>
-                  <th>Criterios</th>
-                  <th>Docs</th>
-                  <th>Inc.</th>
-                </tr>
-              </thead>
+              <thead><tr><th>Postulante</th><th>Provincia</th><th>Origen</th><th>Admisibilidad</th><th>Evaluación</th><th>Criterios</th><th>Docs</th><th>Inc.</th></tr></thead>
               <tbody id="reviewSummaryTable"></tbody>
             </table>
           </div>
         </section>
 
+        <!-- VIEW: ISSUES -->
         <section id="view-issues" class="view">
           <div class="toolbar issue-toolbar">
-            <input id="issueSearchInput" type="search" placeholder="Buscar incidencia, postulante, campo o provincia">
-            <select id="issueStatusFilter">
-              <option value="">Estado</option>
-              <option value="OPEN">Abierta</option>
-              <option value="ACKNOWLEDGED">Reconocida</option>
-              <option value="RESOLVED">Resuelta</option>
-              <option value="NEEDS_SOURCE_REVIEW">Revisar fuente</option>
-            </select>
-            <select id="issueSeverityFilter">
-              <option value="">Severidad</option>
-              <option value="ERROR">Error</option>
-              <option value="WARNING">Advertencia</option>
-              <option value="INFO">Informativa</option>
-            </select>
-            <select id="issueOriginFilter">
-              <option value="">Origen</option>
-              <option value="GOOGLE_FORM">Formulario en línea</option>
-              <option value="OFFLINE_JSON">Offline con JSON</option>
-              <option value="OFFLINE_MANUAL">Offline manual</option>
-            </select>
+            <input id="issueSearchInput" type="search" placeholder="Buscar incidencia, postulante, campo o provincia" />
+            <select id="issueStatusFilter"><option value="">Estado</option><option value="OPEN">Abierta</option><option value="ACKNOWLEDGED">Reconocida</option><option value="RESOLVED">Resuelta</option><option value="NEEDS_SOURCE_REVIEW">Revisar fuente</option></select>
+            <select id="issueSeverityFilter"><option value="">Severidad</option><option value="ERROR">Error</option><option value="WARNING">Advertencia</option><option value="INFO">Informativa</option></select>
+            <select id="issueOriginFilter"><option value="">Origen</option><option value="GOOGLE_FORM">Formulario en línea</option><option value="OFFLINE_JSON">Offline con JSON</option><option value="OFFLINE_MANUAL">Offline manual</option></select>
             <button id="clearIssueFiltersButton" class="ghost" type="button">Limpiar</button>
             <button id="exportIssuesCsvButton" type="button">Exportar CSV</button>
           </div>
           <div class="bulk-bar">
             <span id="selectedIssuesCount" class="muted">0 incidencias seleccionadas</span>
-            <select id="bulkIssueStatus">
-              <option value="ACKNOWLEDGED">Reconocer</option>
-              <option value="RESOLVED">Resolver</option>
-              <option value="NEEDS_SOURCE_REVIEW">Revisar fuente</option>
-            </select>
-            <input id="bulkIssueNote" type="text" placeholder="Nota para la actualización masiva">
+            <select id="bulkIssueStatus"><option value="ACKNOWLEDGED">Reconocer</option><option value="RESOLVED">Resolver</option><option value="NEEDS_SOURCE_REVIEW">Revisar fuente</option></select>
+            <input id="bulkIssueNote" type="text" placeholder="Nota para la actualización masiva" />
             <button id="applyBulkIssueButton" type="button">Aplicar</button>
           </div>
           <p id="issueReviewCount" class="result-count"></p>
           <div id="issueReviewStats" class="issue-stats"></div>
           <div class="table-wrap issue-wrap">
             <table>
-              <thead>
-                <tr>
-                  <th><input id="selectAllIssues" type="checkbox" aria-label="Seleccionar incidencias visibles"></th>
-                  <th>Incidencia</th>
-                  <th>Postulante</th>
-                  <th>Campo</th>
-                  <th>Estado</th>
-                  <th>Nota</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
+              <thead><tr><th><input id="selectAllIssues" type="checkbox" aria-label="Seleccionar incidencias visibles" /></th><th>Incidencia</th><th>Postulante</th><th>Campo</th><th>Estado</th><th>Nota</th><th>Acciones</th></tr></thead>
               <tbody id="issueReviewTable"></tbody>
             </table>
           </div>
         </section>
 
+        <!-- VIEW: DOCUMENTS -->
         <section id="view-documents" class="view">
           <div class="toolbar document-toolbar">
-            <input id="documentSearchInput" type="search" placeholder="Buscar postulante, correo o provincia">
-            <select id="documentStatusFilter">
-              <option value="">Estado documental</option>
-              <option value="MISSING">No recibido</option>
-              <option value="RECEIVED">Recibido</option>
-              <option value="NEEDS_REVIEW">Necesita revisión</option>
-              <option value="VALIDATED">Validado</option>
-              <option value="REJECTED">Rechazado</option>
-            </select>
-            <select id="documentOriginFilter">
-              <option value="">Origen</option>
-              <option value="GOOGLE_FORM">Formulario en línea</option>
-              <option value="OFFLINE_JSON">Offline con JSON</option>
-              <option value="OFFLINE_MANUAL">Offline manual</option>
-            </select>
+            <input id="documentSearchInput" type="search" placeholder="Buscar postulante, correo o provincia" />
+            <select id="documentStatusFilter"><option value="">Estado documental</option><option value="MISSING">No recibido</option><option value="RECEIVED">Recibido</option><option value="NEEDS_REVIEW">Necesita revisión</option><option value="VALIDATED">Validado</option><option value="REJECTED">Rechazado</option></select>
+            <select id="documentOriginFilter"><option value="">Origen</option><option value="GOOGLE_FORM">Formulario en línea</option><option value="OFFLINE_JSON">Offline con JSON</option><option value="OFFLINE_MANUAL">Offline manual</option></select>
             <button id="clearDocumentFiltersButton" class="ghost" type="button">Limpiar</button>
             <button id="exportDocumentsCsvButton" type="button">Exportar CSV</button>
           </div>
           <div class="bulk-bar">
             <span id="selectedDocumentsCount" class="muted">0 documentos seleccionados</span>
-            <select id="bulkDocumentStatus">
-              <option value="VALIDATED">Validar</option>
-              <option value="NEEDS_REVIEW">Necesita revisión</option>
-              <option value="REJECTED">Rechazar</option>
-              <option value="RECEIVED">Marcar recibido</option>
-            </select>
+            <select id="bulkDocumentStatus"><option value="VALIDATED">Validar</option><option value="NEEDS_REVIEW">Necesita revisión</option><option value="REJECTED">Rechazar</option><option value="RECEIVED">Marcar recibido</option></select>
             <button id="applyBulkDocumentButton" type="button">Aplicar</button>
           </div>
           <p id="documentReviewCount" class="result-count"></p>
           <div class="table-wrap wide-table">
             <table>
-              <thead>
-                <tr>
-                  <th>Postulante</th>
-                  <th>Provincia</th>
-                  <th>Origen</th>
-                  <th>Carta aval</th>
-                  <th>Currículum vitae</th>
-                  <th>Admisibilidad</th>
-                  <th>Recibido</th>
-                </tr>
-              </thead>
+              <thead><tr><th>Postulante</th><th>Provincia</th><th>Origen</th><th>Carta aval</th><th>Currículum vitae</th><th>Admisibilidad</th><th>Recibido</th></tr></thead>
               <tbody id="documentReviewTable"></tbody>
             </table>
           </div>
         </section>
 
+        <!-- VIEW: MATRIX -->
         <section id="view-matrix" class="view">
           <div class="toolbar matrix-toolbar">
-            <input id="matrixSearchInput" type="search" placeholder="Buscar en matriz técnica">
-            <select id="matrixEvaluationFilter">
-              <option value="">Evaluación</option>
-              <option value="NOT_STARTED">No iniciada</option>
-              <option value="IN_PROGRESS">En curso</option>
-              <option value="COMPLETED">Completada</option>
-              <option value="NEEDS_REVIEW">Necesita revisión</option>
-            </select>
-            <select id="matrixEligibilityFilter">
-              <option value="">Admisibilidad</option>
-              <option value="READY_FOR_TECHNICAL_REVIEW">Lista para revisión técnica</option>
-              <option value="BLOCKED_BY_MISSING_REQUIREMENTS">Bloqueada por requisitos</option>
-              <option value="REQUIRES_MANUAL_REVIEW">Requiere revisión manual</option>
-              <option value="SIN_EVALUAR">Sin evaluar</option>
-            </select>
+            <input id="matrixSearchInput" type="search" placeholder="Buscar en matriz técnica" />
+            <select id="matrixEvaluationFilter"><option value="">Evaluación</option><option value="NOT_STARTED">No iniciada</option><option value="IN_PROGRESS">En curso</option><option value="COMPLETED">Completada</option><option value="NEEDS_REVIEW">Necesita revisión</option></select>
+            <select id="matrixEligibilityFilter"><option value="">Admisibilidad</option><option value="READY_FOR_TECHNICAL_REVIEW">Lista para revisión técnica</option><option value="BLOCKED_BY_MISSING_REQUIREMENTS">Bloqueada por requisitos</option><option value="REQUIRES_MANUAL_REVIEW">Requiere revisión manual</option><option value="SIN_EVALUAR">Sin evaluar</option></select>
             <button id="clearMatrixFiltersButton" class="ghost" type="button">Limpiar</button>
             <button id="exportMatrixCsvButton" type="button">Exportar CSV</button>
           </div>
@@ -294,36 +888,23 @@
           </div>
         </section>
 
+        <!-- VIEW: INTAKE -->
         <section id="view-intake" class="view">
           <div class="intake-grid">
             <details class="import-panel" open>
               <summary>Importar JSON offline</summary>
               <form id="offlineJsonForm" class="offline-form">
                 <label for="offlineSourceReference">Referencia</label>
-                <input id="offlineSourceReference" type="text" placeholder="correo-2026-08-16-001">
+                <input id="offlineSourceReference" type="text" placeholder="correo-2026-08-16-001" />
                 <label for="offlineJsonPayload">JSON</label>
                 <textarea id="offlineJsonPayload" rows="9" spellcheck="false" required></textarea>
                 <div class="doc-grid">
-                  <label>
-                    Carta Aval
-                    <input id="offlineCartaName" type="text" placeholder="Nombre del archivo">
-                  </label>
-                  <label>
-                    Referencia Carta Aval
-                    <input id="offlineCartaRef" type="text" placeholder="drive://, ruta o URL">
-                  </label>
-                  <label>
-                    Currículum Vitae
-                    <input id="offlineCvName" type="text" placeholder="Nombre del archivo">
-                  </label>
-                  <label>
-                    Referencia CV
-                    <input id="offlineCvRef" type="text" placeholder="drive://, ruta o URL">
-                  </label>
+                  <label>Carta Aval <input id="offlineCartaName" type="text" placeholder="Nombre del archivo" /></label>
+                  <label>Referencia Carta Aval <input id="offlineCartaRef" type="text" placeholder="drive://, ruta o URL" /></label>
+                  <label>Currículum Vitae <input id="offlineCvName" type="text" placeholder="Nombre del archivo" /></label>
+                  <label>Referencia CV <input id="offlineCvRef" type="text" placeholder="drive://, ruta o URL" /></label>
                 </div>
-                <div class="action-row single">
-                  <button type="submit">Importar</button>
-                </div>
+                <div class="action-row single"><button type="submit">Importar</button></div>
                 <p id="offlineImportResult" class="muted"></p>
               </form>
             </details>
@@ -332,66 +913,41 @@
               <summary>Registrar offline manual</summary>
               <form id="offlineManualForm" class="offline-form">
                 <label for="manualSourceReference">Referencia</label>
-                <input id="manualSourceReference" type="text" placeholder="correo-manual-2026-08-16-001">
+                <input id="manualSourceReference" type="text" placeholder="correo-manual-2026-08-16-001" />
                 <label for="manualRegistrationNote">Nota de registro</label>
-                <input id="manualRegistrationNote" type="text" placeholder="Formulario recibido por correo sin JSON">
+                <input id="manualRegistrationNote" type="text" placeholder="Formulario recibido por correo sin JSON" />
                 <label for="manualResponsesPayload">Respuestas por código FDF</label>
                 <textarea id="manualResponsesPayload" rows="9" spellcheck="false" required></textarea>
                 <div class="doc-grid">
-                  <label>
-                    Carta Aval
-                    <input id="manualCartaName" type="text" placeholder="Nombre del archivo">
-                  </label>
-                  <label>
-                    Referencia Carta Aval
-                    <input id="manualCartaRef" type="text" placeholder="drive://, ruta o URL">
-                  </label>
-                  <label>
-                    Currículum Vitae
-                    <input id="manualCvName" type="text" placeholder="Nombre del archivo">
-                  </label>
-                  <label>
-                    Referencia CV
-                    <input id="manualCvRef" type="text" placeholder="drive://, ruta o URL">
-                  </label>
+                  <label>Carta Aval <input id="manualCartaName" type="text" placeholder="Nombre del archivo" /></label>
+                  <label>Referencia Carta Aval <input id="manualCartaRef" type="text" placeholder="drive://, ruta o URL" /></label>
+                  <label>Currículum Vitae <input id="manualCvName" type="text" placeholder="Nombre del archivo" /></label>
+                  <label>Referencia CV <input id="manualCvRef" type="text" placeholder="drive://, ruta o URL" /></label>
                 </div>
-                <div class="action-row single">
-                  <button type="submit">Registrar</button>
-                </div>
+                <div class="action-row single"><button type="submit">Registrar</button></div>
                 <p id="manualImportResult" class="muted"></p>
               </form>
             </details>
           </div>
         </section>
 
+        <!-- VIEW: USERS -->
         <section id="view-users" class="view">
           <div class="users-grid">
             <form id="userForm" class="import-panel offline-form">
-              <h2>Nuevo usuario</h2>
+              <h2 style="font-size:1.1rem;color:var(--blue);margin-bottom:4px;">Nuevo usuario</h2>
               <label for="newUsername">Usuario</label>
-              <input id="newUsername" type="text" autocomplete="off" required>
+              <input id="newUsername" type="text" autocomplete="off" required />
               <label for="newPassword">Contraseña inicial</label>
-              <input id="newPassword" type="password" autocomplete="new-password" required>
+              <input id="newPassword" type="password" autocomplete="new-password" required />
               <label for="newRole">Rol</label>
-              <select id="newRole">
-                <option value="REVIEWER">Revisor</option>
-                <option value="INTAKE">Registro</option>
-                <option value="VIEWER">Consulta</option>
-                <option value="ADMIN">Administrador</option>
-              </select>
+              <select id="newRole"><option value="REVIEWER">Revisor</option><option value="INTAKE">Registro</option><option value="VIEWER">Consulta</option><option value="ADMIN">Administrador</option></select>
               <button type="submit">Crear usuario</button>
               <p id="userFormResult" class="muted"></p>
             </form>
-            <div class="table-wrap user-table-wrap">
+            <div class="user-table-wrap">
               <table>
-                <thead>
-                  <tr>
-                    <th>Usuario</th>
-                    <th>Rol</th>
-                    <th>Activo</th>
-                    <th>Actualizar</th>
-                  </tr>
-                </thead>
+                <thead><tr><th>Usuario</th><th>Rol</th><th>Activo</th><th>Actualizar</th></tr></thead>
                 <tbody id="usersTable"></tbody>
               </table>
             </div>
@@ -399,6 +955,8 @@
         </section>
       </section>
     </main>
+
+    <!-- scripts (se mantiene la lógica original) -->
     <script src="/admin/app.js"></script>
   </body>
 </html>
