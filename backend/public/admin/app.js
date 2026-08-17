@@ -685,15 +685,13 @@ function renderTable() {
 
   table.innerHTML = filtered.map(item => `
     <tr data-id="${escapeHtml(item.submission_id)}" class="${item.submission_id === selectedId ? 'selected' : ''}">
-      <td>${formatDate(item.received_at)}</td>
-      <td><strong>${escapeHtml(item.full_name || 'Sin nombre')}</strong><br><span class="muted">${escapeHtml(item.email || '')}</span></td>
-      <td>${escapeHtml(item.province || '')}</td>
-      <td><span class="badge">${escapeHtml(label('sourceChannels', item.source_channel))}</span></td>
-      <td>${operationalBadge(item)}</td>
-      <td>${statusBadge(item.normalization_status)}</td>
+      <td>
+        <strong>${escapeHtml(item.full_name || 'Sin nombre')}</strong><br>
+        <span class="muted">${escapeHtml(item.province || 'Sin provincia')}</span><br>
+        <span class="muted">${formatDate(item.received_at)}</span>
+      </td>
       <td>${eligibilityBadge(item.eligibility_status)}</td>
       <td>${evaluationBadge(item.evaluation_status)}</td>
-      <td>${documentSummary(item)}</td>
       <td>${issueSummary(item)}</td>
     </tr>
   `).join('');
@@ -1295,9 +1293,9 @@ function renderDocuments(documents) {
   if (!documents.length) return '<p class="muted">Sin documentos asociados.</p>';
   return `<div class="list">${documents.map(document => `
     <div class="item">
-      <strong>${escapeHtml(label('documents', document.document_type))}</strong><br>
+      <strong>${escapeHtml(label('documents', document.document_type))}</strong>
       ${documentLink(document)}
-      <span class="muted">${escapeHtml(label('documents', document.status))} - ${formatDate(document.received_at)}</span>
+      <span class="muted">Estado: ${escapeHtml(label('documents', document.status))} - Recibido: ${formatDate(document.received_at)}</span>
       <div class="action-row">
         <select data-document-status="${escapeHtml(document.document_id)}">
           ${documentStatusOptions(document.status)}
@@ -1310,16 +1308,28 @@ function renderDocuments(documents) {
 }
 
 function documentLink(document) {
-  const label = escapeHtml(document.original_name || document.storage_reference || 'Documento');
-  if (!isSafeHttpUrl(document.storage_reference)) {
-    return `${label}<br>`;
-  }
+  const name = document.original_name || 'Documento sin nombre';
+  const reference = document.storage_reference || '';
+  const safeReference = isSafeHttpUrl(reference);
 
   return `
+    <div class="document-file">
+      <span>Archivo: ${escapeHtml(name)}</span>
+      ${reference ? `
+        <span>
+          Referencia:
+          ${safeReference
+            ? `<a href="${escapeHtml(reference)}" target="_blank" rel="noopener noreferrer" data-document-open="${escapeHtml(document.document_id)}">${escapeHtml(reference)}</a>`
+            : `<code>${escapeHtml(reference)}</code>`}
+        </span>
+      ` : '<span class="muted">Sin referencia de almacenamiento registrada.</span>'}
+    </div>
+    ${reference ? `
     <div class="doc-link-row">
-      <a href="${escapeHtml(document.storage_reference)}" target="_blank" rel="noopener noreferrer" data-document-open="${escapeHtml(document.document_id)}">${label}</a>
+      ${safeReference ? `<a href="${escapeHtml(reference)}" target="_blank" rel="noopener noreferrer" data-document-open="${escapeHtml(document.document_id)}">Abrir documento</a>` : '<span class="muted">Referencia no navegable desde el navegador.</span>'}
       <button type="button" class="ghost compact" data-copy="${escapeHtml(document.storage_reference)}">Copiar</button>
     </div>
+    ` : ''}
   `;
 }
 

@@ -381,7 +381,7 @@ button:disabled {
 
 .content-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 470px);
+  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
   gap: 14px;
   align-items: start;
 }
@@ -395,6 +395,10 @@ table {
   width: 100%;
   border-collapse: collapse;
   min-width: 1040px;
+}
+
+.content-grid table {
+  min-width: 360px;
 }
 
 .wide-table table {
@@ -466,6 +470,17 @@ tbody tr.selected {
   max-height: calc(100vh - 230px);
   overflow: auto;
   padding: 14px;
+}
+
+.document-file {
+  display: grid;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.document-file code {
+  white-space: normal;
+  word-break: break-all;
 }
 
 .detail h2 {
