@@ -538,26 +538,29 @@ function renderWorkboard() {
     ['BLOCKED_BY_MISSING_REQUIREMENTS', 'REQUIRES_MANUAL_REVIEW'].includes(row.eligibility_status || 'SIN_EVALUAR')
   );
   const inProgress = evaluationMatrixRows.filter(row => (row.evaluation_status || 'NOT_STARTED') === 'IN_PROGRESS');
-  const completed = evaluationMatrixRows.filter(row => (row.evaluation_status || 'NOT_STARTED') === 'COMPLETED');
+  const pendingAttention = openIssues.length + documentTasks.length + eligibilityReview.length;
+  const attentionTarget = openIssues.length
+    ? ['issues', 'OPEN']
+    : documentTasks.length
+      ? ['documents', '']
+      : ['submissions', 'ELIGIBILITY_REVIEW'];
 
   workboardStats.innerHTML = [
-    workboardStat('Incidencias abiertas', openIssues.length, 'issues', 'OPEN'),
-    workboardStat('Documentos pendientes', documentTasks.length, 'documents', ''),
-    workboardStat('Admisibilidad por revisar', eligibilityReview.length, 'submissions', 'ELIGIBILITY_REVIEW'),
+    workboardStat('Por atender', pendingAttention, attentionTarget[0], attentionTarget[1]),
     workboardStat('Listas por evaluar', readyToEvaluate.length, 'matrix', 'READY_TO_EVALUATE'),
     workboardStat('Evaluación en curso', inProgress.length, 'matrix', 'IN_PROGRESS'),
-    workboardStat('Evaluación completa', completed.length, 'review', 'COMPLETED'),
   ].join('');
 
   const sections = [
-    { key: 'issues', html: workboardIssueSection(openIssues) },
-    { key: 'documents', html: workboardDocumentSection(documentTasks) },
-    { key: 'eligibility', html: workboardSubmissionSection('Admisibilidad por revisar', eligibilityReview, 'submissions', 'Revisar expedientes') },
-    { key: 'ready', html: workboardSubmissionSection('Listas para evaluación técnica', readyToEvaluate, 'matrix', 'Capturar evaluación') },
-    { key: 'progress', html: workboardSubmissionSection('Evaluación en curso', inProgress, 'matrix', 'Continuar') },
-    { key: 'completed', html: workboardSubmissionSection('Evaluación completa', completed, 'review', 'Ver seguimiento') },
-  ];
-  workboardSections.innerHTML = orderWorkboardSections(sections).map(section => section.html).join('');
+    workboardIssueSection(openIssues),
+    workboardDocumentSection(documentTasks),
+    workboardSubmissionSection('eligibility', 'Admisibilidad por revisar', eligibilityReview, 'submissions', 'Revisar expedientes'),
+    workboardSubmissionSection('ready', 'Listas para evaluación técnica', readyToEvaluate, 'matrix', 'Capturar evaluación'),
+    workboardSubmissionSection('progress', 'Evaluación en curso', inProgress, 'matrix', 'Continuar'),
+  ].filter(section => section.count > 0);
+  workboardSections.innerHTML = sections.length
+    ? orderWorkboardSections(sections).slice(0, 4).map(section => section.html).join('')
+    : '<section class="workboard-empty"><strong>Sin tareas prioritarias.</strong><span>Puede revisar expedientes o consultar herramientas especializadas si necesita más detalle.</span></section>';
 
   workboardStats.querySelectorAll('[data-workboard-open]').forEach(button => {
     button.addEventListener('click', () => openWorkboardTarget(button.dataset.workboardOpen, button.dataset.workboardFilter));
@@ -584,28 +587,35 @@ function workboardStat(title, value, target, filter) {
 
 function orderWorkboardSections(sections) {
   const roleOrders = {
-    INTAKE: ['issues', 'documents', 'eligibility', 'ready', 'progress', 'completed'],
-    REVIEWER: ['ready', 'progress', 'eligibility', 'issues', 'documents', 'completed'],
-    VIEWER: ['progress', 'completed', 'issues', 'documents', 'eligibility', 'ready'],
-    ADMIN: ['issues', 'documents', 'eligibility', 'ready', 'progress', 'completed'],
+    INTAKE: ['issues', 'documents', 'eligibility', 'ready', 'progress'],
+    REVIEWER: ['ready', 'progress', 'eligibility', 'issues', 'documents'],
+    VIEWER: ['progress', 'issues', 'documents', 'eligibility', 'ready'],
+    ADMIN: ['issues', 'documents', 'eligibility', 'ready', 'progress'],
   };
   const order = roleOrders[currentUser?.role] || roleOrders.ADMIN;
   return sections.slice().sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
 }
 
 function workboardIssueSection(issues) {
-  return workboardSection('Incidencias que requieren atención', issues, 'issues', 'Ver incidencias', issue => `
+  return {
+    key: 'issues',
+    count: issues.length,
+    html: workboardSection('Incidencias que requieren atención', issues, 'issues', 'Ver incidencias', issue => `
     <div>
       <strong>${escapeHtml(issue.full_name || 'Sin nombre')}</strong><br>
       <span class="muted">${escapeHtml(issue.code)} ${issue.field_code ? `- ${issue.field_code}` : ''}</span><br>
       <span class="muted">${escapeHtml(issue.message || '')}</span>
     </div>
     <div>${issueBadge(issue.review_status || 'OPEN')}</div>
-  `);
+  `),
+  };
 }
 
 function workboardDocumentSection(rows) {
-  return workboardSection('Documentos pendientes', rows, 'documents', 'Revisar documentos', row => `
+  return {
+    key: 'documents',
+    count: rows.length,
+    html: workboardSection('Documentos pendientes', rows, 'documents', 'Revisar documentos', row => `
     <div>
       <strong>${escapeHtml(row.full_name || 'Sin nombre')}</strong><br>
       <span class="muted">${escapeHtml(row.province || '')} - ${escapeHtml(label('sourceChannels', row.source_channel))}</span>
@@ -614,11 +624,15 @@ function workboardDocumentSection(rows) {
       ${documentStatusBadge(row.carta_aval_status || 'MISSING')}
       ${documentStatusBadge(row.curriculum_status || 'MISSING')}
     </div>
-  `);
+  `),
+  };
 }
 
-function workboardSubmissionSection(title, rows, target, actionText) {
-  return workboardSection(title, rows, target, actionText, row => `
+function workboardSubmissionSection(key, title, rows, target, actionText) {
+  return {
+    key,
+    count: rows.length,
+    html: workboardSection(title, rows, target, actionText, row => `
     <div>
       <strong>${escapeHtml(row.full_name || 'Sin nombre')}</strong><br>
       <span class="muted">${escapeHtml(row.province || '')} - ${escapeHtml(label('sourceChannels', row.source_channel))}</span>
@@ -628,11 +642,12 @@ function workboardSubmissionSection(title, rows, target, actionText) {
       ${eligibilityBadge(row.eligibility_status)}
       ${evaluationBadge(row.evaluation_status)}
     </div>
-  `);
+  `),
+  };
 }
 
 function workboardSection(title, rows, target, actionText, itemHtml) {
-  const visibleRows = rows.slice(0, 5);
+  const visibleRows = rows.slice(0, 3);
   return `
     <section class="workboard-section">
       <div class="workboard-section-head">

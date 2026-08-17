@@ -173,6 +173,27 @@ p {
   overflow-x: auto;
 }
 
+.advanced-nav {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.advanced-nav summary {
+  cursor: pointer;
+  color: var(--muted);
+  padding: 10px 12px;
+}
+
+.advanced-nav[open] summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.compact-tabs {
+  border-bottom: 0;
+  padding: 10px;
+}
+
 .tab {
   min-height: 36px;
   border-color: transparent;
@@ -209,7 +230,7 @@ p {
 
 .workboard-stats {
   display: grid;
-  grid-template-columns: repeat(6, minmax(130px, 1fr));
+  grid-template-columns: repeat(3, minmax(150px, 1fr));
   gap: 10px;
 }
 
@@ -256,6 +277,19 @@ p {
   font-size: 14px;
   text-transform: uppercase;
   color: #42505a;
+}
+
+.workboard-empty {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 18px;
+  display: grid;
+  gap: 4px;
+}
+
+.workboard-empty span {
+  color: var(--muted);
 }
 
 .workboard-list {

@@ -37,28 +37,27 @@
         <nav class="tabs" aria-label="Vistas administrativas">
           <button class="tab active" type="button" data-view="workboard">Bandeja</button>
           <button class="tab" type="button" data-view="submissions">Expedientes</button>
-          <button class="tab" type="button" data-view="review">Seguimiento</button>
-          <button class="tab" type="button" data-view="issues">Incidencias</button>
-          <button class="tab" type="button" data-view="documents">Documentos</button>
-          <button class="tab" type="button" data-view="matrix">Matriz técnica</button>
-          <button class="tab" type="button" data-view="intake">Entrada offline</button>
-          <button class="tab" type="button" data-view="users">Usuarios</button>
         </nav>
+
+        <details class="advanced-nav">
+          <summary>Herramientas especializadas</summary>
+          <div class="tabs compact-tabs" aria-label="Herramientas especializadas">
+            <button class="tab" type="button" data-view="review">Seguimiento</button>
+            <button class="tab" type="button" data-view="issues">Incidencias</button>
+            <button class="tab" type="button" data-view="documents">Documentos</button>
+            <button class="tab" type="button" data-view="matrix">Matriz técnica</button>
+            <button class="tab" type="button" data-view="intake">Entrada offline</button>
+            <button class="tab" type="button" data-view="users">Usuarios</button>
+          </div>
+        </details>
 
         <section id="view-workboard" class="view active">
           <div class="workboard-head">
             <div>
               <h2>Bandeja de trabajo</h2>
-              <p class="muted">Tareas operativas derivadas de la ingesta, normalización, documentos y evaluación técnica.</p>
+              <p class="muted">Lo que necesita atención ahora. Las herramientas detalladas quedan debajo, separadas de la operación diaria.</p>
             </div>
             <button id="workboardRefreshButton" type="button">Actualizar</button>
-          </div>
-          <div class="quick-actions" aria-label="Filtros rápidos de bandeja">
-            <button type="button" class="ghost" data-quick-filter="READY_TO_EVALUATE">Listas por evaluar</button>
-            <button type="button" class="ghost" data-quick-filter="EVALUATION_IN_PROGRESS">Evaluación en curso</button>
-            <button type="button" class="ghost" data-quick-filter="OPEN_ISSUES">Incidencias abiertas</button>
-            <button type="button" class="ghost" data-quick-filter="DOCS_TO_REVIEW">Documentos por revisar</button>
-            <button type="button" class="ghost" data-quick-filter="CLEAR">Limpiar filtros</button>
           </div>
           <div id="workboardStats" class="workboard-stats"></div>
           <div id="workboardSections" class="workboard-sections"></div>
