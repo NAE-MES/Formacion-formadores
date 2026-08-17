@@ -557,6 +557,181 @@
         cursor: pointer;
       }
 
+      .review-panel {
+        display: grid;
+        gap: 14px;
+      }
+
+      .review-panel-head,
+      .document-card-head,
+      .criterion-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: flex-start;
+      }
+
+      .section-kicker,
+      .field-block span,
+      .review-controls label span,
+      .criterion-controls label span {
+        display: block;
+        margin-bottom: 5px;
+        color: var(--muted);
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .section-status {
+        margin-top: 4px;
+      }
+
+      .section-meta {
+        display: block;
+        color: var(--muted);
+        font-size: 0.82rem;
+        line-height: 1.4;
+      }
+
+      .review-controls,
+      .criterion-controls {
+        display: grid;
+        grid-template-columns: minmax(140px, 1fr) minmax(180px, 2fr) auto auto;
+        gap: 10px;
+        align-items: end;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        background: #ffffff;
+      }
+
+      .criterion-controls {
+        grid-template-columns: minmax(150px, 1fr) 110px auto;
+        padding: 0;
+        border: none;
+        background: transparent;
+      }
+
+      .compact-controls {
+        grid-template-columns: minmax(180px, 1fr) auto;
+        padding: 0;
+        border: none;
+        background: transparent;
+      }
+
+      .review-controls select,
+      .review-controls input,
+      .criterion-controls select,
+      .criterion-controls input,
+      .field-block textarea,
+      .criterion textarea {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        background: #fafcfe;
+        font: inherit;
+        padding: 8px 10px;
+      }
+
+      .review-controls button,
+      .criterion-controls button,
+      .section-empty button {
+        background: var(--blue);
+        color: #ffffff;
+        border: none;
+        border-radius: 40px;
+        padding: 8px 16px;
+        font-weight: 700;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
+      .review-controls button.ghost,
+      .section-empty button.ghost {
+        background: #ffffff;
+        color: var(--blue);
+        border: 1px solid var(--line);
+      }
+
+      .check-list,
+      .document-list,
+      .evaluation-grid {
+        display: grid;
+        gap: 10px;
+      }
+
+      .check-list h4 {
+        margin: 4px 0 0;
+        color: var(--ink);
+        font-size: 0.9rem;
+      }
+
+      .check-row,
+      .document-card,
+      .criterion {
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        background: #ffffff;
+        padding: 12px;
+      }
+
+      .check-row {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 10px;
+        align-items: start;
+      }
+
+      .document-card,
+      .criterion {
+        display: grid;
+        gap: 12px;
+      }
+
+      .document-file {
+        display: grid;
+        gap: 5px;
+        color: var(--ink);
+        overflow-wrap: anywhere;
+      }
+
+      .doc-link-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .doc-link-row a {
+        color: var(--blue);
+        font-weight: 700;
+      }
+
+      .field-block {
+        display: grid;
+        gap: 5px;
+      }
+
+      .field-block textarea,
+      .criterion textarea {
+        min-height: 78px;
+        resize: vertical;
+        line-height: 1.4;
+      }
+
+      .section-empty {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+        border: 1px dashed var(--line);
+        border-radius: var(--radius-sm);
+        padding: 14px;
+        background: #fafcfe;
+      }
+
       /* ============================================================
          BULK BARS
          ============================================================ */
@@ -822,6 +997,11 @@
         .workboard-sections {
           grid-template-columns: 1fr 1fr;
         }
+        .review-controls,
+        .criterion-controls {
+          grid-template-columns: 1fr;
+          align-items: stretch;
+        }
       }
 
       @media (max-width: 600px) {
@@ -847,6 +1027,16 @@
         }
         .login-panel {
           padding: 24px 18px;
+        }
+        .detail-head,
+        .review-panel-head,
+        .document-card-head,
+        .criterion-head,
+        .section-empty {
+          flex-direction: column;
+        }
+        .kv {
+          grid-template-columns: 1fr;
         }
       }
 

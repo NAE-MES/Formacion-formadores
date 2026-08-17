@@ -1214,24 +1214,34 @@ async function selectSubmission(submissionId, options = {}) {
 function renderEligibility(assessment, submissionId) {
   if (!assessment) {
     return `
-      <p class="muted">Sin evaluación preliminar registrada.</p>
-      <button type="button" data-eligibility-recalculate="${escapeHtml(submissionId)}">Recalcular</button>
+      <div class="section-empty">
+        <p class="muted">Sin evaluación preliminar registrada.</p>
+        <button type="button" data-eligibility-recalculate="${escapeHtml(submissionId)}">Recalcular</button>
+      </div>
     `;
   }
 
   return `
-    <div class="item">
-      <strong>${eligibilityBadge(assessment.status)}</strong><br>
-      <span class="muted">Configuración de admisibilidad vigente</span><br>
-      <span class="muted">Evaluado por ${escapeHtml(actorLabel(assessment.assessed_by || ''))} - ${formatDate(assessment.assessed_at)}</span>
-      <div class="action-row">
-        <select data-eligibility-status="${escapeHtml(assessment.eligibility_assessment_id)}">
-          ${eligibilityStatusOptions(assessment.status)}
-        </select>
-        <button type="button" data-eligibility-save="${escapeHtml(assessment.eligibility_assessment_id)}">Guardar</button>
+    <div class="review-panel">
+      <div class="review-panel-head">
+        <div>
+          <span class="section-kicker">Resultado preliminar</span>
+          <div class="section-status">${eligibilityBadge(assessment.status)}</div>
+        </div>
+        <div class="section-meta">Evaluado por ${escapeHtml(actorLabel(assessment.assessed_by || ''))} - ${formatDate(assessment.assessed_at)}</div>
       </div>
-      <input class="note-input" data-eligibility-note="${escapeHtml(assessment.eligibility_assessment_id)}" type="text" value="${escapeHtml(assessment.manual_note || '')}" placeholder="Nota de revisión">
-      <div class="action-row single">
+      <div class="review-controls">
+        <label>
+          <span>Estado</span>
+          <select data-eligibility-status="${escapeHtml(assessment.eligibility_assessment_id)}">
+            ${eligibilityStatusOptions(assessment.status)}
+          </select>
+        </label>
+        <label class="wide">
+          <span>Nota de revisión</span>
+          <input class="note-input" data-eligibility-note="${escapeHtml(assessment.eligibility_assessment_id)}" type="text" value="${escapeHtml(assessment.manual_note || '')}" placeholder="Nota de revisión">
+        </label>
+        <button type="button" data-eligibility-save="${escapeHtml(assessment.eligibility_assessment_id)}">Guardar</button>
         <button type="button" class="ghost" data-eligibility-recalculate="${escapeHtml(submissionId)}">Recalcular</button>
       </div>
       ${renderEligibilityChecks(assessment.check_results || [])}
@@ -1241,7 +1251,9 @@ function renderEligibility(assessment, submissionId) {
 
 function renderEligibilityChecks(checks) {
   if (!checks.length) return '<p class="muted">Sin comprobaciones registradas.</p>';
-  return `<div class="check-list">${checks.map(check => `
+  return `<div class="check-list">
+    <h4>Comprobaciones</h4>
+    ${checks.map(check => `
     <div class="check-row">
       ${checkStatusBadge(check.status)}
       <div>
@@ -1258,9 +1270,14 @@ function renderTechnicalEvaluation(detail) {
   const evaluations = new Map((detail.criterion_evaluations || []).map(item => [item.criterion_id, item]));
   const result = detail.evaluation_result || {};
   return `
-    <div class="item">
-      <strong>${evaluationBadge(result.status || 'NOT_STARTED')}</strong>
-      <span class="muted">${escapeHtml(result.completed_criteria || 0)} de ${escapeHtml(result.total_criteria || criteria.length)} criterios completados</span>
+    <div class="review-panel">
+      <div class="review-panel-head">
+        <div>
+          <span class="section-kicker">Avance de evaluación</span>
+          <div class="section-status">${evaluationBadge(result.status || 'NOT_STARTED')}</div>
+        </div>
+        <div class="section-meta">${escapeHtml(result.completed_criteria || 0)} de ${escapeHtml(result.total_criteria || criteria.length)} criterios completados</div>
+      </div>
       <div class="evaluation-grid">
         ${criteria.map(criterion => renderCriterionReview(detail.submission.submission_id, criterion, evaluations.get(criterion.criterion_id))).join('')}
       </div>
@@ -1272,20 +1289,34 @@ function renderCriterionReview(submissionId, criterion, evaluation = {}) {
   return `
     <div class="criterion">
       <div class="criterion-head">
-        <strong>${escapeHtml(criterion.label)}</strong>
+        <div>
+          <strong>${escapeHtml(criterion.label)}</strong>
+          <span class="muted">Criterio técnico</span>
+        </div>
         <span class="badge">${escapeHtml(criterion.weight_percent)}%</span>
       </div>
-      <span class="muted">Criterio técnico</span>
-      <div class="action-row">
-        <select data-evaluation-status="${escapeHtml(criterion.criterion_id)}">
-          ${evaluationStatusOptions(evaluation.status || 'NOT_STARTED')}
-        </select>
-        <input class="score-input" data-evaluation-score="${escapeHtml(criterion.criterion_id)}" type="number" min="0" max="100" step="0.01" value="${escapeHtml(evaluation.score ?? '')}" placeholder="Puntaje">
+      <div class="criterion-controls">
+        <label>
+          <span>Estado</span>
+          <select data-evaluation-status="${escapeHtml(criterion.criterion_id)}">
+            ${evaluationStatusOptions(evaluation.status || 'NOT_STARTED')}
+          </select>
+        </label>
+        <label>
+          <span>Puntaje</span>
+          <input class="score-input" data-evaluation-score="${escapeHtml(criterion.criterion_id)}" type="number" min="0" max="100" step="0.01" value="${escapeHtml(evaluation.score ?? '')}" placeholder="Puntaje">
+        </label>
         <button type="button" data-evaluation-save="${escapeHtml(criterion.criterion_id)}" data-submission-id="${escapeHtml(submissionId)}">Guardar</button>
       </div>
-      <textarea data-evaluation-evidence="${escapeHtml(criterion.criterion_id)}" rows="2" placeholder="Elementos que sustentan la revisión">${escapeHtml(evaluation.evidence_summary || '')}</textarea>
-      <textarea data-evaluation-note="${escapeHtml(criterion.criterion_id)}" rows="2" placeholder="Nota interna">${escapeHtml(evaluation.evaluator_note || '')}</textarea>
-      <span class="muted">${escapeHtml(evaluation.evaluated_by || '')} ${evaluation.evaluated_at ? formatDate(evaluation.evaluated_at) : ''}</span>
+      <label class="field-block">
+        <span>Síntesis</span>
+        <textarea data-evaluation-evidence="${escapeHtml(criterion.criterion_id)}" rows="3" placeholder="Elementos que sustentan la revisión">${escapeHtml(evaluation.evidence_summary || '')}</textarea>
+      </label>
+      <label class="field-block">
+        <span>Nota interna</span>
+        <textarea data-evaluation-note="${escapeHtml(criterion.criterion_id)}" rows="2" placeholder="Nota interna">${escapeHtml(evaluation.evaluator_note || '')}</textarea>
+      </label>
+      <span class="section-meta">${escapeHtml(actorLabel(evaluation.evaluated_by || ''))} ${evaluation.evaluated_at ? formatDate(evaluation.evaluated_at) : ''}</span>
     </div>
   `;
 }
@@ -1310,19 +1341,27 @@ function renderIssues(issues) {
 
 function renderDocuments(documents) {
   if (!documents.length) return '<p class="muted">Sin documentos asociados.</p>';
-  return `<div class="list">${documents.map(document => `
-    <div class="item">
-      <strong>${escapeHtml(label('documents', document.document_type))}</strong>
+  return `<div class="document-list">${documents.map(document => `
+    <article class="document-card">
+      <div class="document-card-head">
+        <div>
+          <strong>${escapeHtml(label('documents', document.document_type))}</strong>
+          <span class="section-meta">Recibido: ${formatDate(document.received_at)}</span>
+        </div>
+        ${documentStatusBadge(document.status)}
+      </div>
       ${documentLink(document)}
-      <span class="muted">Estado: ${escapeHtml(label('documents', document.status))} - Recibido: ${formatDate(document.received_at)}</span>
-      <div class="action-row">
-        <select data-document-status="${escapeHtml(document.document_id)}">
-          ${documentStatusOptions(document.status)}
-        </select>
+      <div class="review-controls compact-controls">
+        <label>
+          <span>Estado documental</span>
+          <select data-document-status="${escapeHtml(document.document_id)}">
+            ${documentStatusOptions(document.status)}
+          </select>
+        </label>
         <button type="button" data-document-save="${escapeHtml(document.document_id)}">Guardar</button>
       </div>
-      <span class="muted">${escapeHtml(document.reviewed_by || '')} ${document.reviewed_at ? formatDate(document.reviewed_at) : ''}</span>
-    </div>
+      <span class="section-meta">${escapeHtml(actorLabel(document.reviewed_by || ''))} ${document.reviewed_at ? formatDate(document.reviewed_at) : ''}</span>
+    </article>
   `).join('')}</div>`;
 }
 
