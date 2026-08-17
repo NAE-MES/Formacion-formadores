@@ -154,16 +154,49 @@ function renderDaily(rows) {
     return;
   }
   const max = Math.max(...rows.map(row => row.count), 1);
-  dailyChart.innerHTML = rows.map(row => {
-    const height = Math.max(4, Math.round((row.count / max) * 170));
+  const width = Math.max(620, rows.length * 72);
+  const height = 250;
+  const padding = { top: 24, right: 22, bottom: 46, left: 42 };
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+  const points = rows.map((row, index) => {
+    const x = rows.length === 1
+      ? padding.left + plotWidth / 2
+      : padding.left + (index / (rows.length - 1)) * plotWidth;
+    const y = padding.top + plotHeight - (row.count / max) * plotHeight;
+    return { ...row, x, y };
+  });
+  const line = points.map(point => `${point.x},${point.y}`).join(' ');
+  const area = [
+    `${padding.left},${padding.top + plotHeight}`,
+    ...points.map(point => `${point.x},${point.y}`),
+    `${padding.left + plotWidth},${padding.top + plotHeight}`,
+  ].join(' ');
+  const grid = [0, 0.25, 0.5, 0.75, 1].map(step => {
+    const y = padding.top + plotHeight - step * plotHeight;
+    const value = Math.round(max * step);
     return `
-      <div class="day">
-        <div class="day-bar" style="height:${height}px"></div>
-        <div class="day-count">${row.count}</div>
-        <div class="day-label">${escapeHtml(formatDay(row.key))}</div>
-      </div>
+      <g>
+        <line class="trend-grid" x1="${padding.left}" y1="${y}" x2="${padding.left + plotWidth}" y2="${y}"></line>
+        <text class="trend-axis" x="${padding.left - 10}" y="${y + 4}" text-anchor="end">${value}</text>
+      </g>
     `;
   }).join('');
+
+  dailyChart.innerHTML = `
+    <svg class="trend-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Tendencia diaria de postulaciones">
+      ${grid}
+      <polygon class="trend-area" points="${area}"></polygon>
+      <polyline class="trend-line" points="${line}"></polyline>
+      ${points.map(point => `
+        <g class="trend-point">
+          <circle cx="${point.x}" cy="${point.y}" r="5"></circle>
+          <text class="trend-value" x="${point.x}" y="${point.y - 11}" text-anchor="middle">${point.count}</text>
+          <text class="trend-label" x="${point.x}" y="${padding.top + plotHeight + 28}" text-anchor="middle">${escapeHtml(formatDay(point.key))}</text>
+        </g>
+      `).join('')}
+    </svg>
+  `;
 }
 
 function renderBars(container, rows) {

@@ -177,40 +177,51 @@ h2 {
 }
 
 .day-chart {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(48px, 1fr);
-  align-items: end;
-  gap: 10px;
-  min-height: 230px;
+  min-height: 270px;
   overflow-x: auto;
-  padding: 8px 4px 0;
+  padding: 4px 0 0;
 }
 
-.day {
-  display: grid;
-  grid-template-rows: 1fr auto auto;
-  align-items: end;
-  gap: 7px;
-  min-height: 210px;
-}
-
-.day-bar {
+.trend-svg {
+  display: block;
   width: 100%;
-  min-height: 4px;
-  border-radius: 6px 6px 0 0;
-  background: var(--blue);
+  min-width: 620px;
+  height: 270px;
 }
 
-.day-count {
-  text-align: center;
-  font-weight: 700;
+.trend-grid {
+  stroke: #e8edf2;
+  stroke-width: 1;
 }
 
-.day-label {
-  color: var(--muted);
+.trend-axis,
+.trend-label {
+  fill: var(--muted);
   font-size: 12px;
-  text-align: center;
+}
+
+.trend-area {
+  fill: #eaf1fb;
+}
+
+.trend-line {
+  fill: none;
+  stroke: var(--blue);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+}
+
+.trend-point circle {
+  fill: #ffffff;
+  stroke: var(--blue);
+  stroke-width: 3;
+}
+
+.trend-value {
+  fill: var(--text);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .bars {
