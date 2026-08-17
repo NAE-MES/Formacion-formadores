@@ -26,12 +26,38 @@
       <section id="dashboard" hidden>
         <div class="summary-grid" id="summaryGrid"></div>
 
+        <div class="focus-grid">
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Pendientes críticos</h2>
+              <span id="criticalTotal" class="metric-badge"></span>
+            </div>
+            <div id="criticalChart" class="bars"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Progreso de revisión</h2>
+              <span id="progressPercent" class="metric-badge"></span>
+            </div>
+            <div id="progressChart" class="progress-card"></div>
+          </section>
+        </div>
+
         <section class="panel wide">
           <div class="panel-head">
             <h2>Postulaciones por día</h2>
             <span id="generatedAt" class="muted"></span>
           </div>
           <div id="dailyChart" class="day-chart"></div>
+        </section>
+
+        <section class="panel wide">
+          <div class="panel-head">
+            <h2>Evolución semanal</h2>
+            <span class="muted">Agrupado por semana calendario</span>
+          </div>
+          <div id="weeklyChart" class="bars bars-wide"></div>
         </section>
 
         <div class="grid">

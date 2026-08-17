@@ -143,6 +143,13 @@ h2 {
   gap: 16px;
 }
 
+.focus-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
 .panel {
   padding: 16px;
 }
@@ -157,6 +164,16 @@ h2 {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 16px;
+}
+
+.metric-badge {
+  min-width: 42px;
+  border-radius: 999px;
+  background: var(--soft-blue);
+  color: var(--blue-dark);
+  font-weight: 700;
+  padding: 5px 10px;
+  text-align: center;
 }
 
 .day-chart {
@@ -200,6 +217,10 @@ h2 {
   display: grid;
   gap: 12px;
   margin-top: 12px;
+}
+
+.bars-wide .bar-row {
+  grid-template-columns: minmax(160px, 1fr) 72px;
 }
 
 .bar-row {
@@ -246,6 +267,53 @@ h2 {
   padding: 8px 0;
 }
 
+.progress-card {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 22px;
+  align-items: center;
+}
+
+.progress-ring {
+  width: 168px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at center, #ffffff 0 58%, transparent 59%),
+    conic-gradient(var(--blue) var(--progress), #edf1f5 0deg);
+  display: grid;
+  place-items: center;
+  text-align: center;
+}
+
+.progress-ring strong {
+  display: block;
+  font-size: 30px;
+  line-height: 1;
+}
+
+.progress-ring span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.progress-list {
+  display: grid;
+  gap: 10px;
+}
+
+.progress-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 8px;
+}
+
+.progress-list span {
+  color: var(--muted);
+}
+
 @media (max-width: 900px) {
   .topbar {
     align-items: flex-start;
@@ -257,7 +325,9 @@ h2 {
   }
 
   .summary-grid,
-  .grid {
+  .grid,
+  .focus-grid,
+  .progress-card {
     grid-template-columns: 1fr;
   }
 }

@@ -39,6 +39,11 @@ const statusChart = document.querySelector('#statusChart');
 const provinceChart = document.querySelector('#provinceChart');
 const sourceChart = document.querySelector('#sourceChart');
 const workChart = document.querySelector('#workChart');
+const weeklyChart = document.querySelector('#weeklyChart');
+const criticalChart = document.querySelector('#criticalChart');
+const progressChart = document.querySelector('#progressChart');
+const criticalTotal = document.querySelector('#criticalTotal');
+const progressPercent = document.querySelector('#progressPercent');
 const generatedAt = document.querySelector('#generatedAt');
 const userBadge = document.querySelector('#userBadge');
 const adminLink = document.querySelector('#adminLink');
@@ -75,18 +80,22 @@ function renderUser(user) {
 function render(stats) {
   const totals = stats.totals || {};
   const operational = stats.operational || {};
+  const progress = stats.progress || {};
   generatedAt.textContent = stats.generated_at ? `Actualizado ${formatDateTime(stats.generated_at)}` : '';
   renderSummary([
     ['Postulaciones', totals.submissions],
     ['Postulantes', totals.candidates],
     ['Listas para revisión', totals.eligibility_ready],
-    ['Incidencias abiertas', totals.open_issues],
-    ['Documentos por revisar', totals.documents_needs_review],
+    ['Pendientes críticos', operational.critical_pending],
+    ['Incidencias abiertas', operational.open_issues],
+    ['Documentos pendientes', operational.document_tasks],
     ['Evaluación en curso', totals.evaluation_in_progress],
     ['Evaluaciones completadas', totals.evaluation_completed],
-    ['Tareas documentales', operational.document_tasks],
   ]);
+  renderCritical(operational);
+  renderProgress(progress);
   renderDaily(stats.by_day || []);
+  renderBars(weeklyChart, stats.by_week || []);
   renderBars(statusChart, [
     ...(stats.by_normalization || []).map(item => ({ ...item, key: label('normalization', item.key) })),
     ...(stats.by_eligibility || []).map(item => ({ ...item, key: label('eligibility', item.key) })),
@@ -101,6 +110,33 @@ function render(stats) {
     { key: 'Evaluación en curso', count: operational.evaluation_in_progress || 0 },
     { key: 'Evaluación completada', count: operational.evaluation_completed || 0 },
   ]);
+}
+
+function renderCritical(operational) {
+  criticalTotal.textContent = String(operational.critical_pending || 0);
+  renderBars(criticalChart, [
+    { key: 'Incidencias abiertas', count: operational.open_issues || 0 },
+    { key: 'Documentos pendientes', count: operational.document_tasks || 0 },
+    { key: 'Bloqueadas por requisitos', count: operational.blocked_by_eligibility || 0 },
+    { key: 'Admisibilidad por revisar', count: operational.manual_eligibility_review || 0 },
+  ]);
+}
+
+function renderProgress(progress) {
+  const percent = Number(progress.percent_completed || 0);
+  progressPercent.textContent = `${percent}%`;
+  progressChart.innerHTML = `
+    <div class="progress-ring" style="--progress:${percent * 3.6}deg">
+      <strong>${percent}%</strong>
+      <span>completado</span>
+    </div>
+    <div class="progress-list">
+      <div><span>Universo revisable</span><strong>${Number(progress.reviewable || 0)}</strong></div>
+      <div><span>Completadas</span><strong>${Number(progress.evaluated || 0)}</strong></div>
+      <div><span>En curso</span><strong>${Number(progress.in_progress || 0)}</strong></div>
+      <div><span>Pendientes</span><strong>${Number(progress.pending || 0)}</strong></div>
+    </div>
+  `;
 }
 
 function renderSummary(items) {

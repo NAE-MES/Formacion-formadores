@@ -526,6 +526,18 @@ async function buildHomeStats(repository) {
     ['MISSING', 'NEEDS_REVIEW', 'REJECTED'].includes(row.curriculum_status)
   );
   const openIssues = issues.filter(issue => ['OPEN', 'NEEDS_SOURCE_REVIEW'].includes(issue.review_status || 'OPEN'));
+  const readyToEvaluate = reviews.filter(row =>
+    row.eligibility_status === 'READY_FOR_TECHNICAL_REVIEW' &&
+    (row.evaluation_status || 'NOT_STARTED') === 'NOT_STARTED'
+  );
+  const evaluationInProgress = matrix.filter(row => row.evaluation_status === 'IN_PROGRESS');
+  const evaluationCompleted = matrix.filter(row => row.evaluation_status === 'COMPLETED');
+  const blockedByEligibility = reviews.filter(row => row.eligibility_status === 'BLOCKED_BY_MISSING_REQUIREMENTS');
+  const manualEligibility = reviews.filter(row => row.eligibility_status === 'REQUIRES_MANUAL_REVIEW');
+  const reviewable = reviews.filter(row =>
+    row.eligibility_status === 'READY_FOR_TECHNICAL_REVIEW' ||
+    ['IN_PROGRESS', 'COMPLETED', 'NEEDS_REVIEW'].includes(row.evaluation_status || 'NOT_STARTED')
+  );
 
   return {
     generated_at: new Date().toISOString(),
@@ -547,14 +559,22 @@ async function buildHomeStats(repository) {
     operational: {
       open_issues: openIssues.length,
       document_tasks: documentTasks.length,
-      ready_to_evaluate: reviews.filter(row =>
-        row.eligibility_status === 'READY_FOR_TECHNICAL_REVIEW' &&
-        (row.evaluation_status || 'NOT_STARTED') === 'NOT_STARTED'
-      ).length,
-      evaluation_in_progress: matrix.filter(row => row.evaluation_status === 'IN_PROGRESS').length,
-      evaluation_completed: matrix.filter(row => row.evaluation_status === 'COMPLETED').length,
+      ready_to_evaluate: readyToEvaluate.length,
+      evaluation_in_progress: evaluationInProgress.length,
+      evaluation_completed: evaluationCompleted.length,
+      blocked_by_eligibility: blockedByEligibility.length,
+      manual_eligibility_review: manualEligibility.length,
+      critical_pending: openIssues.length + documentTasks.length + blockedByEligibility.length + manualEligibility.length,
+    },
+    progress: {
+      reviewable: reviewable.length,
+      evaluated: evaluationCompleted.length,
+      in_progress: evaluationInProgress.length,
+      pending: Math.max(0, reviewable.length - evaluationCompleted.length - evaluationInProgress.length),
+      percent_completed: reviewable.length ? Math.round((evaluationCompleted.length / reviewable.length) * 100) : 0,
     },
     by_day: countByDay(submissions, row => row.received_at),
+    by_week: countByWeek(submissions, row => row.received_at),
     by_source: countByValue(submissions, row => row.source_channel || 'SIN_ORIGEN'),
     by_normalization: countByValue(submissions, row => row.normalization_status || 'SIN_ESTADO'),
     by_province: countByValue(submissions, row => row.province || 'Sin provincia'),
@@ -574,6 +594,17 @@ function countByDay(rows, getter) {
   return mapEntries(counts).sort((a, b) => a.key.localeCompare(b.key));
 }
 
+function countByWeek(rows, getter) {
+  const counts = new Map();
+  for (const row of rows || []) {
+    const rawValue = getter(row);
+    const date = rawValue ? new Date(rawValue) : null;
+    const label = date && !Number.isNaN(date.getTime()) ? weekLabel(date) : 'Sin fecha';
+    counts.set(label, (counts.get(label) || 0) + 1);
+  }
+  return mapEntries(counts).sort((a, b) => a.key.localeCompare(b.key));
+}
+
 function countByValue(rows, getter) {
   const counts = new Map();
   for (const row of rows || []) {
@@ -581,6 +612,15 @@ function countByValue(rows, getter) {
     counts.set(key, (counts.get(key) || 0) + 1);
   }
   return mapEntries(counts).sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
+}
+
+function weekLabel(date) {
+  const copy = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const day = copy.getUTCDay() || 7;
+  copy.setUTCDate(copy.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(copy.getUTCFullYear(), 0, 1));
+  const week = Math.ceil((((copy - yearStart) / 86400000) + 1) / 7);
+  return `${copy.getUTCFullYear()}-S${String(week).padStart(2, '0')}`;
 }
 
 function mapEntries(counts) {

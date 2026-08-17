@@ -228,6 +228,9 @@ test('home stats API exposes aggregate data only for the lowest access role', as
     assert.equal(response.statusCode, 200);
     assert.equal(response.body.totals.submissions, 2);
     assert.equal(response.body.by_day.length, 2);
+    assert.equal(response.body.by_week.length, 2);
+    assert.equal(typeof response.body.operational.critical_pending, 'number');
+    assert.equal(typeof response.body.progress.percent_completed, 'number');
     assert.deepEqual(response.body.by_source.map(item => item.key).sort(), ['GOOGLE_FORM', 'OFFLINE_JSON']);
     const serialized = JSON.stringify(response.body);
     assert.doesNotMatch(serialized, /Ana|Perez|ana\.perez@example\.test|SYN-0001/);
