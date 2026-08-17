@@ -1,29 +1,356 @@
 <!doctype html>
 <html lang="es">
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>FdF 2026 - Acceso</title>
-    <link rel="stylesheet" href="/login/styles.css">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FdF 2026 · Acceso</title>
+    <!-- Fuente moderna y ligera -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
+    <style>
+      /* reset & base */
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        background: #f2f6fa;
+        font-family: "Inter", system-ui, -apple-system, sans-serif;
+        display: grid;
+        place-items: center;
+        min-height: 100vh;
+        margin: 0;
+        padding: 1.5rem;
+        line-height: 1.5;
+        color: #0b1c28;
+      }
+
+      /* tarjeta principal con el nuevo azul #002c43 */
+      .login-card {
+        width: 100%;
+        max-width: 420px;
+        background: #002c43;          /* azul profundo */
+        border-radius: 2rem;
+        padding: 2.5rem 2rem 2.25rem;
+        box-shadow: 0 20px 40px -12px rgba(0, 44, 67, 0.35);
+        transition: box-shadow 0.2s;
+        color: #ffffff;
+        display: flex;
+        flex-direction: column;
+        gap: 1.75rem;
+      }
+
+      /* encabezado */
+      .card-header {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+      }
+
+      .eyebrow {
+        font-size: 0.7rem;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #8ab9d9;            /* azul claro sutil */
+        margin-bottom: 0.2rem;
+      }
+
+      .card-header h1 {
+        font-size: 1.8rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        line-height: 1.2;
+        color: #ffffff;
+      }
+
+      .intro {
+        font-size: 0.95rem;
+        color: #b6d6ed;            /* azul muy claro */
+        margin-top: 0.2rem;
+        font-weight: 400;
+      }
+
+      /* formulario */
+      .login-form {
+        display: flex;
+        flex-direction: column;
+        gap: 1.1rem;
+      }
+
+      .input-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+      }
+
+      .input-group label {
+        font-size: 0.8rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        color: #cde3f2;
+        text-transform: uppercase;
+      }
+
+      .input-group input {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 14px;
+        padding: 0.9rem 1rem;
+        font-size: 1rem;
+        font-weight: 450;
+        color: #ffffff;
+        transition: border 0.15s, background 0.15s, box-shadow 0.15s;
+        outline: none;
+        width: 100%;
+        backdrop-filter: blur(2px);
+      }
+
+      .input-group input::placeholder {
+        color: rgba(255, 255, 255, 0.4);
+        font-weight: 400;
+        font-size: 0.95rem;
+      }
+
+      .input-group input:focus {
+        background: rgba(255, 255, 255, 0.14);
+        border-color: #7bb8da;
+        box-shadow: 0 0 0 3px rgba(123, 184, 218, 0.25);
+      }
+
+      .input-group input:-webkit-autofill {
+        background-color: rgba(255, 255, 255, 0.1) !important;
+        -webkit-box-shadow: 0 0 0 1000px #002c43 inset !important;
+        -webkit-text-fill-color: #ffffff !important;
+        border-color: rgba(255, 255, 255, 0.25);
+      }
+
+      /* botón */
+      .login-btn {
+        margin-top: 0.3rem;
+        background: #ffffff;
+        border: none;
+        border-radius: 40px;
+        padding: 0.9rem 1.5rem;
+        font-weight: 700;
+        font-size: 1rem;
+        color: #002c43;
+        cursor: pointer;
+        transition: 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        letter-spacing: 0.01em;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+      }
+
+      .login-btn:hover {
+        background: #e6f0f7;
+        transform: scale(1.01);
+        box-shadow: 0 8px 20px rgba(0, 44, 67, 0.2);
+      }
+
+      .login-btn:active {
+        transform: scale(0.98);
+      }
+
+      /* mensaje de error */
+      .error-container {
+        min-height: 1.8rem;
+        margin-top: -0.2rem;
+      }
+
+      .error-message {
+        color: #fcd4d4;
+        background: rgba(255, 80, 80, 0.12);
+        border-radius: 40px;
+        padding: 0.45rem 1rem;
+        font-size: 0.9rem;
+        font-weight: 500;
+        display: inline-block;
+        backdrop-filter: blur(2px);
+        border: 1px solid rgba(255, 150, 150, 0.15);
+      }
+
+      /* pie de card (detalle extra) */
+      .card-footer {
+        margin-top: 0.2rem;
+        font-size: 0.75rem;
+        color: #7fadcc;
+        text-align: center;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+        padding-top: 1.25rem;
+        letter-spacing: 0.02em;
+      }
+
+      .card-footer span {
+        opacity: 0.7;
+      }
+
+      /* responsive */
+      @media (max-width: 460px) {
+        .login-card {
+          padding: 2rem 1.25rem;
+          border-radius: 1.5rem;
+        }
+        .card-header h1 {
+          font-size: 1.6rem;
+        }
+        .input-group input {
+          padding: 0.8rem 1rem;
+        }
+      }
+
+      /* accesibilidad */
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+    </style>
   </head>
   <body>
     <main class="login-page">
       <section class="login-card" aria-labelledby="loginTitle">
-        <div>
+        <div class="card-header">
           <p class="eyebrow">FdF 2026</p>
           <h1 id="loginTitle">Acceso al sistema</h1>
           <p class="intro">Consola interna de gestión de postulaciones.</p>
         </div>
-        <form id="loginForm" class="login-form">
-          <label for="adminUsername">Usuario</label>
-          <input id="adminUsername" name="adminUsername" type="text" autocomplete="username" required autofocus>
-          <label for="adminPassword">Contraseña</label>
-          <input id="adminPassword" name="adminPassword" type="password" autocomplete="current-password" required>
-          <button type="submit">Entrar</button>
-          <p id="loginError" class="error" role="alert"></p>
+
+        <form id="loginForm" class="login-form" novalidate>
+          <div class="input-group">
+            <label for="adminUsername">Usuario</label>
+            <input
+              id="adminUsername"
+              name="adminUsername"
+              type="text"
+              autocomplete="username"
+              placeholder="ej. administrador"
+              required
+              autofocus
+            />
+          </div>
+
+          <div class="input-group">
+            <label for="adminPassword">Contraseña</label>
+            <input
+              id="adminPassword"
+              name="adminPassword"
+              type="password"
+              autocomplete="current-password"
+              placeholder="••••••••"
+              required
+            />
+          </div>
+
+          <button type="submit" class="login-btn">
+            <span>Entrar</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 2px;">
+              <path d="M5 12h14" />
+              <path d="M12 5l7 7-7 7" />
+            </svg>
+          </button>
+
+          <div class="error-container">
+            <p id="loginError" class="error-message" role="alert" style="display: none;"></p>
+          </div>
         </form>
+
+        <div class="card-footer">
+          <span>🔒 entorno seguro · FdF 2026</span>
+        </div>
       </section>
     </main>
-    <script src="/login/app.js"></script>
+
+    <script>
+      (function() {
+        const loginForm = document.querySelector('#loginForm');
+        const usernameInput = document.querySelector('#adminUsername');
+        const passwordInput = document.querySelector('#adminPassword');
+        const loginError = document.querySelector('#loginError');
+
+        // ─── chequeo de sesión existente ──────────────────────────────
+        async function checkExistingSession() {
+          try {
+            const response = await fetch('/api/auth/me', {
+              credentials: 'same-origin',
+            });
+            if (response?.ok) {
+              window.location.replace('/home');
+            }
+          } catch (_) {
+            // ignoramos errores de red, solo si la sesión existe redirige
+          }
+        }
+
+        // ─── manejo del formulario ────────────────────────────────────
+        loginForm.addEventListener('submit', async (event) => {
+          event.preventDefault();
+
+          // resetear error visual
+          loginError.style.display = 'none';
+          loginError.textContent = '';
+
+          const username = usernameInput.value.trim();
+          const password = passwordInput.value;
+
+          // validación básica en cliente (por si acaso)
+          if (!username || !password) {
+            loginError.textContent = 'Completa ambos campos.';
+            loginError.style.display = 'block';
+            return;
+          }
+
+          try {
+            const response = await fetch('/api/auth/login', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              credentials: 'same-origin',
+              body: JSON.stringify({ username, password }),
+            });
+
+            const body = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+              throw new Error(body.message || body.error || 'No autorizado.');
+            }
+
+            // login exitoso → redirigir
+            window.location.assign('/home');
+          } catch (error) {
+            // limpiar campo contraseña por seguridad
+            passwordInput.value = '';
+            // mostrar error estilizado
+            loginError.textContent = 'Usuario o contraseña inválidos.';
+            loginError.style.display = 'block';
+            // enfocar password para reintentar
+            passwordInput.focus();
+          }
+        });
+
+        // ─── ejecutar verificación de sesión al cargar ──────────────
+        checkExistingSession();
+
+        // ─── ocultar error al empezar a escribir ─────────────────────
+        const clearErrorOnInput = () => {
+          loginError.style.display = 'none';
+          loginError.textContent = '';
+        };
+        usernameInput.addEventListener('input', clearErrorOnInput);
+        passwordInput.addEventListener('input', clearErrorOnInput);
+
+      })();
+    </script>
   </body>
 </html>

@@ -1,36 +1,541 @@
 <!doctype html>
 <html lang="es">
   <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>FdF 2026 - Inicio</title>
-    <link rel="stylesheet" href="/home/styles.css">
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FdF 2026 · Estadísticas</title>
+    <!-- Fuente moderna y ligera -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
+    <style>
+      /* ===== reset & base ===== */
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      :root {
+        color-scheme: light;
+        --bg: #f5f9fe;
+        --panel: #ffffff;
+        --text: #0b1c28;
+        --muted: #4b6a7e;
+        --line: #dce7f2;
+        --blue: #002c43;
+        --blue-dark: #001f30;
+        --soft-blue: #e3eef9;
+        --green: #0f766e;
+        --amber: #b45309;
+        --red: #b91c1c;
+        --shadow: 0 8px 20px -8px rgba(0, 44, 67, 0.12);
+        --radius: 18px;
+        --radius-sm: 12px;
+      }
+
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Inter", system-ui, -apple-system, sans-serif;
+        font-size: 14px;
+        line-height: 1.5;
+        padding: 0;
+        margin: 0;
+        min-height: 100vh;
+      }
+
+      /* ===== topbar ===== */
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 18px 28px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--line);
+        box-shadow: 0 2px 8px rgba(0, 44, 67, 0.03);
+        flex-wrap: wrap;
+      }
+
+      .topbar-left {
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .topbar-left h1 {
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: var(--blue);
+      }
+
+      .topbar-left p {
+        color: var(--muted);
+        font-weight: 450;
+        font-size: 0.95rem;
+      }
+
+      .actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .badge {
+        border: 1px solid var(--line);
+        border-radius: 40px;
+        padding: 6px 16px;
+        background: var(--soft-blue);
+        color: var(--blue-dark);
+        font-weight: 600;
+        font-size: 0.8rem;
+        letter-spacing: 0.02em;
+        transition: background 0.1s;
+      }
+
+      .button,
+      button {
+        min-height: 38px;
+        border: none;
+        border-radius: 40px;
+        padding: 0 18px;
+        font-weight: 600;
+        font-size: 0.85rem;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        transition: 0.15s;
+        text-decoration: none;
+        background: var(--blue);
+        color: #ffffff;
+        box-shadow: 0 2px 6px rgba(0, 44, 67, 0.08);
+      }
+
+      .button.secondary,
+      button.secondary {
+        background: transparent;
+        color: var(--blue);
+        border: 1px solid var(--line);
+        box-shadow: none;
+      }
+
+      .button.secondary:hover,
+      button.secondary:hover {
+        background: var(--soft-blue);
+        border-color: var(--blue);
+      }
+
+      .button:hover,
+      button:hover {
+        background: var(--blue-dark);
+        transform: translateY(-1px);
+        box-shadow: 0 6px 14px rgba(0, 44, 67, 0.15);
+      }
+
+      /* ===== shell ===== */
+      .shell {
+        max-width: 1360px;
+        margin: 0 auto;
+        padding: 28px 28px 40px;
+      }
+
+      /* ===== notices ===== */
+      .notice {
+        padding: 18px 20px;
+        border-radius: var(--radius-sm);
+        background: var(--panel);
+        border: 1px solid var(--line);
+        font-weight: 500;
+        color: var(--muted);
+      }
+
+      .notice.error {
+        border-color: #f0c8c8;
+        background: #fff8f8;
+        color: var(--red);
+      }
+
+      /* ===== summary grid ===== */
+      .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 14px;
+        margin-bottom: 24px;
+      }
+
+      .stat {
+        background: var(--panel);
+        padding: 18px 16px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow);
+        transition: 0.1s;
+      }
+
+      .stat span {
+        display: block;
+        color: var(--muted);
+        font-weight: 500;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      .stat strong {
+        display: block;
+        margin-top: 8px;
+        font-size: 30px;
+        font-weight: 700;
+        line-height: 1.1;
+        color: var(--blue);
+        letter-spacing: -0.02em;
+      }
+
+      /* ===== grid / panels ===== */
+      .focus-grid {
+        display: grid;
+        grid-template-columns: 1fr 1.2fr;
+        gap: 18px;
+        margin-bottom: 24px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 18px;
+        margin-top: 4px;
+      }
+
+      .panel {
+        background: var(--panel);
+        padding: 20px 22px 22px;
+        border-radius: var(--radius);
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow);
+        transition: 0.1s;
+      }
+
+      .panel.wide {
+        margin-bottom: 24px;
+      }
+
+      .panel-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 18px;
+        flex-wrap: wrap;
+      }
+
+      .panel-head h2 {
+        font-size: 1rem;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        color: var(--text);
+      }
+
+      .panel-head .muted {
+        font-size: 0.75rem;
+        color: var(--muted);
+        font-weight: 450;
+      }
+
+      .metric-badge {
+        min-width: 44px;
+        border-radius: 40px;
+        background: var(--soft-blue);
+        color: var(--blue-dark);
+        font-weight: 700;
+        font-size: 0.85rem;
+        padding: 4px 14px;
+        text-align: center;
+        border: 1px solid #cdddee;
+      }
+
+      /* ===== day chart ===== */
+      .day-chart {
+        min-height: 260px;
+        overflow-x: auto;
+        padding: 6px 0 4px;
+        margin-top: -2px;
+      }
+
+      .trend-svg {
+        display: block;
+        width: 100%;
+        min-width: 620px;
+        height: 270px;
+      }
+
+      .trend-grid {
+        stroke: #dce7f2;
+        stroke-width: 1.5;
+      }
+
+      .trend-axis,
+      .trend-label {
+        fill: var(--muted);
+        font-size: 11px;
+        font-weight: 500;
+      }
+
+      .trend-area {
+        fill: #e3eef9;
+        opacity: 0.6;
+      }
+
+      .trend-line {
+        fill: none;
+        stroke: var(--blue);
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-width: 3.5;
+      }
+
+      .trend-point circle {
+        fill: #ffffff;
+        stroke: var(--blue);
+        stroke-width: 3;
+        filter: drop-shadow(0 2px 4px rgba(0,44,67,0.08));
+      }
+
+      .trend-value {
+        fill: var(--text);
+        font-size: 11px;
+        font-weight: 700;
+      }
+
+      /* ===== bars ===== */
+      .bars {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        margin-top: 4px;
+      }
+
+      .bars-wide .bar-row {
+        grid-template-columns: minmax(160px, 1fr) 60px;
+      }
+
+      .bar-row {
+        display: grid;
+        grid-template-columns: minmax(100px, 1fr) 48px;
+        gap: 12px;
+        align-items: center;
+      }
+
+      .bar-label {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 0;
+      }
+
+      .bar-label span:first-child {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-weight: 500;
+        font-size: 0.85rem;
+        color: var(--text);
+      }
+
+      .bar-track {
+        width: 100%;
+        height: 8px;
+        border-radius: 40px;
+        background: #e9eff5;
+        overflow: hidden;
+      }
+
+      .bar-fill {
+        height: 100%;
+        border-radius: inherit;
+        background: var(--blue);
+        transition: width 0.2s;
+      }
+
+      .bar-count {
+        text-align: right;
+        font-weight: 700;
+        font-size: 0.9rem;
+        color: var(--blue-dark);
+      }
+
+      .empty {
+        color: var(--muted);
+        padding: 12px 0 8px;
+        font-style: italic;
+        font-weight: 450;
+      }
+
+      /* ===== progress card ===== */
+      .progress-card {
+        display: grid;
+        grid-template-columns: 160px 1fr;
+        gap: 24px;
+        align-items: center;
+        padding: 4px 0;
+      }
+
+      .progress-ring {
+        width: 150px;
+        aspect-ratio: 1;
+        border-radius: 50%;
+        background:
+          radial-gradient(circle at center, #ffffff 0 56%, transparent 57%),
+          conic-gradient(var(--blue) var(--progress), #e9eff5 0deg);
+        display: grid;
+        place-items: center;
+        text-align: center;
+        box-shadow: inset 0 0 0 2px rgba(255,255,255,0.3), 0 4px 12px rgba(0,44,67,0.06);
+      }
+
+      .progress-ring strong {
+        display: block;
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--blue);
+        line-height: 1.1;
+      }
+
+      .progress-ring span {
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 500;
+      }
+
+      .progress-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .progress-list div {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 8px;
+        font-size: 0.9rem;
+      }
+
+      .progress-list span {
+        color: var(--muted);
+        font-weight: 450;
+      }
+
+      .progress-list strong {
+        font-weight: 700;
+        color: var(--text);
+      }
+
+      /* ===== responsive ===== */
+      @media (max-width: 1024px) {
+        .focus-grid {
+          grid-template-columns: 1fr;
+        }
+        .grid {
+          grid-template-columns: 1fr;
+        }
+        .progress-card {
+          grid-template-columns: 1fr;
+          justify-items: center;
+        }
+        .progress-ring {
+          width: 130px;
+        }
+        .topbar {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+        .actions {
+          width: 100%;
+          justify-content: flex-start;
+        }
+        .summary-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .shell {
+          padding: 18px 16px 32px;
+        }
+        .panel {
+          padding: 18px 16px;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .summary-grid {
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+        }
+        .stat strong {
+          font-size: 24px;
+        }
+        .bar-row {
+          grid-template-columns: 1fr 36px;
+          gap: 8px;
+        }
+        .bar-label span:first-child {
+          font-size: 0.8rem;
+        }
+        .topbar-left h1 {
+          font-size: 18px;
+        }
+        .metric-badge {
+          font-size: 0.75rem;
+          padding: 2px 10px;
+        }
+      }
+
+      /* ===== util ===== */
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+    </style>
   </head>
   <body>
     <header class="topbar">
-      <div>
+      <div class="topbar-left">
         <h1>FdF 2026</h1>
         <p>Resumen de postulaciones</p>
       </div>
       <div class="actions">
-        <span id="userBadge" class="badge" hidden></span>
+        <span id="userBadge" class="badge" hidden>usuario</span>
         <a id="adminLink" class="button secondary" href="/admin" hidden>Consola</a>
         <button id="logoutButton" class="secondary" type="button">Cerrar sesión</button>
       </div>
     </header>
 
     <main class="shell">
-      <section id="loading" class="notice">Cargando estadísticas...</section>
+      <section id="loading" class="notice">Cargando estadísticas…</section>
       <section id="errorPanel" class="notice error" hidden></section>
 
       <section id="dashboard" hidden>
+        <!-- summary -->
         <div class="summary-grid" id="summaryGrid"></div>
 
+        <!-- focus: critical + progress -->
         <div class="focus-grid">
           <section class="panel">
             <div class="panel-head">
               <h2>Pendientes críticos</h2>
-              <span id="criticalTotal" class="metric-badge"></span>
+              <span id="criticalTotal" class="metric-badge">0</span>
             </div>
             <div id="criticalChart" class="bars"></div>
           </section>
@@ -38,12 +543,13 @@
           <section class="panel">
             <div class="panel-head">
               <h2>Progreso de revisión</h2>
-              <span id="progressPercent" class="metric-badge"></span>
+              <span id="progressPercent" class="metric-badge">0%</span>
             </div>
             <div id="progressChart" class="progress-card"></div>
           </section>
         </div>
 
+        <!-- daily -->
         <section class="panel wide">
           <div class="panel-head">
             <h2>Postulaciones por día</h2>
@@ -52,6 +558,7 @@
           <div id="dailyChart" class="day-chart"></div>
         </section>
 
+        <!-- weekly -->
         <section class="panel wide">
           <div class="panel-head">
             <h2>Evolución semanal</h2>
@@ -60,6 +567,7 @@
           <div id="weeklyChart" class="bars bars-wide"></div>
         </section>
 
+        <!-- grid: status, province, source, work -->
         <div class="grid">
           <section class="panel">
             <h2>Por estado</h2>
@@ -84,6 +592,279 @@
       </section>
     </main>
 
-    <script src="/home/app.js"></script>
+    <!-- ===== scripts ===== -->
+    <script>
+      (function() {
+        // ── LABELS (mismo que antes) ──
+        const LABELS = {
+          roles: {
+            ADMIN: 'Administrador',
+            REVIEWER: 'Revisor',
+            INTAKE: 'Registro',
+            VIEWER: 'Consulta',
+          },
+          sourceChannels: {
+            GOOGLE_FORM: 'Formulario en línea',
+            OFFLINE_JSON: 'Offline con JSON',
+            OFFLINE_MANUAL: 'Offline manual',
+          },
+          normalization: {
+            NORMALIZED: 'Normalizada',
+            WITH_ISSUES: 'Con incidencias',
+            REJECTED: 'Rechazada',
+            SIN_ESTADO: 'Sin estado',
+          },
+          eligibility: {
+            READY_FOR_TECHNICAL_REVIEW: 'Lista para revisión técnica',
+            BLOCKED_BY_MISSING_REQUIREMENTS: 'Bloqueada por requisitos',
+            REQUIRES_MANUAL_REVIEW: 'Requiere revisión manual',
+            SIN_EVALUAR: 'Sin evaluar',
+          },
+          evaluation: {
+            NOT_STARTED: 'No iniciada',
+            IN_PROGRESS: 'En curso',
+            COMPLETED: 'Completada',
+            NEEDS_REVIEW: 'Necesita revisión',
+          },
+        };
+
+        // ── DOM refs ──
+        const loading = document.querySelector('#loading');
+        const errorPanel = document.querySelector('#errorPanel');
+        const dashboard = document.querySelector('#dashboard');
+        const summaryGrid = document.querySelector('#summaryGrid');
+        const dailyChart = document.querySelector('#dailyChart');
+        const statusChart = document.querySelector('#statusChart');
+        const provinceChart = document.querySelector('#provinceChart');
+        const sourceChart = document.querySelector('#sourceChart');
+        const workChart = document.querySelector('#workChart');
+        const weeklyChart = document.querySelector('#weeklyChart');
+        const criticalChart = document.querySelector('#criticalChart');
+        const progressChart = document.querySelector('#progressChart');
+        const criticalTotal = document.querySelector('#criticalTotal');
+        const progressPercent = document.querySelector('#progressPercent');
+        const generatedAt = document.querySelector('#generatedAt');
+        const userBadge = document.querySelector('#userBadge');
+        const adminLink = document.querySelector('#adminLink');
+        const logoutButton = document.querySelector('#logoutButton');
+
+        // ── logout ──
+        logoutButton.addEventListener('click', async () => {
+          await api('/api/auth/logout', { method: 'POST', skipAuthRedirect: true }).catch(() => {});
+          window.location.replace('/login');
+        });
+
+        // ── boot ──
+        boot();
+
+        async function boot() {
+          try {
+            const me = await api('/api/auth/me', { skipAuthRedirect: true });
+            renderUser(me.user);
+            const stats = await api('/api/home/stats');
+            render(stats);
+            loading.hidden = true;
+            dashboard.hidden = false;
+          } catch (error) {
+            loading.hidden = true;
+            errorPanel.hidden = false;
+            errorPanel.textContent = error.message || 'No fue posible cargar el resumen.';
+          }
+        }
+
+        function renderUser(user) {
+          userBadge.hidden = false;
+          userBadge.textContent = `${user.username} - ${label('roles', user.role)}`;
+          adminLink.hidden = !['ADMIN', 'REVIEWER', 'INTAKE'].includes(user.role);
+        }
+
+        function render(stats) {
+          const totals = stats.totals || {};
+          const operational = stats.operational || {};
+          const progress = stats.progress || {};
+          generatedAt.textContent = stats.generated_at ? `Actualizado ${formatDateTime(stats.generated_at)}` : '';
+
+          renderSummary([
+            ['Postulaciones', totals.submissions],
+            ['Postulantes', totals.candidates],
+            ['Listas para revisión', totals.eligibility_ready],
+            ['Pendientes críticos', operational.critical_pending],
+            ['Incidencias abiertas', operational.open_issues],
+            ['Documentos pendientes', operational.document_tasks],
+            ['Evaluación en curso', totals.evaluation_in_progress],
+            ['Evaluaciones completadas', totals.evaluation_completed],
+          ]);
+
+          renderCritical(operational);
+          renderProgress(progress);
+          renderDaily(stats.by_day || []);
+          renderBars(weeklyChart, stats.by_week || []);
+          renderBars(statusChart, [
+            ...(stats.by_normalization || []).map(item => ({ ...item, key: label('normalization', item.key) })),
+            ...(stats.by_eligibility || []).map(item => ({ ...item, key: label('eligibility', item.key) })),
+            ...(stats.by_evaluation || []).map(item => ({ ...item, key: label('evaluation', item.key) })),
+          ]);
+          renderBars(provinceChart, (stats.by_province || []).slice(0, 12));
+          renderBars(sourceChart, (stats.by_source || []).map(item => ({ ...item, key: label('sourceChannels', item.key) })));
+          renderBars(workChart, [
+            { key: 'Incidencias abiertas', count: operational.open_issues || 0 },
+            { key: 'Documentos pendientes', count: operational.document_tasks || 0 },
+            { key: 'Listas por evaluar', count: operational.ready_to_evaluate || 0 },
+            { key: 'Evaluación en curso', count: operational.evaluation_in_progress || 0 },
+            { key: 'Evaluación completada', count: operational.evaluation_completed || 0 },
+          ]);
+        }
+
+        function renderCritical(operational) {
+          criticalTotal.textContent = String(operational.critical_pending || 0);
+          renderBars(criticalChart, [
+            { key: 'Incidencias abiertas', count: operational.open_issues || 0 },
+            { key: 'Documentos pendientes', count: operational.document_tasks || 0 },
+            { key: 'Bloqueadas por requisitos', count: operational.blocked_by_eligibility || 0 },
+            { key: 'Admisibilidad por revisar', count: operational.manual_eligibility_review || 0 },
+          ]);
+        }
+
+        function renderProgress(progress) {
+          const percent = Number(progress.percent_completed || 0);
+          progressPercent.textContent = `${percent}%`;
+          progressChart.innerHTML = `
+            <div class="progress-ring" style="--progress:${percent * 3.6}deg">
+              <strong>${percent}%</strong>
+              <span>completado</span>
+            </div>
+            <div class="progress-list">
+              <div><span>Universo revisable</span><strong>${Number(progress.reviewable || 0)}</strong></div>
+              <div><span>Completadas</span><strong>${Number(progress.evaluated || 0)}</strong></div>
+              <div><span>En curso</span><strong>${Number(progress.in_progress || 0)}</strong></div>
+              <div><span>Pendientes</span><strong>${Number(progress.pending || 0)}</strong></div>
+            </div>
+          `;
+        }
+
+        function renderSummary(items) {
+          summaryGrid.innerHTML = items.map(([name, value]) => `
+            <article class="stat">
+              <span>${escapeHtml(name)}</span>
+              <strong>${Number(value || 0)}</strong>
+            </article>
+          `).join('');
+        }
+
+        function renderDaily(rows) {
+          if (!rows.length) {
+            dailyChart.innerHTML = '<p class="empty">No hay postulaciones registradas.</p>';
+            return;
+          }
+          const max = Math.max(...rows.map(row => row.count), 1);
+          const width = Math.max(620, rows.length * 72);
+          const height = 250;
+          const padding = { top: 24, right: 22, bottom: 46, left: 42 };
+          const plotWidth = width - padding.left - padding.right;
+          const plotHeight = height - padding.top - padding.bottom;
+          const points = rows.map((row, index) => {
+            const x = rows.length === 1
+              ? padding.left + plotWidth / 2
+              : padding.left + (index / (rows.length - 1)) * plotWidth;
+            const y = padding.top + plotHeight - (row.count / max) * plotHeight;
+            return { ...row, x, y };
+          });
+          const line = points.map(point => `${point.x},${point.y}`).join(' ');
+          const area = [
+            `${padding.left},${padding.top + plotHeight}`,
+            ...points.map(point => `${point.x},${point.y}`),
+            `${padding.left + plotWidth},${padding.top + plotHeight}`,
+          ].join(' ');
+          const grid = [0, 0.25, 0.5, 0.75, 1].map(step => {
+            const y = padding.top + plotHeight - step * plotHeight;
+            const value = Math.round(max * step);
+            return `
+              <g>
+                <line class="trend-grid" x1="${padding.left}" y1="${y}" x2="${padding.left + plotWidth}" y2="${y}"></line>
+                <text class="trend-axis" x="${padding.left - 10}" y="${y + 4}" text-anchor="end">${value}</text>
+              </g>
+            `;
+          }).join('');
+
+          dailyChart.innerHTML = `
+            <svg class="trend-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Tendencia diaria de postulaciones">
+              ${grid}
+              <polygon class="trend-area" points="${area}"></polygon>
+              <polyline class="trend-line" points="${line}"></polyline>
+              ${points.map(point => `
+                <g class="trend-point">
+                  <circle cx="${point.x}" cy="${point.y}" r="5"></circle>
+                  <text class="trend-value" x="${point.x}" y="${point.y - 11}" text-anchor="middle">${point.count}</text>
+                  <text class="trend-label" x="${point.x}" y="${padding.top + plotHeight + 28}" text-anchor="middle">${escapeHtml(formatDay(point.key))}</text>
+                </g>
+              `).join('')}
+            </svg>
+          `;
+        }
+
+        function renderBars(container, rows) {
+          if (!rows.length) {
+            container.innerHTML = '<p class="empty">Sin datos.</p>';
+            return;
+          }
+          const max = Math.max(...rows.map(row => row.count), 1);
+          container.innerHTML = rows.map(row => {
+            const percent = Math.max(2, Math.round((row.count / max) * 100));
+            return `
+              <div class="bar-row">
+                <div class="bar-label">
+                  <span title="${escapeHtml(row.key)}">${escapeHtml(row.key)}</span>
+                  <span class="bar-track"><span class="bar-fill" style="width:${percent}%"></span></span>
+                </div>
+                <span class="bar-count">${row.count}</span>
+              </div>
+            `;
+          }).join('');
+        }
+
+        // ── helpers ──
+        async function api(url, options = {}) {
+          const response = await fetch(url, {
+            method: options.method || 'GET',
+            headers: { 'content-type': 'application/json' },
+            body: options.body ? JSON.stringify(options.body) : undefined,
+            credentials: 'same-origin',
+          });
+          if (response.status === 401 && !options.skipAuthRedirect) {
+            window.location.replace('/login');
+            return null;
+          }
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(payload.message || payload.error || 'Solicitud no completada.');
+          return payload;
+        }
+
+        function label(group, value) {
+          return LABELS[group]?.[value] || value || 'Sin dato';
+        }
+
+        function formatDateTime(value) {
+          return new Intl.DateTimeFormat('es-CU', {
+            dateStyle: 'short',
+            timeStyle: 'short',
+          }).format(new Date(value));
+        }
+
+        function formatDay(value) {
+          if (value === 'Sin fecha') return value;
+          const [year, month, day] = String(value).split('-');
+          return `${day}/${month}`;
+        }
+
+        function escapeHtml(value) {
+          return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+        }
+      })();
+    </script>
   </body>
 </html>
