@@ -87,7 +87,6 @@ const loginError = document.querySelector('#loginError');
 const usernameInput = document.querySelector('#adminUsername');
 const passwordInput = document.querySelector('#adminPassword');
 const logoutButton = document.querySelector('#logoutButton');
-const stats = document.querySelector('#stats');
 const workboardRefreshButton = document.querySelector('#workboardRefreshButton');
 const workboardStats = document.querySelector('#workboardStats');
 const workboardSections = document.querySelector('#workboardSections');
@@ -275,8 +274,7 @@ function showLogin(message = '') {
 }
 
 async function loadData() {
-  const [summary, list, review, documents, matrix, issues] = await Promise.all([
-    api('/api/admin/summary'),
+  const [list, review, documents, matrix, issues] = await Promise.all([
     api('/api/admin/submissions'),
     api('/api/admin/review-summary'),
     api('/api/admin/document-review'),
@@ -290,7 +288,6 @@ async function loadData() {
   matrixCriteria = matrix.criteria || [];
   issueReviewRows = issues.issues || [];
   issueFieldCatalog = issues.field_catalog || [];
-  renderStats(summary);
   renderWorkboard();
   renderTable();
   renderReviewSummary();
@@ -525,27 +522,6 @@ function roleOptions(selected) {
   return ['ADMIN', 'REVIEWER', 'INTAKE', 'VIEWER']
     .map(role => `<option value="${role}" ${role === selected ? 'selected' : ''}>${escapeHtml(label('roles', role))}</option>`)
     .join('');
-}
-
-function renderStats(summary) {
-  const items = [
-    ['Postulantes', summary.candidates],
-    ['Postulaciones', summary.submissions],
-    ['Documentos', summary.documents],
-    ['Incidencias abiertas', summary.open_issues || 0],
-    ['Listas para revisar', summary.eligibility_ready || 0],
-    ['Bloqueadas', summary.eligibility_blocked || 0],
-    ['Evaluación en curso', summary.evaluation_in_progress || 0],
-    ['Evaluaciones completas', summary.evaluation_completed || 0],
-    ['Revisión manual', summary.eligibility_review || 0],
-    ['Docs por revisar', summary.documents_needs_review || 0],
-  ];
-  stats.innerHTML = items.map(([label, value]) => `
-    <div class="stat">
-      <strong>${escapeHtml(value)}</strong>
-      <span>${escapeHtml(label)}</span>
-    </div>
-  `).join('');
 }
 
 function renderWorkboard() {

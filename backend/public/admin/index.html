@@ -15,6 +15,7 @@
         </div>
         <div class="top-actions">
           <span id="currentUserBadge" class="badge" hidden></span>
+          <a class="button-link ghost" href="/home">Inicio</a>
           <button id="logoutButton" class="ghost" type="button" hidden>Cerrar sesión</button>
         </div>
       </section>
@@ -33,15 +34,6 @@
       </section>
 
       <section id="appPanel" class="workspace" hidden>
-        <div class="stats" id="stats"></div>
-        <div class="quick-actions" aria-label="Atajos de trabajo">
-          <button type="button" class="ghost" data-quick-filter="READY_TO_EVALUATE">Listas por evaluar</button>
-          <button type="button" class="ghost" data-quick-filter="EVALUATION_IN_PROGRESS">Evaluación en curso</button>
-          <button type="button" class="ghost" data-quick-filter="OPEN_ISSUES">Incidencias abiertas</button>
-          <button type="button" class="ghost" data-quick-filter="DOCS_TO_REVIEW">Documentos por revisar</button>
-          <button type="button" class="ghost" data-quick-filter="CLEAR">Limpiar filtros</button>
-        </div>
-
         <nav class="tabs" aria-label="Vistas administrativas">
           <button class="tab active" type="button" data-view="workboard">Bandeja</button>
           <button class="tab" type="button" data-view="submissions">Expedientes</button>
@@ -60,6 +52,13 @@
               <p class="muted">Tareas operativas derivadas de la ingesta, normalización, documentos y evaluación técnica.</p>
             </div>
             <button id="workboardRefreshButton" type="button">Actualizar</button>
+          </div>
+          <div class="quick-actions" aria-label="Filtros rápidos de bandeja">
+            <button type="button" class="ghost" data-quick-filter="READY_TO_EVALUATE">Listas por evaluar</button>
+            <button type="button" class="ghost" data-quick-filter="EVALUATION_IN_PROGRESS">Evaluación en curso</button>
+            <button type="button" class="ghost" data-quick-filter="OPEN_ISSUES">Incidencias abiertas</button>
+            <button type="button" class="ghost" data-quick-filter="DOCS_TO_REVIEW">Documentos por revisar</button>
+            <button type="button" class="ghost" data-quick-filter="CLEAR">Limpiar filtros</button>
           </div>
           <div id="workboardStats" class="workboard-stats"></div>
           <div id="workboardSections" class="workboard-sections"></div>

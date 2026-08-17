@@ -30,7 +30,8 @@ textarea {
   font: inherit;
 }
 
-button {
+button,
+.button-link {
   min-height: 38px;
   border: 1px solid var(--accent-dark);
   border-radius: 6px;
@@ -38,13 +39,19 @@ button {
   color: white;
   padding: 0 14px;
   cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-button:hover {
+button:hover,
+.button-link:hover {
   background: var(--accent-dark);
 }
 
-button.ghost {
+button.ghost,
+.button-link.ghost {
   background: white;
   color: var(--accent-dark);
 }
@@ -143,31 +150,11 @@ p {
   gap: 14px;
 }
 
-.stats {
-  display: grid;
-  grid-template-columns: repeat(8, minmax(120px, 1fr));
-  gap: 10px;
-}
-
-.stat {
-  padding: 12px;
-  min-height: 72px;
-}
-
-.stat strong {
-  display: block;
-  font-size: 22px;
-  line-height: 1.1;
-}
-
-.stat span {
-  color: var(--muted);
-}
-
 .quick-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin-bottom: 14px;
 }
 
 .quick-actions button {
@@ -748,7 +735,6 @@ tbody tr.selected {
 }
 
 @media (max-width: 980px) {
-  .stats,
   .workboard-stats,
   .workboard-sections,
   .toolbar,
