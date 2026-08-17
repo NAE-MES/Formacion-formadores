@@ -1460,8 +1460,11 @@ function matrixCriterionCell(item, criterion) {
           ${evaluationStatusOptions(status)}
         </select>
         <input data-matrix-score="${escapeHtml(item.submission_id)}:${escapeHtml(criterion.criterion_id)}" type="number" min="0" max="100" step="0.01" value="${escapeHtml(score)}" placeholder="Puntaje" ${readOnly}>
-        <textarea data-matrix-evidence="${escapeHtml(item.submission_id)}:${escapeHtml(criterion.criterion_id)}" rows="2" placeholder="Síntesis" ${readOnly}>${escapeHtml(evaluation?.evidence_summary || '')}</textarea>
         ${canReview ? `<button class="compact" type="button" data-matrix-save="${escapeHtml(item.submission_id)}:${escapeHtml(criterion.criterion_id)}">Guardar</button>` : ''}
+        <label class="matrix-synthesis">
+          <span>Síntesis</span>
+          <textarea data-matrix-evidence="${escapeHtml(item.submission_id)}:${escapeHtml(criterion.criterion_id)}" rows="3" placeholder="Elementos que sustentan la revisión" ${readOnly}>${escapeHtml(evaluation?.evidence_summary || '')}</textarea>
+        </label>
       </div>
     </td>
   `;

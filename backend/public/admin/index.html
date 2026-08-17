@@ -454,9 +454,13 @@
          ============================================================ */
       .content-grid {
         display: grid;
-        grid-template-columns: 1fr 340px;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
         gap: 20px;
         margin-top: 4px;
+      }
+
+      .content-grid table {
+        min-width: 560px;
       }
 
       .detail {
@@ -640,6 +644,71 @@
       .stat-chip strong {
         color: var(--text);
         font-weight: 700;
+      }
+
+      .matrix-wrap table {
+        min-width: 1600px;
+      }
+
+      .matrix-cell {
+        min-width: 260px;
+        vertical-align: top;
+      }
+
+      .matrix-cell-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+
+      .matrix-editor {
+        display: grid;
+        grid-template-columns: minmax(110px, 1fr) 88px auto;
+        gap: 8px;
+        align-items: start;
+      }
+
+      .matrix-editor select,
+      .matrix-editor input,
+      .matrix-editor textarea {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        background: #fafcfe;
+        font: inherit;
+        padding: 7px 10px;
+      }
+
+      .matrix-editor textarea {
+        min-height: 84px;
+        resize: vertical;
+        line-height: 1.4;
+      }
+
+      .matrix-synthesis {
+        grid-column: 1 / -1;
+        display: grid;
+        gap: 5px;
+      }
+
+      .matrix-synthesis span {
+        color: var(--muted);
+        font-size: 0.72rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      .matrix-editor button {
+        background: var(--blue);
+        color: #ffffff;
+        border: none;
+        border-radius: 40px;
+        padding: 7px 14px;
+        font-weight: 600;
+        cursor: pointer;
       }
 
       /* ============================================================
