@@ -56,6 +56,12 @@ button.ghost,
   color: var(--accent-dark);
 }
 
+button.active,
+button.ghost.active {
+  background: var(--accent);
+  color: #ffffff;
+}
+
 button.compact {
   min-height: 30px;
   padding: 0 10px;
@@ -95,6 +101,8 @@ textarea {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 h1 {
@@ -166,34 +174,6 @@ p {
   font-size: 13px;
 }
 
-.tabs {
-  display: flex;
-  gap: 8px;
-  border-bottom: 1px solid var(--line);
-  overflow-x: auto;
-}
-
-.advanced-nav {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #ffffff;
-}
-
-.advanced-nav summary {
-  cursor: pointer;
-  color: var(--muted);
-  padding: 10px 12px;
-}
-
-.advanced-nav[open] summary {
-  border-bottom: 1px solid var(--line);
-}
-
-.compact-tabs {
-  border-bottom: 0;
-  padding: 10px;
-}
-
 .tab {
   min-height: 36px;
   border-color: transparent;
@@ -240,89 +220,24 @@ p {
   font-size: 18px;
 }
 
-.workboard-stats {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(180px, 1fr));
-  gap: 10px;
-}
-
-.workboard-stat {
-  display: grid;
-  min-height: 68px;
-  justify-items: start;
-  align-content: center;
-}
-
-.workboard-stat strong {
-  font-size: 22px;
-  line-height: 1;
-}
-
-.workboard-stat span {
-  color: var(--muted);
-}
-
 .workboard-sections {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  display: block;
 }
 
-.workboard-section {
+.workboard-table-wrap {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 12px;
+  overflow: auto;
+}
+
+.workboard-table {
+  min-width: 1120px;
+}
+
+.status-stack {
   display: grid;
-  gap: 10px;
-}
-
-.workboard-section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.workboard-section h3 {
-  margin: 0;
-  font-size: 14px;
-  text-transform: uppercase;
-  color: #42505a;
-}
-
-.workboard-empty {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--panel);
-  padding: 18px;
-  display: grid;
-  gap: 4px;
-}
-
-.workboard-empty span {
-  color: var(--muted);
-}
-
-.workboard-list {
-  display: grid;
-  gap: 8px;
-}
-
-.workboard-item {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 10px;
-  align-items: center;
-  border-top: 1px solid var(--line);
-  padding-top: 8px;
-}
-
-.workboard-badges {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: end;
-  gap: 4px;
+  gap: 5px;
 }
 
 .toolbar {

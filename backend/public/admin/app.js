@@ -88,7 +88,6 @@ const usernameInput = document.querySelector('#adminUsername');
 const passwordInput = document.querySelector('#adminPassword');
 const logoutButton = document.querySelector('#logoutButton');
 const workboardRefreshButton = document.querySelector('#workboardRefreshButton');
-const workboardStats = document.querySelector('#workboardStats');
 const workboardSections = document.querySelector('#workboardSections');
 const table = document.querySelector('#submissionsTable');
 const detailPanel = document.querySelector('#detailPanel');
@@ -304,8 +303,8 @@ function applyRoleUi() {
   currentUserBadge.textContent = `${currentUser.username} - ${label('roles', currentUser.role)}`;
   const canIntake = hasRole('ADMIN', 'INTAKE');
   const canManageUsers = hasRole('ADMIN');
-  document.querySelector('[data-view="intake"]').hidden = !canIntake;
-  document.querySelector('[data-view="users"]').hidden = !canManageUsers;
+  document.querySelectorAll('[data-view="intake"]').forEach(element => element.hidden = !canIntake);
+  document.querySelectorAll('[data-view="users"]').forEach(element => element.hidden = !canManageUsers);
   if (!canIntake && document.querySelector('#view-intake').classList.contains('active')) showView('workboard');
   if (!canManageUsers && document.querySelector('#view-users').classList.contains('active')) showView('workboard');
 }
@@ -537,160 +536,91 @@ function roleOptions(selected) {
 }
 
 function renderWorkboard() {
-  const openIssues = issueReviewRows.filter(issue => ['OPEN', 'NEEDS_SOURCE_REVIEW'].includes(issue.review_status || 'OPEN'));
-  const documentTasks = documentReviewRows.filter(row =>
-    ['MISSING', 'NEEDS_REVIEW', 'REJECTED'].includes(row.carta_aval_status || 'MISSING') ||
-    ['MISSING', 'NEEDS_REVIEW', 'REJECTED'].includes(row.curriculum_status || 'MISSING')
-  );
-  const readyToEvaluate = evaluationMatrixRows.filter(row =>
-    (row.eligibility_status || 'SIN_EVALUAR') === 'READY_FOR_TECHNICAL_REVIEW' &&
-    (row.evaluation_status || 'NOT_STARTED') === 'NOT_STARTED'
-  );
-  const eligibilityReview = reviewSummaries.filter(row =>
-    ['BLOCKED_BY_MISSING_REQUIREMENTS', 'REQUIRES_MANUAL_REVIEW'].includes(row.eligibility_status || 'SIN_EVALUAR')
-  );
-  const inProgress = evaluationMatrixRows.filter(row => (row.evaluation_status || 'NOT_STARTED') === 'IN_PROGRESS');
-  const technicalEvaluation = [
-    ...readyToEvaluate.map(row => ({ ...row, workboard_evaluation_state: 'Pendiente' })),
-    ...inProgress.map(row => ({ ...row, workboard_evaluation_state: 'En curso' })),
-  ].sort((a, b) => String(b.received_at).localeCompare(String(a.received_at)));
-  const pendingAttention = openIssues.length + documentTasks.length + eligibilityReview.length;
-  const attentionTarget = openIssues.length
-    ? ['issues', 'OPEN']
-    : documentTasks.length
-      ? ['documents', '']
-      : ['submissions', 'ELIGIBILITY_REVIEW'];
+  const documentBySubmission = new Map(documentReviewRows.map(row => [row.submission_id, row]));
+  const rows = reviewSummaries
+    .map(row => ({
+      ...row,
+      document_review: documentBySubmission.get(row.submission_id) || {},
+    }))
+    .sort((a, b) => workboardPriority(a) - workboardPriority(b) || String(b.received_at).localeCompare(String(a.received_at)));
 
-  workboardStats.innerHTML = [
-    workboardStat('Por atender', pendingAttention, attentionTarget[0], attentionTarget[1]),
-    workboardStat('Evaluación técnica', technicalEvaluation.length, 'matrix', ''),
-  ].join('');
+  workboardSections.innerHTML = `
+    <div class="workboard-table-wrap">
+      <table class="workboard-table">
+        <thead>
+          <tr>
+            <th>Postulante</th>
+            <th>Origen</th>
+            <th>Documentos</th>
+            <th>Incidencias</th>
+            <th>Admisibilidad</th>
+            <th>Evaluación técnica</th>
+            <th>Recibido</th>
+            <th>Acción</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.length ? rows.map(workboardRow).join('') : `
+            <tr>
+              <td colspan="8" class="muted">No hay postulaciones registradas.</td>
+            </tr>
+          `}
+        </tbody>
+      </table>
+    </div>
+  `;
 
-  const sections = [
-    workboardIssueSection(openIssues),
-    workboardDocumentSection(documentTasks),
-    workboardSubmissionSection('eligibility', 'Admisibilidad por revisar', eligibilityReview, 'submissions', 'Revisar expedientes'),
-    workboardEvaluationSection(technicalEvaluation),
-  ].filter(section => section.count > 0);
-  workboardSections.innerHTML = sections.length
-    ? orderWorkboardSections(sections).slice(0, 4).map(section => section.html).join('')
-    : '<section class="workboard-empty"><strong>Sin tareas prioritarias.</strong><span>Puede revisar expedientes o consultar herramientas especializadas si necesita más detalle.</span></section>';
-
-  workboardStats.querySelectorAll('[data-workboard-open]').forEach(button => {
-    button.addEventListener('click', () => openWorkboardTarget(button.dataset.workboardOpen, button.dataset.workboardFilter));
-  });
-  workboardSections.querySelectorAll('[data-workboard-open]').forEach(button => {
-    button.addEventListener('click', () => openWorkboardTarget(button.dataset.workboardOpen, button.dataset.workboardFilter));
-  });
   workboardSections.querySelectorAll('[data-workboard-submission]').forEach(button => {
     button.addEventListener('click', () => openSubmissionPage(button.dataset.workboardSubmission));
   });
 }
 
-function workboardStat(title, value, target, filter) {
+function workboardRow(row) {
+  const documents = row.document_review || {};
   return `
-    <button class="ghost workboard-stat" type="button" data-workboard-open="${escapeHtml(target)}" data-workboard-filter="${escapeHtml(filter)}">
-      <strong>${escapeHtml(value)}</strong>
-      <span>${escapeHtml(title)}</span>
-    </button>
-  `;
-}
-
-function orderWorkboardSections(sections) {
-  const roleOrders = {
-    INTAKE: ['issues', 'documents', 'eligibility', 'evaluation'],
-    REVIEWER: ['evaluation', 'eligibility', 'issues', 'documents'],
-    VIEWER: ['evaluation', 'issues', 'documents', 'eligibility'],
-    ADMIN: ['issues', 'documents', 'eligibility', 'evaluation'],
-  };
-  const order = roleOrders[currentUser?.role] || roleOrders.ADMIN;
-  return sections.slice().sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
-}
-
-function workboardIssueSection(issues) {
-  return {
-    key: 'issues',
-    count: issues.length,
-    html: workboardSection('Incidencias que requieren atención', issues, 'issues', 'Ver incidencias', issue => `
-    <div>
-      <strong>${escapeHtml(issue.full_name || 'Sin nombre')}</strong><br>
-      <span class="muted">${escapeHtml(issue.code)} ${issue.field_code ? `- ${issue.field_code}` : ''}</span><br>
-      <span class="muted">${escapeHtml(issue.message || '')}</span>
-    </div>
-    <div>${issueBadge(issue.review_status || 'OPEN')}</div>
-  `),
-  };
-}
-
-function workboardDocumentSection(rows) {
-  return {
-    key: 'documents',
-    count: rows.length,
-    html: workboardSection('Documentos pendientes', rows, 'documents', 'Revisar documentos', row => `
-    <div>
-      <strong>${escapeHtml(row.full_name || 'Sin nombre')}</strong><br>
-      <span class="muted">${escapeHtml(row.province || '')} - ${escapeHtml(label('sourceChannels', row.source_channel))}</span>
-    </div>
-    <div class="workboard-badges">
-      ${documentStatusBadge(row.carta_aval_status || 'MISSING')}
-      ${documentStatusBadge(row.curriculum_status || 'MISSING')}
-    </div>
-  `),
-  };
-}
-
-function workboardSubmissionSection(key, title, rows, target, actionText) {
-  return {
-    key,
-    count: rows.length,
-    html: workboardSection(title, rows, target, actionText, row => `
-    <div>
-      <strong>${escapeHtml(row.full_name || 'Sin nombre')}</strong><br>
-      <span class="muted">${escapeHtml(row.province || '')} - ${escapeHtml(label('sourceChannels', row.source_channel))}</span>
-    </div>
-    <div>
-      ${operationalBadge(row)}
-      ${eligibilityBadge(row.eligibility_status)}
-      ${evaluationBadge(row.evaluation_status)}
-    </div>
-  `),
-  };
-}
-
-function workboardEvaluationSection(rows) {
-  return {
-    key: 'evaluation',
-    count: rows.length,
-    html: workboardSection('Evaluación técnica', rows, 'matrix', 'Ver matriz técnica', row => `
-    <div>
-      <strong>${escapeHtml(row.full_name || 'Sin nombre')}</strong><br>
-      <span class="muted">${escapeHtml(row.province || '')} - ${escapeHtml(label('sourceChannels', row.source_channel))}</span>
-    </div>
-    <div>
-      <span class="badge">${escapeHtml(row.workboard_evaluation_state || 'Pendiente')}</span>
-      ${evaluationBadge(row.evaluation_status)}
-    </div>
-  `),
-  };
-}
-
-function workboardSection(title, rows, target, actionText, itemHtml) {
-  const visibleRows = rows.slice(0, 3);
-  return `
-    <section class="workboard-section">
-      <div class="workboard-section-head">
-        <h3>${escapeHtml(title)}</h3>
-        <button class="ghost compact" type="button" data-workboard-open="${escapeHtml(target)}">${escapeHtml(actionText)}</button>
-      </div>
-      ${visibleRows.length ? `<div class="workboard-list">${visibleRows.map(row => `
-        <div class="workboard-item">
-          ${itemHtml(row)}
-          <button class="compact" type="button" data-workboard-submission="${escapeHtml(row.submission_id)}">Abrir expediente</button>
+    <tr>
+      <td>
+        <strong>${escapeHtml(row.full_name || 'Sin nombre')}</strong><br>
+        <span class="muted">${escapeHtml(row.email || '')}</span><br>
+        <span class="muted">${escapeHtml(row.province || 'Sin provincia')}</span>
+      </td>
+      <td><span class="badge">${escapeHtml(label('sourceChannels', row.source_channel))}</span></td>
+      <td>
+        <div class="status-stack">
+          <span>Carta aval: ${documentStatusBadge(documents.carta_aval_status || 'MISSING')}</span>
+          <span>CV: ${documentStatusBadge(documents.curriculum_status || 'MISSING')}</span>
         </div>
-      `).join('')}</div>` : '<p class="muted">Sin tareas en este grupo.</p>'}
-      ${rows.length > visibleRows.length ? `<p class="muted">${escapeHtml(rows.length - visibleRows.length)} más en la vista correspondiente.</p>` : ''}
-    </section>
+      </td>
+      <td>${issueWorkboardBadge(row.open_issue_count || 0)}</td>
+      <td>${eligibilityBadge(row.eligibility_status)}</td>
+      <td>${technicalWorkboardBadge(row.evaluation_status)}</td>
+      <td>${formatDate(row.received_at)}</td>
+      <td><button class="compact" type="button" data-workboard-submission="${escapeHtml(row.submission_id)}">Ver expediente</button></td>
+    </tr>
   `;
+}
+
+function workboardPriority(row) {
+  if (Number(row.open_issue_count || 0) > 0) return 1;
+  const documents = row.document_review || {};
+  if ([documents.carta_aval_status, documents.curriculum_status].some(status => ['MISSING', 'NEEDS_REVIEW', 'REJECTED'].includes(status || 'MISSING'))) return 2;
+  if (['BLOCKED_BY_MISSING_REQUIREMENTS', 'REQUIRES_MANUAL_REVIEW'].includes(row.eligibility_status || 'SIN_EVALUAR')) return 3;
+  if ((row.evaluation_status || 'NOT_STARTED') === 'IN_PROGRESS') return 4;
+  if ((row.evaluation_status || 'NOT_STARTED') === 'NOT_STARTED' && row.eligibility_status === 'READY_FOR_TECHNICAL_REVIEW') return 5;
+  if ((row.evaluation_status || 'NOT_STARTED') === 'COMPLETED') return 6;
+  return 7;
+}
+
+function issueWorkboardBadge(count) {
+  const value = Number(count || 0);
+  if (!value) return '<span class="badge ok">Sin incidencias abiertas</span>';
+  return `<span class="badge warn">${escapeHtml(value)} abiertas</span>`;
+}
+
+function technicalWorkboardBadge(status) {
+  const normalized = status || 'NOT_STARTED';
+  if (normalized === 'NOT_STARTED') return '<span class="badge">Pendiente</span>';
+  return evaluationBadge(normalized);
 }
 
 function openWorkboardTarget(target, filter = '') {
