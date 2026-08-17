@@ -270,12 +270,8 @@ async function boot() {
 }
 
 function showLogin(message = '') {
-  loginPanel.hidden = false;
-  appPanel.hidden = true;
-  logoutButton.hidden = true;
-  currentUserBadge.hidden = true;
-  loginError.textContent = message;
-  usernameInput.focus();
+  const target = message ? `/login?reason=${encodeURIComponent(message)}` : '/login';
+  window.location.replace(target);
 }
 
 async function loadData() {

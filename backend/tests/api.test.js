@@ -165,6 +165,26 @@ test('health endpoint works without auth', async (t) => {
   });
 });
 
+test('serves dedicated login and protects home page', async (t) => {
+  await withServer(t, async ({ port }) => {
+    const root = await adminRawRequest(port, 'GET', '/', '');
+    assert.equal(root.statusCode, 302);
+    assert.equal(root.headers.location, '/login');
+
+    const loginPage = await adminRawRequest(port, 'GET', '/login', '');
+    assert.equal(loginPage.statusCode, 200);
+    assert.match(loginPage.body, /Acceso al sistema/);
+
+    const homeWithoutSession = await adminRawRequest(port, 'GET', '/home', '');
+    assert.equal(homeWithoutSession.statusCode, 302);
+    assert.equal(homeWithoutSession.headers.location, '/login');
+
+    const cookie = await loginCookie(port, 'admin', 'admin-password');
+    const home = await rawRequestWithHeaders(port, 'GET', '/home', undefined, { cookie });
+    assert.equal(home.statusCode, 200);
+  }, { adminToken: '' });
+});
+
 test('rejects missing bearer token for ingestion endpoints', async (t) => {
   await withServer(t, async ({ port }) => {
     const response = await request(port, 'POST', '/api/submissions/google-form', {}, '');

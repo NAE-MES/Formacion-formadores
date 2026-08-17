@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FdF 2026 - Acceso</title>
+    <link rel="stylesheet" href="/login/styles.css">
+  </head>
+  <body>
+    <main class="login-page">
+      <section class="login-card" aria-labelledby="loginTitle">
+        <div>
+          <p class="eyebrow">FdF 2026</p>
+          <h1 id="loginTitle">Acceso al sistema</h1>
+          <p class="intro">Consola interna de gestión de postulaciones.</p>
+        </div>
+        <form id="loginForm" class="login-form">
+          <label for="adminUsername">Usuario</label>
+          <input id="adminUsername" name="adminUsername" type="text" autocomplete="username" required autofocus>
+          <label for="adminPassword">Contraseña</label>
+          <input id="adminPassword" name="adminPassword" type="password" autocomplete="current-password" required>
+          <button type="submit">Entrar</button>
+          <p id="loginError" class="error" role="alert"></p>
+        </form>
+      </section>
+    </main>
+    <script src="/login/app.js"></script>
+  </body>
+</html>

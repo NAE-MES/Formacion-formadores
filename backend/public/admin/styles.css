@@ -118,28 +118,6 @@ p {
 .login-panel {
   max-width: 620px;
   padding: 18px;
-  background: #0f5fbd;
-  border-color: #0b4d99;
-  color: #ffffff;
-}
-
-.login-panel .muted,
-.login-panel label {
-  color: #ffffff;
-}
-
-.login-panel input {
-  border-color: #dbeafe;
-}
-
-.login-panel button {
-  border-color: #ffffff;
-  background: #ffffff;
-  color: #0b4d99;
-}
-
-.login-panel button:hover {
-  background: #dbeafe;
 }
 
 .login-form label {

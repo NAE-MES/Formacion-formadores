@@ -23,10 +23,25 @@ function createApp({ config, repository }) {
       }
 
       if ((req.method === 'GET' || req.method === 'HEAD') && req.url === '/') {
-        return redirect(res, '/admin');
+        return redirect(res, '/login');
       }
 
-      if (req.method === 'GET' && (req.url === '/admin' || req.url === '/admin/')) {
+      if ((req.method === 'GET' || req.method === 'HEAD') && (req.url === '/admin' || req.url === '/admin/')) {
+        return redirect(res, '/home');
+      }
+
+      if ((req.method === 'GET' || req.method === 'HEAD') && (req.url === '/login' || req.url === '/login/')) {
+        return sendStatic(res, path.join(__dirname, '..', 'public', 'login', 'index.html'), 'text/html; charset=utf-8');
+      }
+
+      if (req.method === 'GET' && req.url.startsWith('/login/')) {
+        const relativePath = req.url.replace(/^\/login\//, '') || 'index.html';
+        return sendLoginAsset(res, relativePath);
+      }
+
+      if (req.method === 'GET' && (req.url === '/home' || req.url === '/home/')) {
+        const admin = await authorizeAdminForPage(req, config, repository);
+        if (!admin) return redirect(res, '/login');
         return sendStatic(res, path.join(__dirname, '..', 'public', 'admin', 'index.html'), 'text/html; charset=utf-8');
       }
 
@@ -447,12 +462,37 @@ function sendAdminAsset(res, relativePath) {
   const filePath = path.join(basePath, relativePath);
   if (!filePath.startsWith(basePath)) return sendJson(res, 404, { error: 'NOT_FOUND' });
 
+  return sendStaticAsset(res, filePath, relativePath);
+}
+
+function sendLoginAsset(res, relativePath) {
+  if (relativePath.includes('..') || path.isAbsolute(relativePath)) {
+    return sendJson(res, 404, { error: 'NOT_FOUND' });
+  }
+
+  const basePath = path.join(__dirname, '..', 'public', 'login');
+  const filePath = path.join(basePath, relativePath);
+  if (!filePath.startsWith(basePath)) return sendJson(res, 404, { error: 'NOT_FOUND' });
+
+  return sendStaticAsset(res, filePath, relativePath);
+}
+
+function sendStaticAsset(res, filePath, relativePath) {
   const contentType = relativePath.endsWith('.css')
     ? 'text/css; charset=utf-8'
     : relativePath.endsWith('.js')
       ? 'text/javascript; charset=utf-8'
       : 'application/octet-stream';
   return sendStatic(res, filePath, contentType);
+}
+
+async function authorizeAdminForPage(req, config, repository) {
+  try {
+    return await authorizeAdmin(req, config, repository);
+  } catch (error) {
+    if (error.statusCode === 401) return null;
+    throw error;
+  }
 }
 
 function authorize(req, config) {
