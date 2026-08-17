@@ -39,7 +39,7 @@ function createApp({ config, repository }) {
         return sendLoginAsset(res, relativePath);
       }
 
-      if (req.method === 'GET' && (req.url === '/home' || req.url === '/home/')) {
+      if ((req.method === 'GET' || req.method === 'HEAD') && (req.url === '/home' || req.url === '/home/')) {
         const admin = await authorizeAdminForPage(req, config, repository);
         if (!admin) return redirect(res, '/login');
         return sendStatic(res, path.join(__dirname, '..', 'public', 'admin', 'index.html'), 'text/html; charset=utf-8');
