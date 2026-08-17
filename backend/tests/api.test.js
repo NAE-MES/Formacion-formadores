@@ -165,7 +165,7 @@ test('health endpoint works without auth', async (t) => {
   });
 });
 
-test('serves dedicated login and protects home page', async (t) => {
+test('serves dedicated login, home stats page and protects admin console', async (t) => {
   await withServer(t, async ({ port }) => {
     const root = await adminRawRequest(port, 'GET', '/', '');
     assert.equal(root.statusCode, 302);
@@ -182,7 +182,56 @@ test('serves dedicated login and protects home page', async (t) => {
     const cookie = await loginCookie(port, 'admin', 'admin-password');
     const home = await rawRequestWithHeaders(port, 'GET', '/home', undefined, { cookie });
     assert.equal(home.statusCode, 200);
-  }, { adminToken: '' });
+    assert.match(home.body, /Resumen de postulaciones/);
+
+    const admin = await rawRequestWithHeaders(port, 'GET', '/admin', undefined, { cookie });
+    assert.equal(admin.statusCode, 200);
+    assert.match(admin.body, /Sistema de postulaciones/);
+
+    await adminJsonRequest(port, 'POST', '/api/admin/users', {
+      username: 'viewer-home',
+      password: 'viewer-password',
+      role: 'VIEWER',
+    });
+    const viewerCookie = await loginCookie(port, 'viewer-home', 'viewer-password');
+    const viewerAdmin = await rawRequestWithHeaders(port, 'GET', '/admin', undefined, { cookie: viewerCookie });
+    assert.equal(viewerAdmin.statusCode, 302);
+    assert.equal(viewerAdmin.headers.location, '/home');
+  });
+});
+
+test('home stats API exposes aggregate data only for the lowest access role', async (t) => {
+  await withServer(t, async ({ port }) => {
+    await request(port, 'POST', '/api/submissions/google-form', {
+      sourceReference: 'google-response-home-1',
+      receivedAt: '2026-08-16T10:00:00.000Z',
+      responses: validResponses({ 'FDF-09': 'Holguín' }),
+      documents: requiredDocuments(),
+    });
+    await request(port, 'POST', '/api/submissions/offline-json', {
+      schema: 'FDF-2026-OFFLINE-1',
+      exportedAt: '2026-08-16T11:00:00.000Z',
+      sourceReference: 'offline-json-home-1',
+      receivedAt: '2026-08-17T09:00:00.000Z',
+      respuestas: validResponses({ 'FDF-05': 'SYN-0002', 'FDF-07': 'otra.persona@example.test', 'FDF-09': 'Santiago de Cuba' }),
+      documents: requiredDocuments(),
+    });
+    await adminJsonRequest(port, 'POST', '/api/admin/users', {
+      username: 'viewer-stats',
+      password: 'viewer-password',
+      role: 'VIEWER',
+    });
+
+    const cookie = await loginCookie(port, 'viewer-stats', 'viewer-password');
+    const response = await requestWithHeaders(port, 'GET', '/api/home/stats', undefined, { cookie });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.body.totals.submissions, 2);
+    assert.equal(response.body.by_day.length, 2);
+    assert.deepEqual(response.body.by_source.map(item => item.key).sort(), ['GOOGLE_FORM', 'OFFLINE_JSON']);
+    const serialized = JSON.stringify(response.body);
+    assert.doesNotMatch(serialized, /Ana|Perez|ana\.perez@example\.test|SYN-0001/);
+  });
 });
 
 test('rejects missing bearer token for ingestion endpoints', async (t) => {

@@ -26,10 +26,6 @@ function createApp({ config, repository }) {
         return redirect(res, '/login');
       }
 
-      if ((req.method === 'GET' || req.method === 'HEAD') && (req.url === '/admin' || req.url === '/admin/')) {
-        return redirect(res, '/home');
-      }
-
       if ((req.method === 'GET' || req.method === 'HEAD') && (req.url === '/login' || req.url === '/login/')) {
         return sendStatic(res, path.join(__dirname, '..', 'public', 'login', 'index.html'), 'text/html; charset=utf-8');
       }
@@ -42,6 +38,18 @@ function createApp({ config, repository }) {
       if ((req.method === 'GET' || req.method === 'HEAD') && (req.url === '/home' || req.url === '/home/')) {
         const admin = await authorizeAdminForPage(req, config, repository);
         if (!admin) return redirect(res, '/login');
+        return sendStatic(res, path.join(__dirname, '..', 'public', 'home', 'index.html'), 'text/html; charset=utf-8');
+      }
+
+      if (req.method === 'GET' && req.url.startsWith('/home/')) {
+        const relativePath = req.url.replace(/^\/home\//, '') || 'index.html';
+        return sendHomeAsset(res, relativePath);
+      }
+
+      if ((req.method === 'GET' || req.method === 'HEAD') && (req.url === '/admin' || req.url === '/admin/')) {
+        const admin = await authorizeAdminForPage(req, config, repository);
+        if (!admin) return redirect(res, '/login');
+        if (!['ADMIN', 'REVIEWER', 'INTAKE'].includes(admin.role)) return redirect(res, '/home');
         return sendStatic(res, path.join(__dirname, '..', 'public', 'admin', 'index.html'), 'text/html; charset=utf-8');
       }
 
@@ -84,6 +92,11 @@ function createApp({ config, repository }) {
       if (req.method === 'GET' && req.url === '/api/admin/summary') {
         await authorizeAdmin(req, config, repository);
         return sendJson(res, 200, await repository.getAdminSummary());
+      }
+
+      if (req.method === 'GET' && req.url === '/api/home/stats') {
+        await authorizeAdmin(req, config, repository);
+        return sendJson(res, 200, await buildHomeStats(repository));
       }
 
       if (req.method === 'GET' && req.url === '/api/admin/users') {
@@ -477,6 +490,18 @@ function sendLoginAsset(res, relativePath) {
   return sendStaticAsset(res, filePath, relativePath);
 }
 
+function sendHomeAsset(res, relativePath) {
+  if (relativePath.includes('..') || path.isAbsolute(relativePath)) {
+    return sendJson(res, 404, { error: 'NOT_FOUND' });
+  }
+
+  const basePath = path.join(__dirname, '..', 'public', 'home');
+  const filePath = path.join(basePath, relativePath);
+  if (!filePath.startsWith(basePath)) return sendJson(res, 404, { error: 'NOT_FOUND' });
+
+  return sendStaticAsset(res, filePath, relativePath);
+}
+
 function sendStaticAsset(res, filePath, relativePath) {
   const contentType = relativePath.endsWith('.css')
     ? 'text/css; charset=utf-8'
@@ -484,6 +509,82 @@ function sendStaticAsset(res, filePath, relativePath) {
       ? 'text/javascript; charset=utf-8'
       : 'application/octet-stream';
   return sendStatic(res, filePath, contentType);
+}
+
+async function buildHomeStats(repository) {
+  const [summary, submissions, reviews, documents, matrix, issues] = await Promise.all([
+    repository.getAdminSummary(),
+    repository.listAdminSubmissions(),
+    repository.listReviewSummaries(),
+    repository.listDocumentReviewRows(),
+    repository.listEvaluationMatrixRows(),
+    repository.listNormalizationIssueRows(),
+  ]);
+
+  const documentTasks = documents.filter(row =>
+    ['MISSING', 'NEEDS_REVIEW', 'REJECTED'].includes(row.carta_aval_status) ||
+    ['MISSING', 'NEEDS_REVIEW', 'REJECTED'].includes(row.curriculum_status)
+  );
+  const openIssues = issues.filter(issue => ['OPEN', 'NEEDS_SOURCE_REVIEW'].includes(issue.review_status || 'OPEN'));
+
+  return {
+    generated_at: new Date().toISOString(),
+    totals: {
+      candidates: Number(summary.candidates || 0),
+      submissions: Number(summary.submissions || 0),
+      documents: Number(summary.documents || 0),
+      normalization_issues: Number(summary.normalization_issues || 0),
+      open_issues: Number(summary.open_issues || openIssues.length || 0),
+      eligibility_ready: Number(summary.eligibility_ready || 0),
+      eligibility_blocked: Number(summary.eligibility_blocked || 0),
+      eligibility_review: Number(summary.eligibility_review || 0),
+      evaluation_completed: Number(summary.evaluation_completed || 0),
+      evaluation_in_progress: Number(summary.evaluation_in_progress || 0),
+      evaluation_needs_review: Number(summary.evaluation_needs_review || 0),
+      documents_needs_review: Number(summary.documents_needs_review || 0),
+      documents_rejected: Number(summary.documents_rejected || 0),
+    },
+    operational: {
+      open_issues: openIssues.length,
+      document_tasks: documentTasks.length,
+      ready_to_evaluate: reviews.filter(row =>
+        row.eligibility_status === 'READY_FOR_TECHNICAL_REVIEW' &&
+        (row.evaluation_status || 'NOT_STARTED') === 'NOT_STARTED'
+      ).length,
+      evaluation_in_progress: matrix.filter(row => row.evaluation_status === 'IN_PROGRESS').length,
+      evaluation_completed: matrix.filter(row => row.evaluation_status === 'COMPLETED').length,
+    },
+    by_day: countByDay(submissions, row => row.received_at),
+    by_source: countByValue(submissions, row => row.source_channel || 'SIN_ORIGEN'),
+    by_normalization: countByValue(submissions, row => row.normalization_status || 'SIN_ESTADO'),
+    by_province: countByValue(submissions, row => row.province || 'Sin provincia'),
+    by_eligibility: countByValue(reviews, row => row.eligibility_status || 'SIN_EVALUAR'),
+    by_evaluation: countByValue(reviews, row => row.evaluation_status || 'NOT_STARTED'),
+  };
+}
+
+function countByDay(rows, getter) {
+  const counts = new Map();
+  for (const row of rows || []) {
+    const rawValue = getter(row);
+    const date = rawValue ? new Date(rawValue) : null;
+    const label = date && !Number.isNaN(date.getTime()) ? date.toISOString().slice(0, 10) : 'Sin fecha';
+    counts.set(label, (counts.get(label) || 0) + 1);
+  }
+  return mapEntries(counts).sort((a, b) => a.key.localeCompare(b.key));
+}
+
+function countByValue(rows, getter) {
+  const counts = new Map();
+  for (const row of rows || []) {
+    const key = String(getter(row) || 'Sin dato').trim() || 'Sin dato';
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  return mapEntries(counts).sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
+}
+
+function mapEntries(counts) {
+  return Array.from(counts.entries()).map(([key, count]) => ({ key, count }));
 }
 
 async function authorizeAdminForPage(req, config, repository) {

@@ -1,0 +1,193 @@
+const LABELS = {
+  roles: {
+    ADMIN: 'Administrador',
+    REVIEWER: 'Revisor',
+    INTAKE: 'Registro',
+    VIEWER: 'Consulta',
+  },
+  sourceChannels: {
+    GOOGLE_FORM: 'Formulario en línea',
+    OFFLINE_JSON: 'Offline con JSON',
+    OFFLINE_MANUAL: 'Offline manual',
+  },
+  normalization: {
+    NORMALIZED: 'Normalizada',
+    WITH_ISSUES: 'Con incidencias',
+    REJECTED: 'Rechazada',
+    SIN_ESTADO: 'Sin estado',
+  },
+  eligibility: {
+    READY_FOR_TECHNICAL_REVIEW: 'Lista para revisión técnica',
+    BLOCKED_BY_MISSING_REQUIREMENTS: 'Bloqueada por requisitos',
+    REQUIRES_MANUAL_REVIEW: 'Requiere revisión manual',
+    SIN_EVALUAR: 'Sin evaluar',
+  },
+  evaluation: {
+    NOT_STARTED: 'No iniciada',
+    IN_PROGRESS: 'En curso',
+    COMPLETED: 'Completada',
+    NEEDS_REVIEW: 'Necesita revisión',
+  },
+};
+
+const loading = document.querySelector('#loading');
+const errorPanel = document.querySelector('#errorPanel');
+const dashboard = document.querySelector('#dashboard');
+const summaryGrid = document.querySelector('#summaryGrid');
+const dailyChart = document.querySelector('#dailyChart');
+const statusChart = document.querySelector('#statusChart');
+const provinceChart = document.querySelector('#provinceChart');
+const sourceChart = document.querySelector('#sourceChart');
+const workChart = document.querySelector('#workChart');
+const generatedAt = document.querySelector('#generatedAt');
+const userBadge = document.querySelector('#userBadge');
+const adminLink = document.querySelector('#adminLink');
+const logoutButton = document.querySelector('#logoutButton');
+
+logoutButton.addEventListener('click', async () => {
+  await api('/api/auth/logout', { method: 'POST', skipAuthRedirect: true }).catch(() => {});
+  window.location.replace('/login');
+});
+
+boot();
+
+async function boot() {
+  try {
+    const me = await api('/api/auth/me', { skipAuthRedirect: true });
+    renderUser(me.user);
+    const stats = await api('/api/home/stats');
+    render(stats);
+    loading.hidden = true;
+    dashboard.hidden = false;
+  } catch (error) {
+    loading.hidden = true;
+    errorPanel.hidden = false;
+    errorPanel.textContent = error.message || 'No fue posible cargar el resumen.';
+  }
+}
+
+function renderUser(user) {
+  userBadge.hidden = false;
+  userBadge.textContent = `${user.username} - ${label('roles', user.role)}`;
+  adminLink.hidden = !['ADMIN', 'REVIEWER', 'INTAKE'].includes(user.role);
+}
+
+function render(stats) {
+  const totals = stats.totals || {};
+  const operational = stats.operational || {};
+  generatedAt.textContent = stats.generated_at ? `Actualizado ${formatDateTime(stats.generated_at)}` : '';
+  renderSummary([
+    ['Postulaciones', totals.submissions],
+    ['Postulantes', totals.candidates],
+    ['Listas para revisión', totals.eligibility_ready],
+    ['Incidencias abiertas', totals.open_issues],
+    ['Documentos por revisar', totals.documents_needs_review],
+    ['Evaluación en curso', totals.evaluation_in_progress],
+    ['Evaluaciones completadas', totals.evaluation_completed],
+    ['Tareas documentales', operational.document_tasks],
+  ]);
+  renderDaily(stats.by_day || []);
+  renderBars(statusChart, [
+    ...(stats.by_normalization || []).map(item => ({ ...item, key: label('normalization', item.key) })),
+    ...(stats.by_eligibility || []).map(item => ({ ...item, key: label('eligibility', item.key) })),
+    ...(stats.by_evaluation || []).map(item => ({ ...item, key: label('evaluation', item.key) })),
+  ]);
+  renderBars(provinceChart, (stats.by_province || []).slice(0, 12));
+  renderBars(sourceChart, (stats.by_source || []).map(item => ({ ...item, key: label('sourceChannels', item.key) })));
+  renderBars(workChart, [
+    { key: 'Incidencias abiertas', count: operational.open_issues || 0 },
+    { key: 'Documentos pendientes', count: operational.document_tasks || 0 },
+    { key: 'Listas por evaluar', count: operational.ready_to_evaluate || 0 },
+    { key: 'Evaluación en curso', count: operational.evaluation_in_progress || 0 },
+    { key: 'Evaluación completada', count: operational.evaluation_completed || 0 },
+  ]);
+}
+
+function renderSummary(items) {
+  summaryGrid.innerHTML = items.map(([name, value]) => `
+    <article class="stat">
+      <span>${escapeHtml(name)}</span>
+      <strong>${Number(value || 0)}</strong>
+    </article>
+  `).join('');
+}
+
+function renderDaily(rows) {
+  if (!rows.length) {
+    dailyChart.innerHTML = '<p class="empty">No hay postulaciones registradas.</p>';
+    return;
+  }
+  const max = Math.max(...rows.map(row => row.count), 1);
+  dailyChart.innerHTML = rows.map(row => {
+    const height = Math.max(4, Math.round((row.count / max) * 170));
+    return `
+      <div class="day">
+        <div class="day-bar" style="height:${height}px"></div>
+        <div class="day-count">${row.count}</div>
+        <div class="day-label">${escapeHtml(formatDay(row.key))}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderBars(container, rows) {
+  if (!rows.length) {
+    container.innerHTML = '<p class="empty">Sin datos.</p>';
+    return;
+  }
+  const max = Math.max(...rows.map(row => row.count), 1);
+  container.innerHTML = rows.map(row => {
+    const percent = Math.max(2, Math.round((row.count / max) * 100));
+    return `
+      <div class="bar-row">
+        <div class="bar-label">
+          <span title="${escapeHtml(row.key)}">${escapeHtml(row.key)}</span>
+          <span class="bar-track"><span class="bar-fill" style="width:${percent}%"></span></span>
+        </div>
+        <span class="bar-count">${row.count}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+async function api(url, options = {}) {
+  const response = await fetch(url, {
+    method: options.method || 'GET',
+    headers: { 'content-type': 'application/json' },
+    body: options.body ? JSON.stringify(options.body) : undefined,
+    credentials: 'same-origin',
+  });
+  if (response.status === 401 && !options.skipAuthRedirect) {
+    window.location.replace('/login');
+    return null;
+  }
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.message || payload.error || 'Solicitud no completada.');
+  return payload;
+}
+
+function label(group, value) {
+  return LABELS[group]?.[value] || value || 'Sin dato';
+}
+
+function formatDateTime(value) {
+  return new Intl.DateTimeFormat('es-CU', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(new Date(value));
+}
+
+function formatDay(value) {
+  if (value === 'Sin fecha') return value;
+  const [year, month, day] = String(value).split('-');
+  return `${day}/${month}`;
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}

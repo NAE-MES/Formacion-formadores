@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FdF 2026 - Inicio</title>
+    <link rel="stylesheet" href="/home/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>FdF 2026</h1>
+        <p>Resumen de postulaciones</p>
+      </div>
+      <div class="actions">
+        <span id="userBadge" class="badge" hidden></span>
+        <a id="adminLink" class="button secondary" href="/admin" hidden>Consola</a>
+        <button id="logoutButton" class="secondary" type="button">Cerrar sesión</button>
+      </div>
+    </header>
+
+    <main class="shell">
+      <section id="loading" class="notice">Cargando estadísticas...</section>
+      <section id="errorPanel" class="notice error" hidden></section>
+
+      <section id="dashboard" hidden>
+        <div class="summary-grid" id="summaryGrid"></div>
+
+        <section class="panel wide">
+          <div class="panel-head">
+            <h2>Postulaciones por día</h2>
+            <span id="generatedAt" class="muted"></span>
+          </div>
+          <div id="dailyChart" class="day-chart"></div>
+        </section>
+
+        <div class="grid">
+          <section class="panel">
+            <h2>Por estado</h2>
+            <div id="statusChart" class="bars"></div>
+          </section>
+
+          <section class="panel">
+            <h2>Por provincia</h2>
+            <div id="provinceChart" class="bars"></div>
+          </section>
+
+          <section class="panel">
+            <h2>Por origen</h2>
+            <div id="sourceChart" class="bars"></div>
+          </section>
+
+          <section class="panel">
+            <h2>Trabajo operativo</h2>
+            <div id="workChart" class="bars"></div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <script src="/home/app.js"></script>
+  </body>
+</html>
