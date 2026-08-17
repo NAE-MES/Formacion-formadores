@@ -16,6 +16,7 @@
         <div class="top-actions">
           <span id="currentUserBadge" class="badge" hidden></span>
           <a class="button-link ghost" href="/home">Inicio</a>
+          <a class="button-link ghost" href="/admin/expedientes">Expedientes</a>
           <button id="logoutButton" class="ghost" type="button" hidden>Cerrar sesión</button>
         </div>
       </section>
@@ -36,7 +37,6 @@
       <section id="appPanel" class="workspace" hidden>
         <nav class="tabs" aria-label="Vistas administrativas">
           <button class="tab active" type="button" data-view="workboard">Bandeja</button>
-          <button class="tab" type="button" data-view="submissions">Expedientes</button>
         </nav>
 
         <details class="advanced-nav">
@@ -64,6 +64,13 @@
         </section>
 
         <section id="view-submissions" class="view">
+        <div class="view-head">
+          <div>
+            <h2>Expedientes</h2>
+            <p class="muted">Búsqueda y revisión completa de postulaciones.</p>
+          </div>
+          <a class="button-link ghost" href="/admin">Volver a Bandeja</a>
+        </div>
         <div class="toolbar">
           <input id="searchInput" type="search" placeholder="Buscar por nombre, correo, provincia o ID">
           <select id="statusFilter">

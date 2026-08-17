@@ -188,6 +188,14 @@ test('serves dedicated login, home stats page and protects admin console', async
     assert.equal(admin.statusCode, 200);
     assert.match(admin.body, /Sistema de postulaciones/);
 
+    const expedienteList = await rawRequestWithHeaders(port, 'GET', '/admin/expedientes', undefined, { cookie });
+    assert.equal(expedienteList.statusCode, 200);
+    assert.match(expedienteList.body, /Expedientes/);
+
+    const expedienteDetailRoute = await rawRequestWithHeaders(port, 'GET', '/admin/expedientes/submission_synthetic', undefined, { cookie });
+    assert.equal(expedienteDetailRoute.statusCode, 200);
+    assert.match(expedienteDetailRoute.body, /Expedientes/);
+
     await adminJsonRequest(port, 'POST', '/api/admin/users', {
       username: 'viewer-home',
       password: 'viewer-password',

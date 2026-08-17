@@ -53,6 +53,13 @@ function createApp({ config, repository }) {
         return sendStatic(res, path.join(__dirname, '..', 'public', 'admin', 'index.html'), 'text/html; charset=utf-8');
       }
 
+      if ((req.method === 'GET' || req.method === 'HEAD') && isAdminExpedientesPage(req.url)) {
+        const admin = await authorizeAdminForPage(req, config, repository);
+        if (!admin) return redirect(res, '/login');
+        if (!['ADMIN', 'REVIEWER', 'INTAKE'].includes(admin.role)) return redirect(res, '/home');
+        return sendStatic(res, path.join(__dirname, '..', 'public', 'admin', 'index.html'), 'text/html; charset=utf-8');
+      }
+
       if (req.method === 'GET' && req.url.startsWith('/admin/')) {
         const relativePath = req.url.replace(/^\/admin\//, '') || 'index.html';
         return sendAdminAsset(res, relativePath);
@@ -509,6 +516,10 @@ function sendStaticAsset(res, filePath, relativePath) {
       ? 'text/javascript; charset=utf-8'
       : 'application/octet-stream';
   return sendStatic(res, filePath, contentType);
+}
+
+function isAdminExpedientesPage(url) {
+  return /^\/admin\/expedientes(?:\/[^/?#]+)?\/?(?:[?#].*)?$/.test(url || '');
 }
 
 async function buildHomeStats(repository) {

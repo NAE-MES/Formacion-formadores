@@ -259,6 +259,7 @@ async function boot() {
   try {
     await loadData();
     applyRoleUi();
+    await applyPageRoute();
     loginPanel.hidden = true;
     appPanel.hidden = false;
     logoutButton.hidden = false;
@@ -307,6 +308,17 @@ function applyRoleUi() {
   document.querySelector('[data-view="users"]').hidden = !canManageUsers;
   if (!canIntake && document.querySelector('#view-intake').classList.contains('active')) showView('workboard');
   if (!canManageUsers && document.querySelector('#view-users').classList.contains('active')) showView('workboard');
+}
+
+async function applyPageRoute() {
+  const match = window.location.pathname.match(/^\/admin\/expedientes(?:\/([^/]+))?\/?$/);
+  if (!match) {
+    showView('workboard');
+    return;
+  }
+  showView('submissions');
+  const submissionId = match[1] ? decodeURIComponent(match[1]) : '';
+  if (submissionId) await selectSubmission(submissionId, { syncUrl: false });
 }
 
 function hasRole(...roles) {
@@ -571,10 +583,7 @@ function renderWorkboard() {
     button.addEventListener('click', () => openWorkboardTarget(button.dataset.workboardOpen, button.dataset.workboardFilter));
   });
   workboardSections.querySelectorAll('[data-workboard-submission]').forEach(button => {
-    button.addEventListener('click', async () => {
-      showView('submissions');
-      await selectSubmission(button.dataset.workboardSubmission);
-    });
+    button.addEventListener('click', () => openSubmissionPage(button.dataset.workboardSubmission));
   });
 }
 
@@ -707,11 +716,8 @@ function openWorkboardTarget(target, filter = '') {
     if (filter === 'COMPLETED') reviewEvaluationFilter.value = 'COMPLETED';
     renderReviewSummary();
   } else if (target === 'submissions') {
-    clearSubmissionFilters();
-    if (filter === 'ELIGIBILITY_REVIEW') {
-      workFilter.value = 'ELIGIBILITY_REVIEW';
-    }
-    renderTable();
+    window.location.assign('/admin/expedientes');
+    return;
   }
   showView(target);
 }
@@ -801,10 +807,7 @@ function renderReviewSummary() {
   reviewCount.textContent = resultCountLabel(rows.length, reviewSummaries.length, 'postulación', 'postulaciones');
 
   reviewSummaryTable.querySelectorAll('tr').forEach(row => {
-    row.addEventListener('click', async () => {
-      showView('submissions');
-      await selectSubmission(row.dataset.reviewId);
-    });
+    row.addEventListener('click', () => openSubmissionPage(row.dataset.reviewId));
   });
 }
 
@@ -839,10 +842,9 @@ function renderIssueReview() {
   updateBulkIssueUi();
 
   issueReviewTable.querySelectorAll('tr').forEach(row => {
-    row.addEventListener('click', async event => {
+    row.addEventListener('click', event => {
       if (event.target.closest('button, input, select')) return;
-      showView('submissions');
-      await selectSubmission(row.dataset.issueSubmission);
+      openSubmissionPage(row.dataset.issueSubmission);
     });
   });
   issueReviewTable.querySelectorAll('[data-issue-quick]').forEach(button => {
@@ -897,10 +899,9 @@ function renderDocumentReview() {
   updateBulkDocumentUi();
 
   documentReviewTable.querySelectorAll('tr').forEach(row => {
-    row.addEventListener('click', async event => {
+    row.addEventListener('click', event => {
       if (event.target.closest('button, select, a')) return;
-      showView('submissions');
-      await selectSubmission(row.dataset.documentRow);
+      openSubmissionPage(row.dataset.documentRow);
     });
   });
   documentReviewTable.querySelectorAll('[data-document-review-save]').forEach(button => {
@@ -976,10 +977,9 @@ function renderEvaluationMatrix() {
   evaluationMatrixStats.innerHTML = matrixStatsHtml(rows);
 
   evaluationMatrixTable.querySelectorAll('tr').forEach(row => {
-    row.addEventListener('click', async event => {
+    row.addEventListener('click', event => {
       if (event.target.closest('button, input, select, textarea')) return;
-      showView('submissions');
-      await selectSubmission(row.dataset.matrixId);
+      openSubmissionPage(row.dataset.matrixId);
     });
   });
   evaluationMatrixTable.querySelectorAll('[data-matrix-save]').forEach(button => {
@@ -1176,11 +1176,29 @@ function applyQuickFilter(filter) {
   renderEvaluationMatrix();
 }
 
-async function selectSubmission(submissionId) {
+function openSubmissionPage(submissionId) {
+  if (!submissionId) return;
+  window.location.assign(submissionPageUrl(submissionId));
+}
+
+function submissionPageUrl(submissionId) {
+  return `/admin/expedientes/${encodeURIComponent(submissionId)}`;
+}
+
+async function selectSubmission(submissionId, options = {}) {
   selectedId = submissionId;
+  if (options.syncUrl !== false && window.location.pathname.startsWith('/admin/expedientes')) {
+    window.history.pushState({}, '', submissionPageUrl(submissionId));
+  }
   renderTable();
   detailPanel.innerHTML = '<p class="muted">Cargando...</p>';
-  const detail = await api(`/api/admin/submissions/${encodeURIComponent(submissionId)}`);
+  let detail;
+  try {
+    detail = await api(`/api/admin/submissions/${encodeURIComponent(submissionId)}`);
+  } catch (error) {
+    detailPanel.innerHTML = `<p class="error">${escapeHtml(error.message || 'No fue posible cargar el expediente.')}</p>`;
+    return;
+  }
   selectedDetail = detail;
   const candidate = detail.candidate || {};
   const submission = detail.submission || {};

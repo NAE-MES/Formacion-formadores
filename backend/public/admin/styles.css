@@ -216,6 +216,18 @@ p {
   gap: 14px;
 }
 
+.view-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.view-head h2 {
+  margin: 0 0 2px;
+  font-size: 18px;
+}
+
 .workboard-head {
   display: flex;
   align-items: start;
