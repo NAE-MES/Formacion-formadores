@@ -22,6 +22,10 @@ function createApp({ config, repository }) {
         return sendJson(res, 200, { status: 'ok' });
       }
 
+      if (req.method === 'GET' && req.url === '/') {
+        return redirect(res, '/admin');
+      }
+
       if (req.method === 'GET' && (req.url === '/admin' || req.url === '/admin/')) {
         return sendStatic(res, path.join(__dirname, '..', 'public', 'admin', 'index.html'), 'text/html; charset=utf-8');
       }
@@ -685,6 +689,14 @@ function sendJson(res, statusCode, body) {
     'content-length': Buffer.byteLength(payload),
   });
   res.end(payload);
+}
+
+function redirect(res, location) {
+  res.writeHead(302, {
+    location,
+    'cache-control': 'no-store',
+  });
+  res.end();
 }
 
 function sendCsv(res, filename, content) {
