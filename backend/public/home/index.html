@@ -437,6 +437,123 @@
         color: var(--text);
       }
 
+      /* ===== executive report ===== */
+      .executive-report {
+        margin-bottom: 24px;
+      }
+
+      .executive-head {
+        align-items: flex-start;
+      }
+
+      .executive-head h2 {
+        font-size: 1.15rem;
+      }
+
+      .executive-head p {
+        color: var(--muted);
+        margin-top: 4px;
+      }
+
+      .headline-grid {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 18px;
+      }
+
+      .headline-item {
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        padding: 14px;
+        background: #fbfdff;
+      }
+
+      .headline-item span {
+        color: var(--muted);
+        display: block;
+        font-size: 0.78rem;
+        font-weight: 600;
+        text-transform: uppercase;
+      }
+
+      .headline-item strong {
+        color: var(--blue);
+        display: block;
+        font-size: 26px;
+        margin-top: 6px;
+      }
+
+      .executive-grid {
+        display: grid;
+        grid-template-columns: 1.2fr 1fr 1fr 1fr;
+        gap: 16px;
+        margin-bottom: 18px;
+      }
+
+      .subpanel {
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        min-width: 0;
+        padding: 14px;
+      }
+
+      .subpanel h3 {
+        font-size: 0.92rem;
+        margin: 0 0 12px;
+      }
+
+      .table-wrap {
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        overflow-x: auto;
+      }
+
+      .report-table {
+        border-collapse: collapse;
+        min-width: 880px;
+        width: 100%;
+      }
+
+      .report-table th,
+      .report-table td {
+        border-bottom: 1px solid var(--line);
+        padding: 10px 12px;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      .report-table th {
+        background: #f6f9fc;
+        color: var(--muted);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+      }
+
+      .report-table tr:last-child td {
+        border-bottom: 0;
+      }
+
+      .state-pill {
+        background: var(--soft-blue);
+        border-radius: 999px;
+        color: var(--blue-dark);
+        display: inline-flex;
+        font-size: 0.76rem;
+        font-weight: 700;
+        padding: 4px 9px;
+      }
+
+      .state-pill.warn {
+        background: #fff7ed;
+        color: var(--amber);
+      }
+
+      .state-pill.ok {
+        background: #ecfdf5;
+        color: var(--green);
+      }
+
       /* ===== responsive ===== */
       @media (max-width: 1024px) {
         .focus-grid {
@@ -462,6 +579,10 @@
         }
         .summary-grid {
           grid-template-columns: repeat(2, 1fr);
+        }
+        .headline-grid,
+        .executive-grid {
+          grid-template-columns: 1fr;
         }
         .shell {
           padding: 18px 16px 32px;
@@ -529,6 +650,55 @@
       <section id="dashboard" hidden>
         <!-- summary -->
         <div class="summary-grid" id="summaryGrid"></div>
+
+        <section id="executiveReport" class="panel wide executive-report" hidden>
+          <div class="panel-head executive-head">
+            <div>
+              <h2>Reporte ejecutivo diario</h2>
+              <p id="executiveSubtitle"></p>
+            </div>
+            <span id="executiveGeneratedAt" class="muted"></span>
+          </div>
+          <div id="executiveHeadline" class="headline-grid"></div>
+          <div class="executive-grid">
+            <section class="subpanel">
+              <h3>Tendencia reciente</h3>
+              <div id="executiveTrend" class="bars bars-wide"></div>
+            </section>
+            <section class="subpanel">
+              <h3>Origen del día</h3>
+              <div id="executiveSource" class="bars"></div>
+            </section>
+            <section class="subpanel">
+              <h3>Provincias del día</h3>
+              <div id="executiveProvince" class="bars"></div>
+            </section>
+            <section class="subpanel">
+              <h3>Estados del día</h3>
+              <div id="executiveStatus" class="bars"></div>
+            </section>
+          </div>
+          <div class="subpanel">
+            <h3>Postulantes recientes</h3>
+            <div class="table-wrap">
+              <table class="report-table">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Postulante</th>
+                    <th>Provincia</th>
+                    <th>Origen</th>
+                    <th>Admisibilidad</th>
+                    <th>Evaluación</th>
+                    <th>Alertas</th>
+                    <th>Expediente</th>
+                  </tr>
+                </thead>
+                <tbody id="executiveCandidates"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
 
         <!-- focus: critical + progress -->
         <div class="focus-grid">
@@ -644,6 +814,15 @@
         const criticalTotal = document.querySelector('#criticalTotal');
         const progressPercent = document.querySelector('#progressPercent');
         const generatedAt = document.querySelector('#generatedAt');
+        const executiveReport = document.querySelector('#executiveReport');
+        const executiveSubtitle = document.querySelector('#executiveSubtitle');
+        const executiveGeneratedAt = document.querySelector('#executiveGeneratedAt');
+        const executiveHeadline = document.querySelector('#executiveHeadline');
+        const executiveTrend = document.querySelector('#executiveTrend');
+        const executiveSource = document.querySelector('#executiveSource');
+        const executiveProvince = document.querySelector('#executiveProvince');
+        const executiveStatus = document.querySelector('#executiveStatus');
+        const executiveCandidates = document.querySelector('#executiveCandidates');
         const userBadge = document.querySelector('#userBadge');
         const adminLink = document.querySelector('#adminLink');
         const logoutButton = document.querySelector('#logoutButton');
@@ -662,7 +841,7 @@
             const me = await api('/api/auth/me', { skipAuthRedirect: true });
             renderUser(me.user);
             const stats = await api('/api/home/stats');
-            render(stats);
+            render(stats, me.user);
             loading.hidden = true;
             dashboard.hidden = false;
           } catch (error) {
@@ -678,7 +857,7 @@
           adminLink.hidden = !['ADMIN', 'REVIEWER', 'INTAKE'].includes(user.role);
         }
 
-        function render(stats) {
+        function render(stats, user) {
           const totals = stats.totals || {};
           const operational = stats.operational || {};
           const progress = stats.progress || {};
@@ -713,6 +892,64 @@
             { key: 'Evaluación en curso', count: operational.evaluation_in_progress || 0 },
             { key: 'Evaluación completada', count: operational.evaluation_completed || 0 },
           ]);
+          renderExecutiveReport(stats.executive_report, user);
+        }
+
+        function renderExecutiveReport(report, user) {
+          if (user?.role !== 'ADMIN' || !report) {
+            executiveReport.hidden = true;
+            return;
+          }
+          executiveReport.hidden = false;
+          executiveSubtitle.textContent = `Día operativo ${formatDay(report.report_date)}. Vista ejecutiva para seguimiento diario.`;
+          executiveGeneratedAt.textContent = report.generated_at ? `Generado ${formatDateTime(report.generated_at)}` : '';
+          const headline = report.headline || {};
+          executiveHeadline.innerHTML = [
+            ['Recibidas hoy', headline.received_today],
+            ['Acumuladas', headline.accumulated_submissions],
+            ['Listas por evaluar', headline.ready_for_review],
+            ['En evaluación', headline.evaluation_in_progress],
+            ['Pendientes críticos', headline.critical_pending],
+          ].map(([name, value]) => `
+            <article class="headline-item">
+              <span>${escapeHtml(name)}</span>
+              <strong>${Number(value || 0)}</strong>
+            </article>
+          `).join('');
+          renderBars(executiveTrend, report.recent_by_day || []);
+          renderBars(executiveSource, (report.today_by_source || []).map(item => ({ ...item, key: label('sourceChannels', item.key) })));
+          renderBars(executiveProvince, report.today_by_province || []);
+          renderBars(executiveStatus, (report.today_by_status || []).map(item => ({
+            ...item,
+            key: statusLabel(item.key),
+          })));
+          renderExecutiveCandidates(report.candidates || []);
+        }
+
+        function renderExecutiveCandidates(rows) {
+          if (!rows.length) {
+            executiveCandidates.innerHTML = '<tr><td colspan="8" class="empty">No hay postulantes para mostrar.</td></tr>';
+            return;
+          }
+          executiveCandidates.innerHTML = rows.slice(0, 40).map(row => {
+            const alerts = [
+              row.issue_task ? 'Incidencia' : '',
+              row.document_task ? 'Documento' : '',
+            ].filter(Boolean);
+            const evaluationStatus = row.evaluation_status || 'NOT_STARTED';
+            return `
+              <tr>
+                <td>${escapeHtml(formatDateTime(row.received_at))}</td>
+                <td><strong>${escapeHtml(row.full_name)}</strong></td>
+                <td>${escapeHtml(row.province || 'Sin provincia')}</td>
+                <td>${escapeHtml(label('sourceChannels', row.source_channel))}</td>
+                <td><span class="state-pill ${row.eligibility_status === 'READY_FOR_TECHNICAL_REVIEW' ? 'ok' : 'warn'}">${escapeHtml(statusLabel(row.eligibility_status))}</span></td>
+                <td><span class="state-pill ${evaluationStatus === 'COMPLETED' ? 'ok' : ''}">${escapeHtml(label('evaluation', evaluationStatus))}</span></td>
+                <td>${alerts.length ? escapeHtml(alerts.join(', ')) : '<span class="muted">Sin alertas</span>'}</td>
+                <td><a class="button secondary" href="/admin/expedientes/${encodeURIComponent(row.submission_id)}">Ver</a></td>
+              </tr>
+            `;
+          }).join('');
         }
 
         function renderCritical(operational) {
@@ -843,11 +1080,17 @@
           return LABELS[group]?.[value] || value || 'Sin dato';
         }
 
+        function statusLabel(value) {
+          return LABELS.evaluation[value] || LABELS.eligibility[value] || LABELS.normalization[value] || value || 'Sin dato';
+        }
+
         function formatDateTime(value) {
+          const date = new Date(value);
+          if (Number.isNaN(date.getTime())) return 'Sin fecha';
           return new Intl.DateTimeFormat('es-CU', {
             dateStyle: 'short',
             timeStyle: 'short',
-          }).format(new Date(value));
+          }).format(date);
         }
 
         function formatDay(value) {

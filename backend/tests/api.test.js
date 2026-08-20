@@ -251,8 +251,17 @@ test('home stats API exposes aggregate data only for the lowest access role', as
     assert.equal(typeof response.body.operational.critical_pending, 'number');
     assert.equal(typeof response.body.progress.percent_completed, 'number');
     assert.deepEqual(response.body.by_source.map(item => item.key).sort(), ['GOOGLE_FORM', 'OFFLINE_JSON']);
+    assert.equal(response.body.executive_report, undefined);
     const serialized = JSON.stringify(response.body);
     assert.doesNotMatch(serialized, /Ana|Perez|ana\.perez@example\.test|SYN-0001/);
+
+    const adminResponse = await adminRequest(port, 'GET', '/api/home/stats');
+    assert.equal(adminResponse.statusCode, 200);
+    assert.match(adminResponse.body.executive_report.report_date, /^\d{4}-\d{2}-\d{2}$/);
+    assert.equal(adminResponse.body.executive_report.headline.accumulated_submissions, 3);
+    assert.equal(adminResponse.body.executive_report.candidates.length, 3);
+    assert.ok(adminResponse.body.executive_report.candidates[0].submission_id);
+    assert.ok(adminResponse.body.executive_report.recent_by_day.some(item => item.key === '2026-08-19'));
   });
 });
 

@@ -104,8 +104,8 @@ function createApp({ config, repository }) {
       }
 
       if (req.method === 'GET' && req.url === '/api/home/stats') {
-        await authorizeAdmin(req, config, repository);
-        return sendJson(res, 200, await buildHomeStats(repository));
+        const admin = await authorizeAdmin(req, config, repository);
+        return sendJson(res, 200, await buildHomeStats(repository, admin));
       }
 
       if (req.method === 'GET' && req.url === '/api/admin/users') {
@@ -524,7 +524,7 @@ function isAdminExpedientesPage(url) {
   return /^\/admin\/expedientes(?:\/[^/?#]+)?\/?(?:[?#].*)?$/.test(url || '');
 }
 
-async function buildHomeStats(repository) {
+async function buildHomeStats(repository, admin = {}) {
   const [summary, submissions, reviews, documents, matrix, issues] = await Promise.all([
     repository.getAdminSummary(),
     repository.listAdminSubmissions(),
@@ -552,7 +552,7 @@ async function buildHomeStats(repository) {
     ['IN_PROGRESS', 'COMPLETED', 'NEEDS_REVIEW'].includes(row.evaluation_status || 'NOT_STARTED')
   );
 
-  return {
+  const stats = {
     generated_at: new Date().toISOString(),
     totals: {
       candidates: Number(summary.candidates || 0),
@@ -594,14 +594,91 @@ async function buildHomeStats(repository) {
     by_eligibility: countByValue(reviews, row => row.eligibility_status || 'SIN_EVALUAR'),
     by_evaluation: countByValue(reviews, row => row.evaluation_status || 'NOT_STARTED'),
   };
+
+  if (admin.role === 'ADMIN') {
+    stats.executive_report = buildExecutiveReport({
+      submissions,
+      reviews,
+      documents,
+      issues,
+      generatedAt: stats.generated_at,
+      totals: stats.totals,
+      operational: stats.operational,
+    });
+  }
+
+  return stats;
+}
+
+function buildExecutiveReport({ submissions, reviews, documents, issues, generatedAt, totals, operational }) {
+  const todayKey = dateKeyInTimeZone(new Date(generatedAt), BUSINESS_TIME_ZONE);
+  const submissionsToday = submissions.filter(row => dateKeyFromRaw(row.received_at) === todayKey);
+  const openIssueSubmissionIds = new Set(
+    issues
+      .filter(issue => ['OPEN', 'NEEDS_SOURCE_REVIEW'].includes(issue.review_status || 'OPEN'))
+      .map(issue => issue.submission_id)
+      .filter(Boolean),
+  );
+  const documentTaskSubmissionIds = new Set(
+    documents
+      .filter(row =>
+        ['NEEDS_REVIEW', 'REJECTED'].includes(row.carta_aval_status) ||
+        ['MISSING', 'NEEDS_REVIEW', 'REJECTED'].includes(row.curriculum_status)
+      )
+      .map(row => row.submission_id)
+      .filter(Boolean),
+  );
+  const reviewsBySubmission = new Map((reviews || []).map(row => [row.submission_id, row]));
+  const recentSubmissions = [...submissions]
+    .sort((a, b) => String(b.received_at).localeCompare(String(a.received_at)))
+    .slice(0, 80);
+
+  return {
+    report_date: todayKey,
+    generated_at: generatedAt,
+    headline: {
+      received_today: submissionsToday.length,
+      accumulated_submissions: Number(totals.submissions || 0),
+      ready_for_review: Number(operational.ready_to_evaluate || 0),
+      evaluation_in_progress: Number(operational.evaluation_in_progress || 0),
+      critical_pending: Number(operational.critical_pending || 0),
+    },
+    today_by_source: countByValue(submissionsToday, row => row.source_channel || 'SIN_ORIGEN'),
+    today_by_province: countByValue(submissionsToday, row => row.province || 'Sin provincia'),
+    today_by_status: countByValue(submissionsToday, row => {
+      const review = reviewsBySubmission.get(row.submission_id) || row;
+      return review.evaluation_status || review.eligibility_status || row.normalization_status || 'Sin estado';
+    }),
+    recent_by_day: countByDay(recentSubmissions.slice().reverse(), row => row.received_at).slice(-14),
+    candidates: recentSubmissions.map(row => {
+      const review = reviewsBySubmission.get(row.submission_id) || row;
+      return {
+        submission_id: row.submission_id,
+        full_name: row.full_name || 'Sin nombre',
+        province: row.province || 'Sin provincia',
+        source_channel: row.source_channel || '',
+        received_at: row.received_at || '',
+        normalization_status: row.normalization_status || '',
+        eligibility_status: review.eligibility_status || row.eligibility_status || 'SIN_EVALUAR',
+        evaluation_status: review.evaluation_status || row.evaluation_status || 'NOT_STARTED',
+        open_issue_count: Number(row.open_issue_count || 0),
+        document_task: documentTaskSubmissionIds.has(row.submission_id),
+        issue_task: openIssueSubmissionIds.has(row.submission_id),
+      };
+    }),
+  };
+}
+
+function dateKeyFromRaw(value) {
+  const date = value ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime()) ? dateKeyInTimeZone(date, BUSINESS_TIME_ZONE) : 'Sin fecha';
 }
 
 function countByDay(rows, getter) {
   const counts = new Map();
   for (const row of rows || []) {
     const rawValue = getter(row);
-    const date = rawValue ? new Date(rawValue) : null;
-    const label = date && !Number.isNaN(date.getTime()) ? dateKeyInTimeZone(date, BUSINESS_TIME_ZONE) : 'Sin fecha';
+    const label = dateKeyFromRaw(rawValue);
     counts.set(label, (counts.get(label) || 0) + 1);
   }
   return mapEntries(counts).sort((a, b) => a.key.localeCompare(b.key));
