@@ -448,14 +448,14 @@ class PostgresRepository {
       left join normalization_issues ni on ni.submission_id = s.submission_id
       left join documents d on d.candidate_id = s.candidate_id
       left join lateral (
-        select status, total_score
+        select status
         from eligibility_assessments
         where submission_id = s.submission_id
         order by assessed_at desc
         limit 1
       ) ea on true
       left join lateral (
-        select status
+        select status, total_score
         from evaluation_results
         where submission_id = s.submission_id
         order by calculated_at desc
