@@ -185,10 +185,20 @@ function createApp({ config, repository }) {
         });
       }
 
+      if (req.method === 'GET' && req.url === '/api/admin/preliminary-ranking') {
+        await authorizeAdmin(req, config, repository);
+        return sendJson(res, 200, { rows: await buildPreliminaryRanking(repository) });
+      }
+
       if (req.method === 'GET' && req.url === '/api/admin/evaluation-matrix.csv') {
         await authorizeAdmin(req, config, repository);
         const criteria = criteriaFromConfig(config.evaluationConfig);
         return sendCsv(res, 'fdf-2026-evaluation-matrix.csv', evaluationMatrixCsv(await repository.listEvaluationMatrixRows(), criteria));
+      }
+
+      if (req.method === 'GET' && req.url === '/api/admin/preliminary-ranking.csv') {
+        await authorizeAdmin(req, config, repository);
+        return sendCsv(res, 'fdf-2026-preliminary-ranking.csv', preliminaryRankingCsv(await buildPreliminaryRanking(repository)));
       }
 
       if (req.method === 'GET' && req.url === '/api/admin/issues') {
@@ -684,6 +694,106 @@ async function buildHomeStats(repository, admin = {}) {
   }
 
   return stats;
+}
+
+async function buildPreliminaryRanking(repository) {
+  const [matrixRows, reviewRows] = await Promise.all([
+    repository.listEvaluationMatrixRows(),
+    repository.listReviewSummaries(),
+  ]);
+  const reviewsBySubmission = new Map(reviewRows.map(row => [row.submission_id, row]));
+  const rows = [];
+  for (const row of matrixRows) {
+    const review = reviewsBySubmission.get(row.submission_id) || {};
+    const detail = repository.getAdminSubmissionDetail
+      ? await repository.getAdminSubmissionDetail(row.submission_id)
+      : null;
+    const responses = responseMap(detail?.responses || []);
+    const totalScore = row.total_score === null || row.total_score === undefined || row.total_score === ''
+      ? null
+      : Number(row.total_score);
+    const eligibilityStatus = row.eligibility_status || review.eligibility_status || 'SIN_EVALUAR';
+    const evaluationStatus = row.evaluation_status || review.evaluation_status || 'NOT_STARTED';
+    const validationStatus = row.evaluation_validation_status || review.evaluation_validation_status || 'PENDING_TECHNICAL_VALIDATION';
+    const openIssueCount = Number(review.open_issue_count || 0);
+    const includedInPreliminaryRanking = (
+      totalScore !== null &&
+      evaluationStatus === 'COMPLETED' &&
+      validationStatus === 'VALIDATED_BY_TECHNICAL_TEAM' &&
+      eligibilityStatus === 'READY_FOR_TECHNICAL_REVIEW' &&
+      openIssueCount === 0
+    );
+    rows.push({
+      submission_id: row.submission_id,
+      candidate_id: row.candidate_id,
+      full_name: row.full_name || '',
+      email: row.email || '',
+      province: row.province || '',
+      institution: responses.get('FDF-12') || '',
+      institution_type: responses.get('FDF-13') || '',
+      gender: responses.get('FDF-35') || '',
+      source_channel: row.source_channel || '',
+      received_at: row.received_at || '',
+      eligibility_status: eligibilityStatus,
+      evaluation_status: evaluationStatus,
+      evaluation_validation_status: validationStatus,
+      total_score: totalScore,
+      completed_criteria: Number(row.completed_criteria || 0),
+      total_criteria: Number(row.total_criteria || 0),
+      open_issue_count: openIssueCount,
+      included_in_preliminary_ranking: includedInPreliminaryRanking,
+      exclusion_reason: preliminaryRankingExclusionReason({
+        totalScore,
+        eligibilityStatus,
+        evaluationStatus,
+        validationStatus,
+        openIssueCount,
+      }),
+    });
+  }
+
+  const sorted = rows.sort(preliminaryRankingSort);
+  let previousScore = null;
+  let currentPosition = 0;
+  sorted.forEach((row, index) => {
+    if (row.total_score === null) {
+      row.preliminary_position = null;
+      return;
+    }
+    if (previousScore === null || row.total_score !== previousScore) {
+      currentPosition = index + 1;
+      previousScore = row.total_score;
+    }
+    row.preliminary_position = currentPosition;
+  });
+  return sorted;
+}
+
+function responseMap(responses) {
+  return new Map((responses || []).map(response => [response.field_code, formatPlainValue(response.value)]));
+}
+
+function formatPlainValue(value) {
+  if (Array.isArray(value)) return value.join('; ');
+  if (value === null || value === undefined) return '';
+  return String(value);
+}
+
+function preliminaryRankingSort(a, b) {
+  if (a.total_score === null && b.total_score === null) return a.full_name.localeCompare(b.full_name);
+  if (a.total_score === null) return 1;
+  if (b.total_score === null) return -1;
+  if (b.total_score !== a.total_score) return b.total_score - a.total_score;
+  return a.full_name.localeCompare(b.full_name);
+}
+
+function preliminaryRankingExclusionReason({ totalScore, eligibilityStatus, evaluationStatus, validationStatus, openIssueCount }) {
+  if (totalScore === null) return 'Sin puntaje tecnico completo.';
+  if (eligibilityStatus !== 'READY_FOR_TECHNICAL_REVIEW') return 'Admisibilidad no lista para revision tecnica.';
+  if (evaluationStatus !== 'COMPLETED') return 'Evaluacion tecnica no completada.';
+  if (validationStatus !== 'VALIDATED_BY_TECHNICAL_TEAM') return 'Evaluacion tecnica no validada por el Equipo Tecnico.';
+  if (openIssueCount > 0) return 'Tiene incidencias operativas abiertas.';
+  return '';
 }
 
 function buildExecutiveReport({ submissions, reviews, documents, issues, generatedAt, totals, operational }) {
@@ -1378,6 +1488,29 @@ function evaluationMatrixCsv(rows, criteria) {
     return expanded;
   });
   return rowsCsv(headers, expandedRows);
+}
+
+function preliminaryRankingCsv(rows) {
+  const headers = [
+    'preliminary_position',
+    'included_in_preliminary_ranking',
+    'total_score',
+    'full_name',
+    'email',
+    'province',
+    'institution',
+    'institution_type',
+    'gender',
+    'source_channel',
+    'eligibility_status',
+    'evaluation_status',
+    'evaluation_validation_status',
+    'open_issue_count',
+    'exclusion_reason',
+    'submission_id',
+    'candidate_id',
+  ];
+  return rowsCsv(headers, rows);
 }
 
 function rowsCsv(headers, rows) {

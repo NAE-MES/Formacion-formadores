@@ -967,6 +967,29 @@
         cursor: pointer;
       }
 
+      .ranking-note {
+        background: #fff8e7;
+        border: 1px solid #f2d58b;
+        border-radius: var(--radius-sm);
+        color: #7a5200;
+        font-size: 0.84rem;
+        font-weight: 600;
+        margin: 0 0 14px;
+        padding: 10px 14px;
+      }
+
+      .rank-position {
+        color: var(--blue);
+        font-size: 1rem;
+        font-weight: 800;
+      }
+
+      .score-strong {
+        color: var(--blue-dark);
+        font-size: 1rem;
+        font-weight: 800;
+      }
+
       /* ============================================================
          RESPONSIVE
          ============================================================ */
@@ -1077,6 +1100,7 @@
           <a class="button-link ghost" href="/admin/expedientes">Expedientes</a>
           <button class="ghost" type="button" data-view="issues">Incidencias</button>
           <button class="ghost" type="button" data-view="matrix">Matriz técnica</button>
+          <button class="ghost" type="button" data-view="ranking">Ranking preliminar</button>
           <button class="ghost" type="button" data-view="intake">Entrada offline</button>
           <button class="ghost" type="button" data-view="users">Administración</button>
           <button id="logoutButton" class="ghost" type="button" hidden>Cerrar sesión</button>
@@ -1224,6 +1248,31 @@
             <table>
               <thead id="evaluationMatrixHead"></thead>
               <tbody id="evaluationMatrixTable"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- VIEW: RANKING -->
+        <section id="view-ranking" class="view">
+          <div class="workboard-head">
+            <div>
+              <h2>Ranking preliminar no vinculante</h2>
+              <p class="muted">Orden operativo por puntaje técnico. No aplica cupos, desempates ni decisión final.</p>
+            </div>
+            <button id="exportRankingCsvButton" type="button">Exportar CSV</button>
+          </div>
+          <div class="toolbar ranking-toolbar">
+            <input id="rankingSearchInput" type="search" placeholder="Buscar postulante, provincia o institución" />
+            <select id="rankingScopeFilter"><option value="">Todos</option><option value="INCLUDED">Incluidos preliminarmente</option><option value="EXCLUDED">Fuera del ranking preliminar</option></select>
+            <select id="rankingValidationFilter"><option value="">Validación técnica</option><option value="PENDING_TECHNICAL_VALIDATION">Pendiente</option><option value="IN_TECHNICAL_REVIEW">En revisión</option><option value="VALIDATED_BY_TECHNICAL_TEAM">Validada</option><option value="REQUIRES_SCORE_ADJUSTMENT">Requiere ajuste</option></select>
+            <button id="clearRankingFiltersButton" class="ghost" type="button">Limpiar</button>
+          </div>
+          <p id="rankingCount" class="result-count"></p>
+          <div class="ranking-note">Ranking preliminar no vinculante: no sustituye la aprobación del Equipo Técnico y no resuelve empates ni cupos.</div>
+          <div class="table-wrap wide-table">
+            <table>
+              <thead><tr><th>Pos.</th><th>Postulante</th><th>Puntaje</th><th>Provincia</th><th>Institución</th><th>Validación</th><th>Estado</th><th>Motivo</th></tr></thead>
+              <tbody id="preliminaryRankingTable"></tbody>
             </table>
           </div>
         </section>

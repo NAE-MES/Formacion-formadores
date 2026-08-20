@@ -90,3 +90,17 @@ Impacto: se agregan `validation_status`, `validation_note`, `validated_at` y
 `validated_by` al resumen de evaluacion. Cada recalculo o ajuste de criterio
 devuelve la validacion a pendiente. La validacion no cambia puntajes, no aplica
 cupos y no equivale a decision final del Equipo Tecnico.
+
+## 2026-08-20 - Ranking preliminar no vinculante
+
+Decision: agregar una vista y exportacion de ranking preliminar ordenada por
+`total_score`, con marca explicita de no vinculante.
+
+Justificacion: una vez calculada y validada la evaluacion tecnica, el Equipo
+Tecnico necesita una vista operativa ordenada para revision. Esta vista debe
+reducir trabajo manual sin automatizar cupos, desempates ni decisiones finales.
+
+Impacto: se agrega `GET /api/admin/preliminary-ranking` y exportacion CSV. Solo
+se marca como incluida preliminarmente una postulacion con evaluacion completa,
+validacion tecnica, admisibilidad lista y sin incidencias abiertas. Empates por
+puntaje comparten posicion; no se introduce regla de desempate.

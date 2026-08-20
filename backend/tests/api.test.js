@@ -556,6 +556,63 @@ test('technical validation rejects invalid status and intake role', async (t) =>
   });
 });
 
+test('admin API exposes non binding preliminary ranking', async (t) => {
+  await withServer(t, async ({ port, repository }) => {
+    await request(port, 'POST', '/api/submissions/google-form', {
+      sourceReference: 'google-response-ranking-validated',
+      receivedAt: '2026-08-16T10:00:00.000Z',
+      responses: validResponses({
+        'FDF-01': 'Carla',
+        'FDF-05': 'SYN-RANK-1',
+        'FDF-07': 'carla.ranking@example.test',
+        'FDF-12': 'Centro Provincial Sintético',
+        'FDF-13': 'Universidad',
+        'FDF-35': 'Hombre',
+      }),
+      documents: requiredDocuments(),
+    });
+    await request(port, 'POST', '/api/submissions/google-form', {
+      sourceReference: 'google-response-ranking-pending',
+      receivedAt: '2026-08-16T11:00:00.000Z',
+      responses: validResponses({
+        'FDF-01': 'Beatriz',
+        'FDF-05': 'SYN-RANK-2',
+        'FDF-07': 'beatriz.ranking@example.test',
+        'FDF-12': 'Institución Sintética',
+        'FDF-13': 'Gobierno provincial',
+        'FDF-35': 'Mujer',
+      }),
+      documents: requiredDocuments(),
+    });
+
+    const submissions = Array.from(repository.submissions.values());
+    const validatedSubmission = submissions.find(item => item.source_reference === 'google-response-ranking-validated');
+    const validatedDetail = await adminRequest(port, 'GET', `/api/admin/submissions/${validatedSubmission.submission_id}`);
+    await adminJsonRequest(port, 'PATCH', `/api/admin/evaluation-results/${validatedDetail.body.evaluation_result.evaluation_result_id}/validation`, {
+      status: 'VALIDATED_BY_TECHNICAL_TEAM',
+      note: 'Validado para ranking preliminar.',
+    });
+
+    const ranking = await adminRequest(port, 'GET', '/api/admin/preliminary-ranking');
+    assert.equal(ranking.statusCode, 200);
+    assert.equal(ranking.body.rows.length, 2);
+    assert.equal(ranking.body.rows[0].full_name, 'Beatriz Perez Lopez');
+    assert.equal(ranking.body.rows[0].preliminary_position, 1);
+    assert.equal(ranking.body.rows[0].included_in_preliminary_ranking, false);
+    assert.match(ranking.body.rows[0].exclusion_reason, /no validada/i);
+    const included = ranking.body.rows.find(row => row.full_name === 'Carla Perez Lopez');
+    assert.equal(included.preliminary_position, 2);
+    assert.equal(included.included_in_preliminary_ranking, true);
+    assert.equal(included.institution, 'Centro Provincial Sintético');
+    assert.equal(included.gender, 'Hombre');
+
+    const csv = await adminRawRequest(port, 'GET', '/api/admin/preliminary-ranking.csv');
+    assert.equal(csv.statusCode, 200);
+    assert.match(csv.body, /preliminary_position,included_in_preliminary_ranking,total_score/);
+    assert.match(csv.body, /Carla Perez Lopez/);
+  });
+});
+
 test('admin API lists and returns submission detail', async (t) => {
   await withServer(t, async ({ port }) => {
     const payload = {

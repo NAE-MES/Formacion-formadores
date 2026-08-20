@@ -5,6 +5,7 @@ let evaluationMatrixRows = [];
 let matrixCriteria = [];
 let issueReviewRows = [];
 let issueFieldCatalog = [];
+let preliminaryRankingRows = [];
 let selectedId = '';
 let selectedDetail = null;
 let currentUser = null;
@@ -146,6 +147,13 @@ const evaluationMatrixHead = document.querySelector('#evaluationMatrixHead');
 const evaluationMatrixTable = document.querySelector('#evaluationMatrixTable');
 const evaluationMatrixCount = document.querySelector('#evaluationMatrixCount');
 const evaluationMatrixStats = document.querySelector('#evaluationMatrixStats');
+const rankingSearchInput = document.querySelector('#rankingSearchInput');
+const rankingScopeFilter = document.querySelector('#rankingScopeFilter');
+const rankingValidationFilter = document.querySelector('#rankingValidationFilter');
+const clearRankingFiltersButton = document.querySelector('#clearRankingFiltersButton');
+const exportRankingCsvButton = document.querySelector('#exportRankingCsvButton');
+const preliminaryRankingTable = document.querySelector('#preliminaryRankingTable');
+const rankingCount = document.querySelector('#rankingCount');
 const quickFilterButtons = Array.from(document.querySelectorAll('[data-quick-filter]'));
 const currentUserBadge = document.querySelector('#currentUserBadge');
 const tabs = Array.from(document.querySelectorAll('[data-view]'));
@@ -205,6 +213,7 @@ logoutButton.addEventListener('click', async () => {
   matrixCriteria = [];
   issueReviewRows = [];
   issueFieldCatalog = [];
+  preliminaryRankingRows = [];
   selectedIssues.clear();
   selectedDocuments.clear();
   currentUser = null;
@@ -244,6 +253,11 @@ matrixEvaluationFilter.addEventListener('change', renderEvaluationMatrix);
 matrixEligibilityFilter.addEventListener('change', renderEvaluationMatrix);
 clearMatrixFiltersButton.addEventListener('click', clearMatrixFilters);
 exportMatrixCsvButton.addEventListener('click', () => exportCsv('/api/admin/evaluation-matrix.csv', 'fdf-2026-evaluation-matrix.csv'));
+rankingSearchInput.addEventListener('input', renderPreliminaryRanking);
+rankingScopeFilter.addEventListener('change', renderPreliminaryRanking);
+rankingValidationFilter.addEventListener('change', renderPreliminaryRanking);
+clearRankingFiltersButton.addEventListener('click', clearRankingFilters);
+exportRankingCsvButton.addEventListener('click', () => exportCsv('/api/admin/preliminary-ranking.csv', 'fdf-2026-ranking-preliminar.csv'));
 quickFilterButtons.forEach(button => button.addEventListener('click', () => applyQuickFilter(button.dataset.quickFilter)));
 offlineJsonForm.addEventListener('submit', importOfflineJson);
 offlineManualForm.addEventListener('submit', importOfflineManual);
@@ -280,12 +294,13 @@ function showLogin(message = '') {
 }
 
 async function loadData() {
-  const [list, review, documents, matrix, issues] = await Promise.all([
+  const [list, review, documents, matrix, issues, ranking] = await Promise.all([
     api('/api/admin/submissions'),
     api('/api/admin/review-summary'),
     api('/api/admin/document-review'),
     api('/api/admin/evaluation-matrix'),
     api('/api/admin/issues'),
+    api('/api/admin/preliminary-ranking'),
   ]);
   submissions = list.submissions || [];
   reviewSummaries = review.summaries || [];
@@ -294,12 +309,14 @@ async function loadData() {
   matrixCriteria = matrix.criteria || [];
   issueReviewRows = issues.issues || [];
   issueFieldCatalog = issues.field_catalog || [];
+  preliminaryRankingRows = ranking.rows || [];
   renderWorkboard();
   renderTable();
   renderReviewSummary();
   renderIssueReview();
   renderDocumentReview();
   renderEvaluationMatrix();
+  renderPreliminaryRanking();
   if (selectedId) await selectSubmission(selectedId);
   if (currentUser?.role === 'ADMIN') await loadUsers();
 }
@@ -339,6 +356,7 @@ function showView(name) {
   if (name === 'issues') renderIssueReview();
   if (name === 'documents') renderDocumentReview();
   if (name === 'matrix') renderEvaluationMatrix();
+  if (name === 'ranking') renderPreliminaryRanking();
 }
 
 async function api(url, options = {}) {
@@ -944,6 +962,60 @@ function matrixStatsHtml(rows) {
   `).join('');
 }
 
+function renderPreliminaryRanking() {
+  const query = normalize(rankingSearchInput.value);
+  const scope = rankingScopeFilter.value;
+  const validation = rankingValidationFilter.value;
+  const rows = preliminaryRankingRows.filter(item => {
+    const matchesScope = !scope ||
+      (scope === 'INCLUDED' && item.included_in_preliminary_ranking) ||
+      (scope === 'EXCLUDED' && !item.included_in_preliminary_ranking);
+    const matchesValidation = !validation || (item.evaluation_validation_status || 'PENDING_TECHNICAL_VALIDATION') === validation;
+    const haystack = normalize([
+      item.full_name,
+      item.email,
+      item.province,
+      item.institution,
+      item.institution_type,
+      item.gender,
+      item.submission_id,
+    ].join(' '));
+    return matchesScope && matchesValidation && (!query || haystack.includes(query));
+  });
+
+  preliminaryRankingTable.innerHTML = rows.map(item => `
+    <tr data-ranking-id="${escapeHtml(item.submission_id)}">
+      <td><span class="rank-position">${escapeHtml(item.preliminary_position || '-')}</span></td>
+      <td>
+        <strong>${escapeHtml(item.full_name || 'Sin nombre')}</strong><br>
+        <span class="muted">${escapeHtml(item.email || '')}</span><br>
+        <span class="muted">${escapeHtml(label('sourceChannels', item.source_channel))}</span>
+      </td>
+      <td><span class="score-strong">${formatScore(item.total_score)}</span></td>
+      <td>${escapeHtml(item.province || '')}</td>
+      <td>
+        <strong>${escapeHtml(item.institution || 'No registrada')}</strong><br>
+        <span class="muted">${escapeHtml(item.institution_type || '')}</span><br>
+        <span class="muted">${escapeHtml(item.gender || '')}</span>
+      </td>
+      <td>${evaluationValidationBadge(item.evaluation_validation_status)}</td>
+      <td>${rankingInclusionBadge(item)}</td>
+      <td>${escapeHtml(item.exclusion_reason || 'Incluida en ranking preliminar')}</td>
+    </tr>
+  `).join('');
+  rankingCount.textContent = resultCountLabel(rows.length, preliminaryRankingRows.length, 'postulación', 'postulaciones');
+
+  preliminaryRankingTable.querySelectorAll('tr').forEach(row => {
+    row.addEventListener('click', () => openSubmissionPage(row.dataset.rankingId));
+  });
+}
+
+function rankingInclusionBadge(item) {
+  return item.included_in_preliminary_ranking
+    ? '<span class="badge ok">Incluida</span>'
+    : '<span class="badge warn">No incluida</span>';
+}
+
 async function exportReviewCsv() {
   return exportCsv('/api/admin/review-summary.csv', 'fdf-2026-review-summary.csv');
 }
@@ -1072,6 +1144,13 @@ function clearMatrixFilters() {
   matrixEvaluationFilter.value = '';
   matrixEligibilityFilter.value = '';
   renderEvaluationMatrix();
+}
+
+function clearRankingFilters() {
+  rankingSearchInput.value = '';
+  rankingScopeFilter.value = '';
+  rankingValidationFilter.value = '';
+  renderPreliminaryRanking();
 }
 
 function applyQuickFilter(filter) {
