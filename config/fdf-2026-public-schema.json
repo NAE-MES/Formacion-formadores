@@ -1,5 +1,5 @@
 {
-  "schema_version": "FDF-2026-PUBLIC-SCHEMA-1",
+  "schema_version": "FDF-2026-PUBLIC-SCHEMA-2",
   "offline_json_schema": "FDF-2026-OFFLINE-1",
   "source_workbook": "sheets/Sistema_FdF_2026_FINAL.xlsx",
   "source_sheet": "13_Formulario_Publico",
@@ -219,9 +219,9 @@
       "section_title": "3. Pertinencia institucional y vinculación con el ecosistema NAE",
       "question": "Adjunte carta aval institucional, que indique el tipo de institución que la emite, el carfo y breve descripción de los roles de la persona postulante, y si la institución que la emite respalda la participación de la persona postulante en el proceso de FdF\n(Campo obligatorio)",
       "type": "Carga de archivo",
-      "required": true,
+      "required": false,
       "options": [],
-      "technical_note": "ÚNICA carga documental #1: carta aval."
+      "technical_note": "ÚNICA carga documental #1: carta aval. Operativamente opcional por decisión del Equipo Técnico del 19/08/2026."
     },
     {
       "code": "FDF-18",

@@ -69,6 +69,11 @@ Estados operativos:
 La evaluacion preliminar usa solo datos normalizados y documentos asociados.
 No lee el canal de origen para decidir el resultado, salvo trazabilidad.
 
+Desde la decision del 19/08/2026, la ausencia de Carta Aval no bloquea la
+admisibilidad preliminar. Queda registrada como chequeo informativo y como
+estado documental no aportado/no recibido segun corresponda. Curriculum Vitae
+continua como requisito documental bloqueante.
+
 Checks soportados:
 
 - `FIELD_EQUALS`

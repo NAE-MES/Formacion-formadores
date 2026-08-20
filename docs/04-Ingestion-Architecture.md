@@ -33,6 +33,10 @@ La validacion usa la configuracion versionable de la capa publica:
 - estructura del payload;
 - campos desconocidos como incidencia, no descarte silencioso.
 
+`FDF-17` / Carta Aval es opcional en la configuracion operativa vigente desde
+el 19/08/2026. Si llega, se asocia como documento; si no llega, el RAW y las
+respuestas normalizadas se conservan sin generar incidencia de campo requerido.
+
 ## Idempotencia y duplicados
 
 - Reimportar el mismo origen no crea otra `Submission`.

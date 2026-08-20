@@ -533,7 +533,7 @@ async function buildHomeStats(repository) {
   ]);
 
   const documentTasks = documents.filter(row =>
-    ['MISSING', 'NEEDS_REVIEW', 'REJECTED'].includes(row.carta_aval_status) ||
+    ['NEEDS_REVIEW', 'REJECTED'].includes(row.carta_aval_status) ||
     ['MISSING', 'NEEDS_REVIEW', 'REJECTED'].includes(row.curriculum_status)
   );
   const openIssues = issues.filter(issue => ['OPEN', 'NEEDS_SOURCE_REVIEW'].includes(issue.review_status || 'OPEN'));

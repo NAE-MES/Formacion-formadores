@@ -1,10 +1,11 @@
 {
-  "schema_version": "FDF-2026-ELIGIBILITY-BASELINE-1",
+  "schema_version": "FDF-2026-ELIGIBILITY-BASELINE-2",
   "assessment_scope": "PRELIMINARY_OPERATIONAL_READINESS",
   "notes": [
     "This configuration supports Sprint 2 operational readiness checks.",
     "It does not implement final Team Technical admission decisions.",
-    "Subsanacion deadlines and ambiguous criteria remain open issues until formally approved."
+    "Subsanacion deadlines and ambiguous criteria remain open issues until formally approved.",
+    "Carta aval is optional by Team Technical decision communicated on 2026-08-19. Missing carta aval must be traced but must not block preliminary readiness."
   ],
   "statuses": {
     "ready": "READY_FOR_TECHNICAL_REVIEW",
@@ -25,8 +26,8 @@
       "type": "DOCUMENT_PRESENT",
       "document_type": "CARTA_AVAL",
       "accepted_statuses": ["RECEIVED", "VALIDADO", "VALIDATED"],
-      "severity": "BLOCKING",
-      "description": "Carta aval institucional recibida."
+      "severity": "INFO",
+      "description": "Carta aval institucional recibida o no aportada por no aplicar."
     },
     {
       "check_id": "CURRICULUM_RECEIVED",

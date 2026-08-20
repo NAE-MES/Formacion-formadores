@@ -49,3 +49,19 @@ Observacion: Sprint 2 usa estados operativos preliminares para no sustituir la d
 Impacto: antes de operar admisibilidad final debe aprobarse la nomenclatura definitiva y su efecto sobre evaluacion.
 
 Estado: pendiente de decision del Equipo Tecnico.
+
+## OI-006 - Google Form publicado y texto visible de FDF-17
+
+Fuentes: Google Form publicado, `config/fdf-2026-public-schema.json` y decision
+del 19/08/2026.
+
+Observacion: operativamente `FDF-17` deja de bloquear en el backend. Si el
+Google Form publicado mantiene la carga de carta aval como obligatoria o sigue
+mostrando `(Campo obligatorio)`, las personas sin carta no podran enviar por la
+via principal o veran un texto contradictorio.
+
+Impacto: afecta la captura por Google Forms antes de llegar al API. No afecta
+la ingesta backend ni la via offline cuando el payload llega sin carta.
+
+Estado: pendiente de ajuste operativo del Google Form por el responsable del
+instrumento, si se autoriza modificar esa configuracion visible.

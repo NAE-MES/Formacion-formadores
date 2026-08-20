@@ -31,3 +31,18 @@ Decision: no modificar el Google Form existente. La respuesta del formulario se 
 Justificacion: el formulario ya esta publicado/en uso y no debe alterarse. El backend permite trazabilidad, persistencia en base de datos y frontend de gestion sin depender del Google Sheet como sistema operativo.
 
 Impacto: Google Sheets queda como origen tecnico del evento/respaldo. La ingesta operativa sera `POST /api/submissions/google-form`. La variante offline conserva `POST /api/submissions/offline-json`.
+
+## 2026-08-19 - Carta aval opcional operativamente
+
+Decision: la carta aval institucional deja de ser requisito bloqueante para
+continuar el ciclo, porque no todas las personas postulantes estan vinculadas
+a una institucion que pueda emitirla.
+
+Justificacion: decision funcional comunicada por el Equipo Tecnico. La ausencia
+de carta aval debe quedar trazada, pero no debe impedir la admisibilidad
+preliminar cuando el resto de requisitos bloqueantes se cumple.
+
+Impacto: `FDF-17` queda como carga documental opcional en la configuracion
+operativa. El chequeo `CARTA_AVAL_RECEIVED` pasa a severidad informativa. La
+matriz tecnica no cambia automaticamente: la carta puede usarse como evidencia
+contextual si existe, pero su ausencia no modifica puntajes por regla automatica.

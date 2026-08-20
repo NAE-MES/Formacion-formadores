@@ -60,7 +60,7 @@ const LABELS = {
     PASS: 'Cumple',
     FAIL: 'No cumple',
     CONSENT_ACCEPTED: 'Consentimiento aceptado',
-    CARTA_AVAL_RECEIVED: 'Carta aval recibida',
+    CARTA_AVAL_RECEIVED: 'Carta aval',
     CURRICULUM_RECEIVED: 'Currículum recibido',
     VERACITY_CONFIRMED: 'Veracidad confirmada',
     VALIDATION_AUTHORIZED: 'Validación institucional autorizada',
@@ -70,7 +70,7 @@ const LABELS = {
   },
   checkDescriptions: {
     CONSENT_ACCEPTED: 'Consentimiento para usar la información en el proceso FdF.',
-    CARTA_AVAL_RECEIVED: 'Carta aval institucional recibida.',
+    CARTA_AVAL_RECEIVED: 'Carta aval institucional recibida o no aportada por no aplicar.',
     CURRICULUM_RECEIVED: 'Currículum vitae recibido.',
     VERACITY_CONFIRMED: 'Confirmación de veracidad de la información.',
     VALIDATION_AUTHORIZED: 'Autorización para validación institucional.',
@@ -587,7 +587,7 @@ function workboardRow(row) {
       <td><span class="badge">${escapeHtml(label('sourceChannels', row.source_channel))}</span></td>
       <td>
         <div class="status-stack">
-          <span>Carta aval: ${documentStatusBadge(documents.carta_aval_status || 'MISSING')}</span>
+          <span>Carta aval: ${documentStatusBadge(documents.carta_aval_status || 'MISSING', { optionalMissing: true })}</span>
           <span>CV: ${documentStatusBadge(documents.curriculum_status || 'MISSING')}</span>
         </div>
       </td>
@@ -603,7 +603,8 @@ function workboardRow(row) {
 function workboardPriority(row) {
   if (Number(row.open_issue_count || 0) > 0) return 1;
   const documents = row.document_review || {};
-  if ([documents.carta_aval_status, documents.curriculum_status].some(status => ['MISSING', 'NEEDS_REVIEW', 'REJECTED'].includes(status || 'MISSING'))) return 2;
+  if (['NEEDS_REVIEW', 'REJECTED'].includes(documents.carta_aval_status || 'MISSING')) return 2;
+  if (['MISSING', 'NEEDS_REVIEW', 'REJECTED'].includes(documents.curriculum_status || 'MISSING')) return 2;
   if (['BLOCKED_BY_MISSING_REQUIREMENTS', 'REQUIRES_MANUAL_REVIEW'].includes(row.eligibility_status || 'SIN_EVALUAR')) return 3;
   if ((row.evaluation_status || 'NOT_STARTED') === 'IN_PROGRESS') return 4;
   if ((row.evaluation_status || 'NOT_STARTED') === 'NOT_STARTED' && row.eligibility_status === 'READY_FOR_TECHNICAL_REVIEW') return 5;
@@ -1255,7 +1256,7 @@ function renderEligibilityChecks(checks) {
     <h4>Comprobaciones</h4>
     ${checks.map(check => `
     <div class="check-row">
-      ${checkStatusBadge(check.status)}
+      ${checkStatusBadge(check)}
       <div>
         <strong>${escapeHtml(label('checks', check.check_id))}</strong><br>
         <span class="muted">${escapeHtml(checkDescription(check))}</span>
@@ -1415,7 +1416,7 @@ function documentReviewCell(item, prefix) {
     : '';
   return `
     <div class="doc-review-cell">
-      <div class="doc-review-head">${checkbox}${documentStatusBadge(status)}</div>
+      <div class="doc-review-head">${checkbox}${documentStatusBadge(status, { optionalMissing: prefix === 'carta_aval' })}</div>
       ${link}
       ${controls}
     </div>
@@ -1738,14 +1739,19 @@ function documentSummary(item) {
   return `${escapeHtml(item.document_count)} ${flags}`;
 }
 
-function documentStatusBadge(status) {
+function documentStatusBadge(status, options = {}) {
   const normalized = status || 'MISSING';
-  const cls = normalized === 'REJECTED' || normalized === 'MISSING'
+  const cls = normalized === 'MISSING' && options.optionalMissing
+    ? ''
+    : normalized === 'REJECTED' || normalized === 'MISSING'
     ? 'bad'
     : normalized === 'NEEDS_REVIEW'
       ? 'warn'
       : 'ok';
-  return `<span class="badge ${cls}">${escapeHtml(label('documents', normalized))}</span>`;
+  const text = normalized === 'MISSING' && options.optionalMissing
+    ? 'No aportada'
+    : label('documents', normalized);
+  return `<span class="badge ${cls}">${escapeHtml(text)}</span>`;
 }
 
 function reviewDocumentSummary(item) {
@@ -1841,9 +1847,19 @@ function evaluationBadge(status) {
   return `<span class="badge ${cls}">${escapeHtml(label('evaluation', normalized))}</span>`;
 }
 
-function checkStatusBadge(status) {
-  const cls = status === 'PASS' ? 'ok' : 'bad';
-  return `<span class="badge ${cls}">${escapeHtml(label('checks', status))}</span>`;
+function checkStatusBadge(checkOrStatus) {
+  const status = typeof checkOrStatus === 'object' ? checkOrStatus.status : checkOrStatus;
+  const severity = typeof checkOrStatus === 'object' ? checkOrStatus.severity : '';
+  const checkId = typeof checkOrStatus === 'object' ? checkOrStatus.check_id : '';
+  const cls = status === 'PASS'
+    ? 'ok'
+    : severity === 'INFO'
+      ? ''
+      : 'bad';
+  const text = status === 'FAIL' && severity === 'INFO' && checkId === 'CARTA_AVAL_RECEIVED'
+    ? 'No aportada'
+    : label('checks', status);
+  return `<span class="badge ${cls}">${escapeHtml(text)}</span>`;
 }
 
 function fullName(candidate) {

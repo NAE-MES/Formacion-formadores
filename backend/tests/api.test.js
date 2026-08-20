@@ -406,6 +406,33 @@ test('ingests Google Form API payload and preserves raw data', async (t) => {
   });
 });
 
+test('allows Google Form submission without carta aval and keeps eligibility ready', async (t) => {
+  await withServer(t, async ({ port, repository }) => {
+    const response = await request(port, 'POST', '/api/submissions/google-form', {
+      sourceReference: 'google-response-without-carta-aval',
+      responses: {
+        ...validResponses(),
+        'FDF-17': '',
+        'FDF-27': 'drive://synthetic/cv',
+      },
+      documents: [requiredDocuments()[1]],
+    });
+
+    assert.equal(response.statusCode, 201);
+    assert.equal(response.body.status, 'IMPORTED');
+    assert.equal(response.body.eligibility_status, 'READY_FOR_TECHNICAL_REVIEW');
+    assert.equal(repository.documents.size, 1);
+    assert.equal(repository.issues.size, 0);
+
+    const assessment = Array.from(repository.eligibilityAssessments.values())[0];
+    const cartaCheck = assessment.check_results.find(check => check.check_id === 'CARTA_AVAL_RECEIVED');
+    const cvCheck = assessment.check_results.find(check => check.check_id === 'CURRICULUM_RECEIVED');
+    assert.equal(cartaCheck.status, 'FAIL');
+    assert.equal(cartaCheck.severity, 'INFO');
+    assert.equal(cvCheck.status, 'PASS');
+  });
+});
+
 test('admin API lists and returns submission detail', async (t) => {
   await withServer(t, async ({ port }) => {
     const payload = {
@@ -909,9 +936,10 @@ test('reprocessing same Google source reference updates normalized data without 
       },
       documents: [requiredDocuments()[1]],
     });
-    assert.equal(first.statusCode, 202);
+    assert.equal(first.statusCode, 201);
     assert.equal(repository.submissions.size, 1);
-    assert.equal(repository.issues.size, 1);
+    assert.equal(repository.issues.size, 0);
+    assert.equal(first.body.eligibility_status, 'READY_FOR_TECHNICAL_REVIEW');
 
     const second = await request(port, 'POST', '/api/submissions/google-form', {
       sourceReference,

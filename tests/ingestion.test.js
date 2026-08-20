@@ -391,14 +391,40 @@ test('assesses candidate as ready for technical review when baseline checks pass
   assert.ok(repo.auditEvents.some(event => event.action === 'ELIGIBILITY_ASSESSED'));
 });
 
-test('blocks preliminary eligibility when required documents are missing', () => {
+test('does not block preliminary eligibility when only carta aval is missing', () => {
   const repo = ingestion.FdF_createIngestionRepository();
   const result = ingestion.FdF_importOfflineJson({
     schema: 'FDF-2026-OFFLINE-1',
     exportedAt: '2026-08-13T10:00:00.000Z',
     respuestas: validResponses(),
   }, config, repo, {
-    sourceReference: 'offline-json-missing-docs',
+    sourceReference: 'offline-json-missing-carta-aval',
+    documents: [requiredDocuments()[1]],
+  });
+
+  const assessment = ingestion.FdF_assessCandidateEligibility(
+    result.candidate.candidate_id,
+    eligibilityConfig,
+    repo,
+  );
+
+  assert.equal(assessment.status, 'READY_FOR_TECHNICAL_REVIEW');
+  const cartaCheck = assessment.check_results.find(check => check.check_id === 'CARTA_AVAL_RECEIVED');
+  assert.equal(cartaCheck.status, 'FAIL');
+  assert.equal(cartaCheck.severity, 'INFO');
+  assert.ok(assessment.check_results.some(check =>
+    check.check_id === 'CURRICULUM_RECEIVED' && check.status === 'PASS'
+  ));
+});
+
+test('blocks preliminary eligibility when curriculum vitae is missing', () => {
+  const repo = ingestion.FdF_createIngestionRepository();
+  const result = ingestion.FdF_importOfflineJson({
+    schema: 'FDF-2026-OFFLINE-1',
+    exportedAt: '2026-08-13T10:00:00.000Z',
+    respuestas: validResponses(),
+  }, config, repo, {
+    sourceReference: 'offline-json-missing-cv',
     documents: [],
   });
 
@@ -409,9 +435,6 @@ test('blocks preliminary eligibility when required documents are missing', () =>
   );
 
   assert.equal(assessment.status, 'BLOCKED_BY_MISSING_REQUIREMENTS');
-  assert.ok(assessment.check_results.some(check =>
-    check.check_id === 'CARTA_AVAL_RECEIVED' && check.status === 'FAIL'
-  ));
   assert.ok(assessment.check_results.some(check =>
     check.check_id === 'CURRICULUM_RECEIVED' && check.status === 'FAIL'
   ));

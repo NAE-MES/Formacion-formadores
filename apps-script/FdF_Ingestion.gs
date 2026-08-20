@@ -237,7 +237,7 @@ function FdF_publicConfigFromSpreadsheet(spreadsheet) {
   }
 
   return {
-    schema_version: 'FDF-2026-PUBLIC-SCHEMA-1',
+    schema_version: 'FDF-2026-PUBLIC-SCHEMA-2',
     offline_json_schema: 'FDF-2026-OFFLINE-1',
     source_channels: [
       FDF_SOURCE_CHANNELS.GOOGLE_FORM,
@@ -256,7 +256,7 @@ function FdF_publicConfigFromSpreadsheet(spreadsheet) {
 
 function FdF_defaultEligibilityBaselineConfig() {
   return {
-    schema_version: 'FDF-2026-ELIGIBILITY-BASELINE-1',
+    schema_version: 'FDF-2026-ELIGIBILITY-BASELINE-2',
     assessment_scope: 'PRELIMINARY_OPERATIONAL_READINESS',
     statuses: {
       ready: 'READY_FOR_TECHNICAL_REVIEW',
@@ -277,8 +277,8 @@ function FdF_defaultEligibilityBaselineConfig() {
         type: 'DOCUMENT_PRESENT',
         document_type: FDF_DOCUMENT_TYPES.CARTA_AVAL,
         accepted_statuses: ['RECEIVED', 'VALIDADO', 'VALIDATED'],
-        severity: 'BLOCKING',
-        description: 'Carta aval institucional recibida.',
+        severity: 'INFO',
+        description: 'Carta aval institucional recibida o no aportada por no aplicar.',
       },
       {
         check_id: 'CURRICULUM_RECEIVED',

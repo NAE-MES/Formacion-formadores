@@ -89,10 +89,11 @@ Los instrumentos se encuentran en revisión del equipo.
     cohorte regional.
 -   `FDF-22` es una pregunta de texto/párrafo; no solicita carga de
     evidencia.
--   Por Google Forms son obligatorias las cargas de Carta Aval y
-    Currículum Vitae.
--   En la vía offline, formulario, Carta Aval y CV se remiten por
-    correo; el HTML puede generar además un JSON para procesamiento
+-   Currículum Vitae es obligatorio. Carta Aval es opcional operativamente
+    desde la decisión del Equipo Técnico del 19/08/2026; su ausencia se traza
+    pero no bloquea el ciclo.
+-   En la vía offline, formulario y CV se remiten por correo; Carta Aval se
+    remite si aplica. El HTML puede generar además un JSON para procesamiento
     automático.
 -   Los identificadores `FDF-xx` son internos y no deben mostrarse al
     postulante.

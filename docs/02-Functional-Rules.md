@@ -10,8 +10,11 @@
 - INAENE puede mantenerse donde aparezca oficialmente como actor de articulacion.
 - La pregunta sobre representacion de provincia, municipio o institucion dentro de la cohorte regional fue eliminada.
 - `FDF-22` es una pregunta de parrafo y no una carga de evidencia.
-- En Google Forms se requieren Carta Aval y Curriculum Vitae segun configuracion oficial vigente.
-- En la via offline, formulario, Carta Aval y CV se reciben por correo.
+- Carta Aval es opcional operativamente desde la decision del Equipo Tecnico
+  del 19/08/2026; su ausencia se traza, pero no bloquea el ciclo.
+- Curriculum Vitae sigue siendo documento requerido.
+- En la via offline, formulario y CV se reciben por correo; Carta Aval se
+  recibe si aplica.
 - El HTML offline puede generar JSON para procesamiento automatico.
 - Los codigos `FDF-xx` no deben mostrarse al postulante como contenido visible.
 - No se deben mostrar publicamente puntos, ponderaciones, atributos internos ni textos como `No puntua`.
