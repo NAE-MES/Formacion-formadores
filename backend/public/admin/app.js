@@ -888,6 +888,7 @@ function renderEvaluationMatrix() {
       <th>Provincia</th>
       <th>Admisibilidad</th>
       <th>Evaluación</th>
+      <th>Puntaje técnico</th>
       ${matrixCriteria.map(criterion => `<th>${escapeHtml(criterion.label)}</th>`).join('')}
       <th>Recibido</th>
     </tr>
@@ -898,6 +899,7 @@ function renderEvaluationMatrix() {
       <td>${escapeHtml(item.province || '')}</td>
       <td>${eligibilityBadge(item.eligibility_status)}</td>
       <td>${evaluationBadge(item.evaluation_status)}<br><span class="muted">${escapeHtml(item.completed_criteria || 0)} / ${escapeHtml(item.total_criteria || matrixCriteria.length)}</span></td>
+      <td><strong>${formatScore(item.total_score)}</strong><br><span class="muted">No ranking</span></td>
       ${matrixCriteria.map(criterion => matrixCriterionCell(item, criterion)).join('')}
       <td>${formatDate(item.received_at)}</td>
     </tr>
@@ -1277,7 +1279,7 @@ function renderTechnicalEvaluation(detail) {
           <span class="section-kicker">Avance de evaluación</span>
           <div class="section-status">${evaluationBadge(result.status || 'NOT_STARTED')}</div>
         </div>
-        <div class="section-meta">${escapeHtml(result.completed_criteria || 0)} de ${escapeHtml(result.total_criteria || criteria.length)} criterios completados</div>
+        <div class="section-meta">${escapeHtml(result.completed_criteria || 0)} de ${escapeHtml(result.total_criteria || criteria.length)} criterios completados · Puntaje técnico: ${formatScore(result.total_score)}</div>
       </div>
       <div class="evaluation-grid">
         ${criteria.map(criterion => renderCriterionReview(detail.submission.submission_id, criterion, evaluations.get(criterion.criterion_id))).join('')}
@@ -1527,6 +1529,12 @@ function matrixCriterionCell(item, criterion) {
       </div>
     </td>
   `;
+}
+
+function formatScore(value) {
+  if (value === null || value === undefined || value === '') return 'Pendiente';
+  const score = Number(value);
+  return Number.isFinite(score) ? score.toFixed(2).replace(/\.00$/, '') : 'Pendiente';
 }
 
 async function saveMatrixCriterion(event) {

@@ -1,10 +1,10 @@
 {
   "schema_version": "FDF-2026-EVALUATION-BASELINE-1",
   "assessment_scope": "TECHNICAL_REVIEW_CAPTURE",
-  "calculation_status": "PENDING_TECHNICAL_APPROVAL",
+  "calculation_status": "ANEXO_1_AUTOMATIC_DRAFT_ENABLED",
   "notes": [
-    "This catalog enables manual technical review capture only.",
-    "It does not implement automatic scoring, ranking, quotas, tie-breakers or final decisions."
+    "This catalog enables automatic draft scoring from Anexo 1 closed responses and manual technical review capture.",
+    "It does not implement ranking, quotas, tie-breakers or final decisions."
   ],
   "statuses": [
     "NOT_STARTED",
@@ -17,25 +17,187 @@
       "criterion_id": "INSTITUTIONAL_LINK",
       "label": "Vinculación institucional",
       "weight_percent": 15,
-      "source": "Anexo 1 / Sistema_FdF_2026_FINAL.xlsx"
+      "source": "Anexo 1 / Sistema_FdF_2026_FINAL.xlsx",
+      "attributes": [
+        {
+          "attribute_id": "ACTIVE_INSTITUTIONAL_LINK",
+          "label": "Vinculación institucional activa",
+          "field_code": "FDF-18",
+          "weight_percent": 40,
+          "option_scores": {
+            "Pertenezco a una estructura directamente vinculada al apoyo a NAE": 10,
+            "Tengo vínculo institucional, pero mi relación con el ecosistema NAE es indirecta o requiere validación adicional": 5,
+            "No acredito vínculo institucional activo con una estructura de apoyo a NAE": 0
+          }
+        },
+        {
+          "attribute_id": "INSTITUTIONAL_ROLE_RELEVANCE",
+          "label": "Pertinencia del rol institucional",
+          "field_code": "FDF-19",
+          "weight_percent": 30,
+          "option_scores": {
+            "Sí, mi cargo o función incide directamente en esos procesos": 10,
+            "Mi cargo o función tiene relación parcial, pero no evidencia incidencia directa": 5,
+            "Mi cargo o función no guarda relación verificable con procesos de apoyo a NAE": 0
+          }
+        },
+        {
+          "attribute_id": "INSTITUTIONAL_SUPPORT",
+          "label": "Respaldo institucional para la participación",
+          "field_code": "FDF-20",
+          "weight_percent": 30,
+          "option_scores": {
+            "Sí, respalda explícitamente mi participación y facilitaría condiciones para la réplica": 10,
+            "Avala mi participación, pero no precisa condiciones concretas para la réplica": 5,
+            "No existe respaldo institucional verificable para la participación o la réplica": 0
+          }
+        }
+      ]
     },
     {
       "criterion_id": "TRAINING_AND_TECHNICAL_CAPACITY",
       "label": "Capacidades formativas y experiencia técnica",
       "weight_percent": 55,
-      "source": "Anexo 1 / Sistema_FdF_2026_FINAL.xlsx"
+      "source": "Anexo 1 / Sistema_FdF_2026_FINAL.xlsx",
+      "attributes": [
+        {
+          "attribute_id": "TRAINING_EXPERIENCE",
+          "label": "Experiencia en formación, docencia o facilitación",
+          "field_code": "FDF-21",
+          "weight_percent": 35,
+          "option_scores": {
+            "Sí, evidencia experiencia previa en capacitación, docencia, facilitación o conducción de talleres": 10,
+            "Tiene experiencia limitada o puntual en actividades formativas": 5,
+            "No evidencia experiencia previa en formación, docencia o facilitación": 0
+          }
+        },
+        {
+          "attribute_id": "BUSINESS_SUPPORT_EXPERIENCE",
+          "label": "Experiencia en acompañamiento empresarial o desarrollo territorial",
+          "field_code": "FDF-23",
+          "weight_percent": 35,
+          "option_scores": {
+            "Sí, evidencia experiencia directa en acompañamiento empresarial o desarrollo territorial": 10,
+            "Tiene experiencia parcial o indirecta en acompañamiento empresarial o desarrollo territorial": 5,
+            "No evidencia experiencia relacionada con acompañamiento empresarial o desarrollo territorial": 0
+          }
+        },
+        {
+          "attribute_id": "NAE_ECOSYSTEM_KNOWLEDGE",
+          "label": "Conocimiento del ecosistema NAE",
+          "field_code": "FDF-25",
+          "weight_percent": 20,
+          "option_scores": {
+            "Conozco el funcionamiento de MIPYMES, cooperativas no agropecuarias, emprendimientos, PDL u otros NAE en Cuba": 10,
+            "Tengo conocimiento general del ecosistema NAE, pero limitada experiencia práctica": 5,
+            "No evidencio conocimiento suficiente del ecosistema NAE": 0
+          }
+        },
+        {
+          "attribute_id": "METHODOLOGIES_AND_MATERIALS",
+          "label": "Manejo de metodologías participativas o materiales formativos",
+          "field_code": "FDF-26",
+          "weight_percent": 10,
+          "option_scores": {
+            "Sí, he utilizado metodologías activas y materiales formativos replicables y herramientas digitales": 10,
+            "He utilizado herramientas formativas básicas, pero sin evidencia de adaptación metodológica": 5,
+            "No evidencio manejo de metodologías o materiales formativos, ni herramientas digitales": 0
+          }
+        }
+      ]
     },
     {
       "criterion_id": "TERRITORIAL_REPLICATION_POTENTIAL",
       "label": "Potencial de réplica territorial",
       "weight_percent": 25,
-      "source": "Anexo 1 / Sistema_FdF_2026_FINAL.xlsx"
+      "source": "Anexo 1 / Sistema_FdF_2026_FINAL.xlsx",
+      "attributes": [
+        {
+          "attribute_id": "TERRITORIAL_ARTICULATION",
+          "label": "Capacidad de convocatoria y articulación territorial",
+          "field_code": "FDF-28",
+          "weight_percent": 35,
+          "option_scores": {
+            "Sí, puedo convocar, coordinar o articular actores provinciales o municipales": 10,
+            "Tengo capacidad parcial, dependiente de autorización o apoyo de terceros": 5,
+            "No evidencio capacidad de convocatoria o articulación territorial": 0
+          }
+        },
+        {
+          "attribute_id": "MULTIPLICATION_COMMITMENT",
+          "label": "Compromiso de multiplicación",
+          "field_code": "FDF-30",
+          "weight_percent": 35,
+          "option_scores": {
+            "Sí, expreso compromiso claro de ejecutar acciones de multiplicación": 10,
+            "Manifiesto disposición general, pero sin precisar condiciones o compromiso claro de réplica": 5,
+            "No manifiesto compromiso de multiplicación posterior": 0
+          }
+        },
+        {
+          "attribute_id": "TRAINING_ROUTE_AVAILABILITY",
+          "label": "Disponibilidad para participar en la ruta formativa",
+          "field_code": "FDF-32",
+          "weight_percent": 20,
+          "option_scores": {
+            "Sí, confirmo disponibilidad para toda la ruta formativa": 10,
+            "Tengo disponibilidad parcial o condicionada": 5,
+            "No cuento con disponibilidad suficiente para participar en el proceso": 0
+          }
+        },
+        {
+          "attribute_id": "COMMUNICATION_CONDITIONS",
+          "label": "Condiciones mínimas de comunicación y seguimiento",
+          "field_code": "FDF-33",
+          "weight_percent": 10,
+          "option_scores": {
+            "Cuento con correo, teléfono, mensajería móvil u otro canal operativo": 10,
+            "Cuento con canales limitados, pero puedo recibir materiales mediante apoyo institucional o mecanismos alternativos": 5,
+            "No cuento con canales mínimos de comunicación o seguimiento": 0
+          }
+        }
+      ]
     },
     {
       "criterion_id": "INCLUSION_GENDER_SUSTAINABILITY",
       "label": "Enfoque de inclusión, género o sostenibilidad",
       "weight_percent": 5,
-      "source": "Anexo 1 / Sistema_FdF_2026_FINAL.xlsx"
+      "source": "Anexo 1 / Sistema_FdF_2026_FINAL.xlsx",
+      "attributes": [
+        {
+          "attribute_id": "YOUTH_REPRESENTATION",
+          "label": "Representación de juventudes",
+          "field_code": "FDF-36",
+          "weight_percent": 40,
+          "option_scores": {
+            "de 18 a 35 años": 10,
+            "36 años o más": 0,
+            "No aporta información": 0
+          }
+        },
+        {
+          "attribute_id": "WOMEN_REPRESENTATION",
+          "label": "Representación de mujeres",
+          "field_code": "FDF-35",
+          "weight_percent": 30,
+          "option_scores": {
+            "Mujer": 10,
+            "Hombre": 5,
+            "No aporta información": 0
+          }
+        },
+        {
+          "attribute_id": "GENDER_INCLUSION_INTEREST",
+          "label": "Experiencia o interés en género e inclusión",
+          "field_code": "FDF-37",
+          "weight_percent": 30,
+          "option_scores": {
+            "Sí, evidencio experiencia o interés claro en género e inclusión": 10,
+            "Manifiesto interés general, pero sin experiencia o evidencia concreta": 5,
+            "No evidencio experiencia ni interés en enfoques de género o inclusión": 0
+          }
+        }
+      ]
     }
   ]
 }

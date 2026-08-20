@@ -118,6 +118,9 @@ create table if not exists evaluation_results (
   status text not null,
   completed_criteria integer not null default 0,
   total_criteria integer not null default 0,
+  total_score numeric(8,2),
+  rule_version text not null default '',
+  calculation_method text not null default '',
   calculated_at timestamptz not null,
   calculated_by text not null,
   notes text not null default ''
@@ -165,3 +168,6 @@ alter table eligibility_assessments add column if not exists manual_status text 
 alter table eligibility_assessments add column if not exists manual_note text not null default '';
 alter table eligibility_assessments add column if not exists reviewed_at timestamptz;
 alter table eligibility_assessments add column if not exists reviewed_by text not null default '';
+alter table evaluation_results add column if not exists total_score numeric(8,2);
+alter table evaluation_results add column if not exists rule_version text not null default '';
+alter table evaluation_results add column if not exists calculation_method text not null default '';

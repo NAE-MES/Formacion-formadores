@@ -2,8 +2,8 @@
 
 ## Estado
 
-Motor completo de puntuacion pendiente. No se implementa ranking, cupos ni
-decision final.
+Motor automatico de puntuacion tecnica implementado para los 4 criterios del
+Anexo 1. No se implementa ranking, cupos ni decision final.
 
 Existe una capa preliminar de admisibilidad operativa para verificar
 requisitos bloqueantes y casos que requieren revision manual antes de la
@@ -20,6 +20,41 @@ evaluacion tecnica.
 
 La ingestión deja respuestas normalizadas por `FDF-xx`, lo que permite agregar posteriormente evaluaciones por criterio sin redisenar los canales de entrada.
 
+## Evaluacion tecnica automatica
+
+Configuracion: `config/fdf-2026-evaluation-baseline.json`.
+
+El motor calcula exclusivamente los criterios y atributos definidos en
+`docs/oficiales/anexo-1-matriz-calificacion.pdf`:
+
+- `INSTITUTIONAL_LINK`
+- `TRAINING_AND_TECHNICAL_CAPACITY`
+- `TERRITORIAL_REPLICATION_POTENTIAL`
+- `INCLUSION_GENDER_SUSTAINABILITY`
+
+Cada criterio se calcula desde sus atributos internos con respuestas cerradas
+`FDF-xx`. Los textos cualitativos (`FDF-22`, `FDF-24`, `FDF-31`, `FDF-38`)
+quedan como evidencia de revision humana, pero no se puntuan automaticamente.
+
+El puntaje de cada criterio se guarda en escala 0-100. El `total_score` se
+calcula como promedio ponderado por el peso oficial del criterio.
+
+La regla de genero queda cerrada por decision del 2026-08-20: `Mujer = 10`,
+`Hombre = 5`, `No aporta informacion = 0`, tomando como fuente aplicable el
+Anexo 1.
+
+Si una respuesta no existe o no coincide con una opcion puntuable del Anexo 1,
+el criterio queda `NEEDS_REVIEW` y no se calcula `total_score` hasta completar
+la revision.
+
+La puntuacion automatica se ejecuta tras cada ingesta valida y puede
+recalcularse desde la API administrativa con:
+
+- `POST /api/admin/submissions/:submission_id/evaluation/auto-score`
+
+Restriccion: el resultado automatico es puntaje tecnico operativo. No
+representa ranking, seleccion, cupo ni decision final.
+
 ## Evaluacion tecnica manual
 
 Configuracion: `config/fdf-2026-evaluation-baseline.json`.
@@ -29,10 +64,9 @@ Entidades persistidas:
 - `criterion_evaluations`
 - `evaluation_results`
 
-La version actual solo captura revision humana por criterio. No calcula
-puntuacion desde respuestas, no genera ranking, no aplica cupos y no registra
-decision final. Los porcentajes se conservan como metadatos oficiales del
-catalogo para orientar al revisor interno, no se muestran al postulante.
+La revision humana por criterio se mantiene. Un revisor puede ajustar estado,
+puntaje, sintesis y nota interna de un criterio cuando corresponda. Cada ajuste
+recalcula el resumen operativo.
 
 Criterios configurados:
 
@@ -51,8 +85,8 @@ Estados operativos de evaluacion:
 Cada actualizacion de criterio registra `CRITERION_EVALUATION_UPDATED`. Cada
 refresco del resumen operativo registra `EVALUATION_RESULT_UPDATED`.
 
-Restriccion: el resumen operativo solo indica avance de captura. No representa
-seleccion, orden de merito ni recomendacion final.
+Restriccion: el resumen operativo y el `total_score` no representan seleccion,
+orden de merito ni recomendacion final.
 
 ## Admisibilidad preliminar operativa
 

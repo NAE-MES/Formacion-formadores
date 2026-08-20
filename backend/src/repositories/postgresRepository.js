@@ -438,6 +438,7 @@ class PostgresRepository {
         s.normalization_status,
         ea.status as eligibility_status,
         coalesce(er.status, 'NOT_STARTED') as evaluation_status,
+        er.total_score,
         string_agg(distinct d.status, ',' order by d.status) as document_statuses,
         count(distinct case when ni.review_status in ('OPEN', 'NEEDS_SOURCE_REVIEW') then ni.normalization_issue_id end)::int as open_issue_count,
         count(distinct ni.normalization_issue_id)::int as issue_count,
@@ -447,7 +448,7 @@ class PostgresRepository {
       left join normalization_issues ni on ni.submission_id = s.submission_id
       left join documents d on d.candidate_id = s.candidate_id
       left join lateral (
-        select status
+        select status, total_score
         from eligibility_assessments
         where submission_id = s.submission_id
         order by assessed_at desc
@@ -474,7 +475,8 @@ class PostgresRepository {
         s.received_at,
         s.normalization_status,
         ea.status,
-        er.status
+        er.status,
+        er.total_score
       order by s.received_at desc
       limit 500
     `);
@@ -501,6 +503,7 @@ class PostgresRepository {
         coalesce(er.status, 'NOT_STARTED') as evaluation_status,
         coalesce(er.completed_criteria, 0)::int as completed_criteria,
         coalesce(er.total_criteria, 0)::int as total_criteria,
+        er.total_score,
         count(distinct d.document_id)::int as document_count,
         count(distinct case when d.status = 'VALIDATED' then d.document_id end)::int as documents_validated,
         count(distinct case when d.status = 'NEEDS_REVIEW' then d.document_id end)::int as documents_needs_review,
@@ -518,7 +521,7 @@ class PostgresRepository {
         limit 1
       ) ea on true
       left join lateral (
-        select status, completed_criteria, total_criteria
+        select status, completed_criteria, total_criteria, total_score
         from evaluation_results
         where submission_id = s.submission_id
         order by calculated_at desc
@@ -539,7 +542,8 @@ class PostgresRepository {
         ea.status,
         er.status,
         er.completed_criteria,
-        er.total_criteria
+        er.total_criteria,
+        er.total_score
       order by s.received_at desc
       limit 1000
     `);
@@ -640,6 +644,7 @@ class PostgresRepository {
         coalesce(er.status, 'NOT_STARTED') as evaluation_status,
         coalesce(er.completed_criteria, 0)::int as completed_criteria,
         coalesce(er.total_criteria, 0)::int as total_criteria,
+        er.total_score,
         coalesce(
           jsonb_agg(
             jsonb_build_object(
@@ -667,7 +672,7 @@ class PostgresRepository {
         limit 1
       ) ea on true
       left join lateral (
-        select status, completed_criteria, total_criteria
+        select status, completed_criteria, total_criteria, total_score
         from evaluation_results
         where submission_id = s.submission_id
         order by calculated_at desc
@@ -688,7 +693,8 @@ class PostgresRepository {
         ea.status,
         er.status,
         er.completed_criteria,
-        er.total_criteria
+        er.total_criteria,
+        er.total_score
       order by s.received_at desc
       limit 1000
     `);
@@ -784,7 +790,8 @@ class PostgresRepository {
     );
     const evaluationResult = await this.pool.query(
       `select evaluation_result_id, candidate_id, submission_id, status,
-        completed_criteria, total_criteria, calculated_at, calculated_by, notes
+        completed_criteria, total_criteria, total_score, rule_version,
+        calculation_method, calculated_at, calculated_by, notes
        from evaluation_results
        where submission_id = $1
        order by calculated_at desc
@@ -893,17 +900,22 @@ class PostgresRepository {
       const savedResult = await client.query(
         `insert into evaluation_results (
           evaluation_result_id, candidate_id, submission_id, status,
-          completed_criteria, total_criteria, calculated_at, calculated_by, notes
-        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+          completed_criteria, total_criteria, total_score, rule_version,
+          calculation_method, calculated_at, calculated_by, notes
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
         on conflict (evaluation_result_id) do update set
           status = excluded.status,
           completed_criteria = excluded.completed_criteria,
           total_criteria = excluded.total_criteria,
+          total_score = excluded.total_score,
+          rule_version = excluded.rule_version,
+          calculation_method = excluded.calculation_method,
           calculated_at = excluded.calculated_at,
           calculated_by = excluded.calculated_by,
           notes = excluded.notes
         returning evaluation_result_id, candidate_id, submission_id, status,
-          completed_criteria, total_criteria, calculated_at, calculated_by, notes`,
+          completed_criteria, total_criteria, total_score, rule_version,
+          calculation_method, calculated_at, calculated_by, notes`,
         [
           result.evaluation_result_id,
           result.candidate_id,
@@ -911,6 +923,9 @@ class PostgresRepository {
           result.status,
           result.completed_criteria,
           result.total_criteria,
+          result.total_score,
+          result.rule_version || '',
+          result.calculation_method || '',
           result.calculated_at,
           result.calculated_by,
           result.notes,
@@ -1496,6 +1511,9 @@ function sanitizeEvaluationResultAuditValue(result) {
     status: result.status,
     completed_criteria: result.completed_criteria,
     total_criteria: result.total_criteria,
+    total_score: result.total_score === null || result.total_score === undefined ? null : Number(result.total_score),
+    rule_version: result.rule_version || '',
+    calculation_method: result.calculation_method || '',
     calculated_at: result.calculated_at || null,
     calculated_by: result.calculated_by || '',
   };

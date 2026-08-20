@@ -9,6 +9,7 @@ const {
 } = require('./ingestion');
 const { assessEligibility } = require('./eligibility');
 const {
+  buildAutomaticCriterionEvaluations,
   buildCriterionEvaluation,
   criterionById,
   criteriaFromConfig,
@@ -226,6 +227,13 @@ function createApp({ config, repository }) {
         return sendJson(res, 200, { eligibility_assessment: assessment });
       }
 
+      if (req.method === 'POST' && req.url.startsWith('/api/admin/submissions/') && req.url.endsWith('/evaluation/auto-score')) {
+        const admin = await authorizeAdmin(req, config, repository, ['ADMIN', 'REVIEWER']);
+        const submissionId = decodeURIComponent(req.url.slice('/api/admin/submissions/'.length, -'/evaluation/auto-score'.length));
+        const scoring = await recalculateAutomaticEvaluation(submissionId, config, repository, admin.username || 'ADMIN_UI');
+        return sendJson(res, 200, scoring);
+      }
+
       if (req.method === 'PATCH' && req.url.startsWith('/api/admin/eligibility/') && req.url.endsWith('/review')) {
         const admin = await authorizeAdmin(req, config, repository, ['ADMIN', 'REVIEWER']);
         const assessmentId = decodeURIComponent(req.url.slice('/api/admin/eligibility/'.length, -'/review'.length));
@@ -375,7 +383,11 @@ function createApp({ config, repository }) {
 async function assessSavedImport(saved, config, repository) {
   const submissionId = saved.imported?.submission?.submission_id;
   if (!submissionId || !saved.imported?.submission?.candidate_id || !config.eligibilityConfig || !repository.getEligibilityInput) return null;
-  return recalculateEligibility(submissionId, config, repository, 'API_ELIGIBILITY_ASSESSOR');
+  const assessment = await recalculateEligibility(submissionId, config, repository, 'API_ELIGIBILITY_ASSESSOR');
+  if (config.evaluationConfig && repository.saveCriterionEvaluation) {
+    await recalculateAutomaticEvaluation(submissionId, config, repository, 'API_AUTO_SCORING_ENGINE');
+  }
+  return assessment;
 }
 
 function adminOfflineJsonPayload(payload, actor) {
@@ -480,6 +492,37 @@ async function saveCriterionEvaluation(submissionId, criterionId, payload, confi
     actor,
     reason: payload.reason || 'Technical criterion review captured.',
   });
+}
+
+async function recalculateAutomaticEvaluation(submissionId, config, repository, actor) {
+  if (!config.evaluationConfig || !repository.getEligibilityInput || !repository.saveCriterionEvaluation) {
+    const error = new Error('Automatic scoring is not configured.');
+    error.statusCode = 503;
+    error.code = 'AUTO_SCORING_NOT_CONFIGURED';
+    throw error;
+  }
+  const input = await repository.getEligibilityInput(submissionId);
+  if (!input?.submission) {
+    const error = new Error('Submission not found.');
+    error.statusCode = 404;
+    error.code = 'NOT_FOUND';
+    throw error;
+  }
+  const evaluations = buildAutomaticCriterionEvaluations(input, config.evaluationConfig, actor);
+  let result = summarizeEvaluation(input.submission, evaluations, config.evaluationConfig, actor);
+  const saved = [];
+  for (const evaluation of evaluations) {
+    const persisted = await repository.saveCriterionEvaluation(evaluation, result, {
+      actor,
+      reason: 'Automatic technical scoring from Anexo 1 closed responses.',
+    });
+    saved.push(persisted.criterion_evaluation);
+    result = persisted.evaluation_result;
+  }
+  return {
+    criterion_evaluations: saved,
+    evaluation_result: result,
+  };
 }
 
 function sendAdminAsset(res, relativePath) {
@@ -1218,6 +1261,7 @@ function reviewSummaryCsv(rows) {
     'evaluation_status',
     'completed_criteria',
     'total_criteria',
+    'total_score',
     'document_count',
     'documents_validated',
     'documents_needs_review',
@@ -1284,6 +1328,7 @@ function evaluationMatrixCsv(rows, criteria) {
     'evaluation_status',
     'completed_criteria',
     'total_criteria',
+    'total_score',
   ];
   const criterionHeaders = criteria.flatMap(criterion => [
     `${criterion.criterion_id}_status`,

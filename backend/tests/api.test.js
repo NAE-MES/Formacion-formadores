@@ -462,6 +462,36 @@ test('allows Google Form submission without carta aval and keeps eligibility rea
   });
 });
 
+test('automatic technical scoring applies Anexo 1 closed-response rules', async (t) => {
+  await withServer(t, async ({ port, repository }) => {
+    await request(port, 'POST', '/api/submissions/google-form', {
+      sourceReference: 'google-response-auto-scoring',
+      responses: validResponses({ 'FDF-35': 'Hombre' }),
+      documents: requiredDocuments(),
+    });
+    const submissionId = Array.from(repository.submissions.values())[0].submission_id;
+
+    const detail = await adminRequest(port, 'GET', `/api/admin/submissions/${submissionId}`);
+    assert.equal(detail.statusCode, 200);
+    assert.equal(detail.body.criterion_evaluations.length, 4);
+    assert.equal(detail.body.evaluation_result.status, 'COMPLETED');
+    assert.equal(detail.body.evaluation_result.total_score, 99.25);
+
+    const inclusion = detail.body.criterion_evaluations.find(item => item.criterion_id === 'INCLUSION_GENDER_SUSTAINABILITY');
+    assert.equal(inclusion.score, 85);
+    assert.match(inclusion.evidence_summary, /Representación de mujeres: 5\/10/);
+
+    const recalculated = await adminJsonRequest(
+      port,
+      'POST',
+      `/api/admin/submissions/${submissionId}/evaluation/auto-score`,
+      {},
+    );
+    assert.equal(recalculated.statusCode, 200);
+    assert.equal(recalculated.body.evaluation_result.total_score, 99.25);
+  });
+});
+
 test('admin API lists and returns submission detail', async (t) => {
   await withServer(t, async ({ port }) => {
     const payload = {
@@ -566,10 +596,10 @@ test('reviewer captures manual technical criterion evaluation without ranking', 
 
     assert.equal(saved.statusCode, 200);
     assert.equal(saved.body.criterion_evaluation.status, 'COMPLETED');
-    assert.equal(saved.body.evaluation_result.status, 'IN_PROGRESS');
-    assert.equal(saved.body.evaluation_result.completed_criteria, 1);
+    assert.equal(saved.body.evaluation_result.status, 'COMPLETED');
+    assert.equal(saved.body.evaluation_result.completed_criteria, 4);
     assert.equal(saved.body.evaluation_result.total_criteria, 4);
-    assert.equal(saved.body.evaluation_result.total_score, undefined);
+    assert.equal(saved.body.evaluation_result.total_score, 90.1);
     assert.ok(Array.from(repository.auditEvents.values()).some(event =>
       event.action === 'CRITERION_EVALUATION_UPDATED'
     ));
@@ -577,8 +607,8 @@ test('reviewer captures manual technical criterion evaluation without ranking', 
     const detail = await adminRequest(port, 'GET', `/api/admin/submissions/${submissionId}`);
     assert.equal(detail.statusCode, 200);
     assert.equal(detail.body.evaluation_criteria.length, 4);
-    assert.equal(detail.body.criterion_evaluations.length, 1);
-    assert.equal(detail.body.evaluation_result.status, 'IN_PROGRESS');
+    assert.equal(detail.body.criterion_evaluations.length, 4);
+    assert.equal(detail.body.evaluation_result.status, 'COMPLETED');
   });
 });
 
@@ -605,15 +635,15 @@ test('admin API exports operational review summary as JSON and CSV', async (t) =
     const json = await adminRequest(port, 'GET', '/api/admin/review-summary');
     assert.equal(json.statusCode, 200);
     assert.equal(json.body.summaries.length, 1);
-    assert.equal(json.body.summaries[0].evaluation_status, 'IN_PROGRESS');
-    assert.equal(json.body.summaries[0].completed_criteria, 1);
-    assert.equal(json.body.summaries[0].total_score, undefined);
+    assert.equal(json.body.summaries[0].evaluation_status, 'COMPLETED');
+    assert.equal(json.body.summaries[0].completed_criteria, 4);
+    assert.equal(json.body.summaries[0].total_score, 96.25);
 
     const csv = await adminRawRequest(port, 'GET', '/api/admin/review-summary.csv');
     assert.equal(csv.statusCode, 200);
     assert.match(csv.headers['content-type'], /text\/csv/);
     assert.match(csv.body, /submission_id,candidate_id,full_name/);
-    assert.match(csv.body, /IN_PROGRESS/);
+    assert.match(csv.body, /COMPLETED/);
   });
 });
 
@@ -647,8 +677,9 @@ test('admin API exposes document review and technical evaluation matrix views', 
     assert.equal(matrix.statusCode, 200);
     assert.equal(matrix.body.criteria.length, 4);
     assert.equal(matrix.body.rows.length, 1);
-    assert.equal(matrix.body.rows[0].evaluation_status, 'IN_PROGRESS');
-    assert.equal(matrix.body.rows[0].criteria[0].criterion_id, 'INSTITUTIONAL_LINK');
+    assert.equal(matrix.body.rows[0].evaluation_status, 'COMPLETED');
+    assert.equal(matrix.body.rows[0].total_score, 97);
+    assert.ok(matrix.body.rows[0].criteria.some(item => item.criterion_id === 'INSTITUTIONAL_LINK'));
   });
 });
 

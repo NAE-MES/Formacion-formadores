@@ -60,3 +60,18 @@ superada para efectos del motor de evaluacion.
 
 Impacto: se cierra `OI-001`. El motor automatico de evaluacion podra aplicar
 la regla de genero desde Anexo 1 cuando se implemente la puntuacion tecnica.
+
+## 2026-08-20 - Motor automatico de puntuacion tecnica
+
+Decision: implementar puntuacion automatica preliminar para los 4 criterios del
+Anexo 1, usando solo respuestas cerradas y reglas versionadas en
+`config/fdf-2026-evaluation-baseline.json`.
+
+Justificacion: el Anexo 1 define una matriz suficiente para calcular atributos
+0/5/10 y ponderarlos por criterio. Automatizar este calculo reduce trabajo
+manual sin sustituir la revision tecnica.
+
+Impacto: cada postulacion valida queda con criterios tecnicos calculados y
+`total_score` ponderado. Los textos cualitativos se mantienen como evidencia y
+no se puntuan automaticamente. El resultado no implementa ranking, cupos,
+desempates, seleccion ni decision final del Equipo Tecnico.

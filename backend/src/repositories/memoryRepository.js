@@ -251,6 +251,7 @@ class MemoryRepository {
           normalization_status: submission.normalization_status,
           eligibility_status: eligibility?.status || '',
           evaluation_status: evaluationResult?.status || 'NOT_STARTED',
+          total_score: evaluationResult?.total_score ?? null,
           document_statuses: documentStatuses.join(','),
           open_issue_count: openIssueCount,
           issue_count: issues.length,
@@ -294,6 +295,7 @@ class MemoryRepository {
           evaluation_status: evaluationResult?.status || 'NOT_STARTED',
           completed_criteria: evaluationResult?.completed_criteria || 0,
           total_criteria: evaluationResult?.total_criteria || 0,
+          total_score: evaluationResult?.total_score ?? null,
           document_count: documents.length,
           documents_validated: documents.filter(document => document.status === 'VALIDATED').length,
           documents_needs_review: documents.filter(document => document.status === 'NEEDS_REVIEW').length,
@@ -380,6 +382,7 @@ class MemoryRepository {
           evaluation_status: evaluationResult?.status || 'NOT_STARTED',
           completed_criteria: evaluationResult?.completed_criteria || 0,
           total_criteria: evaluationResult?.total_criteria || 0,
+          total_score: evaluationResult?.total_score ?? null,
           criteria,
         };
       });
@@ -741,6 +744,9 @@ function sanitizeEvaluationResultAuditValue(result) {
     status: result.status,
     completed_criteria: result.completed_criteria,
     total_criteria: result.total_criteria,
+    total_score: result.total_score ?? null,
+    rule_version: result.rule_version || '',
+    calculation_method: result.calculation_method || '',
     calculated_at: result.calculated_at || null,
     calculated_by: result.calculated_by || '',
   };
