@@ -104,3 +104,15 @@ Impacto: se agrega `GET /api/admin/preliminary-ranking` y exportacion CSV. Solo
 se marca como incluida preliminarmente una postulacion con evaluacion completa,
 validacion tecnica, admisibilidad lista y sin incidencias abiertas. Empates por
 puntaje comparten posicion; no se introduce regla de desempate.
+
+## 2026-08-20 - Lista propuesta operativa
+
+Decision: agregar una lista propuesta manual separada del ranking y de la
+decision final, con estados `NOT_PROPOSED`, `PROPOSED`, `RESERVE` y `REMOVED`.
+
+Justificacion: el Equipo Tecnico necesita preparar documentos de revision y una
+propuesta operativa sin que el sistema aplique cupos o apruebe la seleccion.
+
+Impacto: se agrega `proposal_entries`, exportacion PDF del ranking preliminar y
+PDF resumen de personas propuestas. Estos documentos son internos y no
+constituyen aprobacion final.

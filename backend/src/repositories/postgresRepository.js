@@ -1052,6 +1052,72 @@ class PostgresRepository {
     }
   }
 
+  async listProposalEntries() {
+    const result = await this.pool.query(
+      `select proposal_entry_id, candidate_id, submission_id, evaluation_result_id,
+        proposal_status, proposal_note, proposed_at, proposed_by, updated_at, updated_by
+       from proposal_entries
+       order by updated_at desc`,
+    );
+    return result.rows;
+  }
+
+  async upsertProposalEntry(entry, { actor, reason } = {}) {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const current = await client.query(
+        `select proposal_entry_id, candidate_id, submission_id, evaluation_result_id,
+          proposal_status, proposal_note, proposed_at, proposed_by, updated_at, updated_by
+         from proposal_entries
+         where proposal_entry_id = $1
+         for update`,
+        [entry.proposal_entry_id],
+      );
+      const saved = await client.query(
+        `insert into proposal_entries (
+          proposal_entry_id, candidate_id, submission_id, evaluation_result_id,
+          proposal_status, proposal_note, proposed_at, proposed_by, updated_at, updated_by
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        on conflict (proposal_entry_id) do update set
+          proposal_status = excluded.proposal_status,
+          proposal_note = excluded.proposal_note,
+          updated_at = excluded.updated_at,
+          updated_by = excluded.updated_by
+        returning proposal_entry_id, candidate_id, submission_id, evaluation_result_id,
+          proposal_status, proposal_note, proposed_at, proposed_by, updated_at, updated_by`,
+        [
+          entry.proposal_entry_id,
+          entry.candidate_id,
+          entry.submission_id,
+          entry.evaluation_result_id,
+          entry.proposal_status,
+          entry.proposal_note || '',
+          entry.proposed_at,
+          entry.proposed_by,
+          entry.updated_at,
+          entry.updated_by,
+        ],
+      );
+      await insertAuditEvent(client, {
+        action: 'PROPOSAL_ENTRY_UPDATED',
+        entityType: 'ProposalEntry',
+        entityId: saved.rows[0].proposal_entry_id,
+        actor,
+        previousValue: current.rows[0] ? sanitizeProposalEntryAuditValue(current.rows[0]) : null,
+        newValue: sanitizeProposalEntryAuditValue(saved.rows[0]),
+        reason,
+      });
+      await client.query('COMMIT');
+      return saved.rows[0];
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async getEligibilityInput(submissionId) {
     const detail = await this.getAdminSubmissionDetail(submissionId);
     if (!detail) return null;
@@ -1608,6 +1674,20 @@ function sanitizeEvaluationResultAuditValue(result) {
     validated_by: result.validated_by || '',
     calculated_at: result.calculated_at || null,
     calculated_by: result.calculated_by || '',
+  };
+}
+
+function sanitizeProposalEntryAuditValue(entry) {
+  return {
+    proposal_entry_id: entry.proposal_entry_id,
+    candidate_id: entry.candidate_id,
+    submission_id: entry.submission_id,
+    evaluation_result_id: entry.evaluation_result_id,
+    proposal_status: entry.proposal_status,
+    proposed_at: entry.proposed_at || null,
+    proposed_by: entry.proposed_by || '',
+    updated_at: entry.updated_at || null,
+    updated_by: entry.updated_by || '',
   };
 }
 

@@ -48,6 +48,12 @@ const LABELS = {
     IN_TECHNICAL_REVIEW: 'En revisión técnica',
     REQUIRES_SCORE_ADJUSTMENT: 'Requiere ajuste de puntuación',
   },
+  proposal: {
+    NOT_PROPOSED: 'No propuesta',
+    PROPOSED: 'Propuesta',
+    RESERVE: 'Reserva',
+    REMOVED: 'Retirada',
+  },
   documents: {
     RECEIVED: 'Recibido',
     VALIDATED: 'Validado',
@@ -151,8 +157,15 @@ const evaluationMatrixStats = document.querySelector('#evaluationMatrixStats');
 const rankingSearchInput = document.querySelector('#rankingSearchInput');
 const rankingScopeFilter = document.querySelector('#rankingScopeFilter');
 const rankingValidationFilter = document.querySelector('#rankingValidationFilter');
+const rankingProvinceFilter = document.querySelector('#rankingProvinceFilter');
+const rankingGenderFilter = document.querySelector('#rankingGenderFilter');
+const rankingInstitutionFilter = document.querySelector('#rankingInstitutionFilter');
+const rankingMinScoreFilter = document.querySelector('#rankingMinScoreFilter');
+const rankingMaxScoreFilter = document.querySelector('#rankingMaxScoreFilter');
 const clearRankingFiltersButton = document.querySelector('#clearRankingFiltersButton');
 const exportRankingCsvButton = document.querySelector('#exportRankingCsvButton');
+const exportRankingPdfButton = document.querySelector('#exportRankingPdfButton');
+const exportProposalPdfButton = document.querySelector('#exportProposalPdfButton');
 const preliminaryRankingTable = document.querySelector('#preliminaryRankingTable');
 const rankingCount = document.querySelector('#rankingCount');
 const selectedRankingCount = document.querySelector('#selectedRankingCount');
@@ -160,6 +173,9 @@ const bulkRankingValidationStatus = document.querySelector('#bulkRankingValidati
 const bulkRankingValidationNote = document.querySelector('#bulkRankingValidationNote');
 const applyBulkRankingValidationButton = document.querySelector('#applyBulkRankingValidationButton');
 const selectAllRanking = document.querySelector('#selectAllRanking');
+const bulkProposalStatus = document.querySelector('#bulkProposalStatus');
+const bulkProposalNote = document.querySelector('#bulkProposalNote');
+const applyBulkProposalButton = document.querySelector('#applyBulkProposalButton');
 const quickFilterButtons = Array.from(document.querySelectorAll('[data-quick-filter]'));
 const currentUserBadge = document.querySelector('#currentUserBadge');
 const tabs = Array.from(document.querySelectorAll('[data-view]'));
@@ -263,10 +279,18 @@ exportMatrixCsvButton.addEventListener('click', () => exportCsv('/api/admin/eval
 rankingSearchInput.addEventListener('input', renderPreliminaryRanking);
 rankingScopeFilter.addEventListener('change', renderPreliminaryRanking);
 rankingValidationFilter.addEventListener('change', renderPreliminaryRanking);
+rankingProvinceFilter.addEventListener('change', renderPreliminaryRanking);
+rankingGenderFilter.addEventListener('change', renderPreliminaryRanking);
+rankingInstitutionFilter.addEventListener('input', renderPreliminaryRanking);
+rankingMinScoreFilter.addEventListener('input', renderPreliminaryRanking);
+rankingMaxScoreFilter.addEventListener('input', renderPreliminaryRanking);
 clearRankingFiltersButton.addEventListener('click', clearRankingFilters);
 exportRankingCsvButton.addEventListener('click', () => exportCsv('/api/admin/preliminary-ranking.csv', 'fdf-2026-ranking-preliminar.csv'));
+exportRankingPdfButton.addEventListener('click', () => exportCsv('/api/admin/preliminary-ranking.pdf', 'fdf-2026-ranking-preliminar.pdf'));
+exportProposalPdfButton.addEventListener('click', () => exportCsv('/api/admin/proposal-summary.pdf', 'fdf-2026-resumen-propuesta.pdf'));
 applyBulkRankingValidationButton.addEventListener('click', applyBulkRankingValidation);
 selectAllRanking.addEventListener('change', toggleVisibleRankingEvaluations);
+applyBulkProposalButton.addEventListener('click', applyBulkProposalStatus);
 quickFilterButtons.forEach(button => button.addEventListener('click', () => applyQuickFilter(button.dataset.quickFilter)));
 offlineJsonForm.addEventListener('submit', importOfflineJson);
 offlineManualForm.addEventListener('submit', importOfflineManual);
@@ -319,6 +343,7 @@ async function loadData() {
   issueReviewRows = issues.issues || [];
   issueFieldCatalog = issues.field_catalog || [];
   preliminaryRankingRows = ranking.rows || [];
+  populateRankingFacetFilters();
   renderWorkboard();
   renderTable();
   renderReviewSummary();
@@ -975,11 +1000,22 @@ function renderPreliminaryRanking() {
   const query = normalize(rankingSearchInput.value);
   const scope = rankingScopeFilter.value;
   const validation = rankingValidationFilter.value;
+  const province = rankingProvinceFilter.value;
+  const gender = rankingGenderFilter.value;
+  const institutionQuery = normalize(rankingInstitutionFilter.value);
+  const minScore = rankingMinScoreFilter.value === '' ? null : Number(rankingMinScoreFilter.value);
+  const maxScore = rankingMaxScoreFilter.value === '' ? null : Number(rankingMaxScoreFilter.value);
   const rows = preliminaryRankingRows.filter(item => {
     const matchesScope = !scope ||
       (scope === 'INCLUDED' && item.included_in_preliminary_ranking) ||
       (scope === 'EXCLUDED' && !item.included_in_preliminary_ranking);
     const matchesValidation = !validation || (item.evaluation_validation_status || 'PENDING_TECHNICAL_VALIDATION') === validation;
+    const matchesProvince = !province || item.province === province;
+    const matchesGender = !gender || item.gender === gender;
+    const score = item.total_score === null || item.total_score === undefined ? null : Number(item.total_score);
+    const matchesMinScore = minScore === null || (score !== null && score >= minScore);
+    const matchesMaxScore = maxScore === null || (score !== null && score <= maxScore);
+    const matchesInstitution = !institutionQuery || normalize(`${item.institution || ''} ${item.institution_type || ''}`).includes(institutionQuery);
     const haystack = normalize([
       item.full_name,
       item.email,
@@ -989,7 +1025,9 @@ function renderPreliminaryRanking() {
       item.gender,
       item.submission_id,
     ].join(' '));
-    return matchesScope && matchesValidation && (!query || haystack.includes(query));
+    return matchesScope && matchesValidation && matchesProvince && matchesGender
+      && matchesMinScore && matchesMaxScore && matchesInstitution
+      && (!query || haystack.includes(query));
   });
 
   preliminaryRankingTable.innerHTML = rows.map(item => `
@@ -1009,6 +1047,7 @@ function renderPreliminaryRanking() {
         <span class="muted">${escapeHtml(item.gender || '')}</span>
       </td>
       <td>${evaluationValidationBadge(item.evaluation_validation_status)}</td>
+      <td>${proposalBadge(item.proposal_status)}</td>
       <td>${rankingInclusionBadge(item)}</td>
       <td>${escapeHtml(item.exclusion_reason || 'Incluida en ranking preliminar')}</td>
     </tr>
@@ -1031,6 +1070,22 @@ function renderPreliminaryRanking() {
   });
 }
 
+function populateRankingFacetFilters() {
+  updateSelectOptions(rankingProvinceFilter, 'Provincia', uniqueRankingValues('province'), rankingProvinceFilter.value);
+  updateSelectOptions(rankingGenderFilter, 'Género', uniqueRankingValues('gender'), rankingGenderFilter.value);
+}
+
+function uniqueRankingValues(field) {
+  return Array.from(new Set(preliminaryRankingRows.map(row => row[field]).filter(Boolean)))
+    .sort((a, b) => String(a).localeCompare(String(b)));
+}
+
+function updateSelectOptions(select, placeholder, values, selected) {
+  select.innerHTML = `<option value="">${escapeHtml(placeholder)}</option>${values.map(value => (
+    `<option value="${escapeHtml(value)}" ${value === selected ? 'selected' : ''}>${escapeHtml(value)}</option>`
+  )).join('')}`;
+}
+
 function rankingSelectionCheckbox(item) {
   const evaluationResultId = item.evaluation_result_id || '';
   if (!evaluationResultId) return '';
@@ -1042,6 +1097,18 @@ function rankingInclusionBadge(item) {
   return item.included_in_preliminary_ranking
     ? '<span class="badge ok">Incluida</span>'
     : '<span class="badge warn">No incluida</span>';
+}
+
+function proposalBadge(status) {
+  const normalized = status || 'NOT_PROPOSED';
+  const cls = normalized === 'PROPOSED'
+    ? 'ok'
+    : normalized === 'RESERVE'
+      ? 'warn'
+      : normalized === 'REMOVED'
+        ? 'bad'
+        : '';
+  return `<span class="badge ${cls}">${escapeHtml(label('proposal', normalized))}</span>`;
 }
 
 async function exportReviewCsv() {
@@ -1081,6 +1148,7 @@ function updateBulkDocumentUi() {
 function updateBulkRankingUi() {
   selectedRankingCount.textContent = `${selectedRankingEvaluations.size} ${selectedRankingEvaluations.size === 1 ? 'evaluación seleccionada' : 'evaluaciones seleccionadas'}`;
   applyBulkRankingValidationButton.disabled = !selectedRankingEvaluations.size || !hasRole('ADMIN', 'REVIEWER');
+  applyBulkProposalButton.disabled = !selectedRankingEvaluations.size || !hasRole('ADMIN', 'REVIEWER');
   const visible = Array.from(preliminaryRankingTable.querySelectorAll('[data-ranking-select]'));
   selectAllRanking.checked = visible.length > 0 && visible.every(checkbox => checkbox.checked);
   selectAllRanking.disabled = !visible.length || !hasRole('ADMIN', 'REVIEWER');
@@ -1156,6 +1224,31 @@ async function applyBulkRankingValidation() {
   }
 }
 
+async function applyBulkProposalStatus() {
+  if (!selectedRankingEvaluations.size) return;
+  applyBulkProposalButton.disabled = true;
+  applyBulkProposalButton.textContent = 'Aplicando';
+  try {
+    await api('/api/admin/proposal-entries/bulk', {
+      method: 'PATCH',
+      body: {
+        evaluation_result_ids: Array.from(selectedRankingEvaluations),
+        proposal_status: bulkProposalStatus.value,
+        note: bulkProposalNote.value,
+        reason: 'Actualización masiva de lista propuesta desde ranking preliminar',
+      },
+    });
+    selectedRankingEvaluations.clear();
+    bulkProposalNote.value = '';
+    await loadData();
+  } catch (error) {
+    alert(error.message);
+  } finally {
+    applyBulkProposalButton.textContent = 'Aplicar propuesta';
+    updateBulkRankingUi();
+  }
+}
+
 async function applyBulkDocumentStatus() {
   if (!selectedDocuments.size) return;
   applyBulkDocumentButton.disabled = true;
@@ -1222,6 +1315,11 @@ function clearRankingFilters() {
   rankingSearchInput.value = '';
   rankingScopeFilter.value = '';
   rankingValidationFilter.value = '';
+  rankingProvinceFilter.value = '';
+  rankingGenderFilter.value = '';
+  rankingInstitutionFilter.value = '';
+  rankingMinScoreFilter.value = '';
+  rankingMaxScoreFilter.value = '';
   renderPreliminaryRanking();
 }
 

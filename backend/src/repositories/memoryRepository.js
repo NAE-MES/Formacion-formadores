@@ -10,6 +10,7 @@ class MemoryRepository {
     this.eligibilityAssessments = new Map();
     this.criterionEvaluations = new Map();
     this.evaluationResults = new Map();
+    this.proposalEntries = new Map();
     this.adminUsers = new Map();
     this.adminSessions = new Map();
   }
@@ -552,6 +553,38 @@ class MemoryRepository {
     return updated;
   }
 
+  async listProposalEntries() {
+    return Array.from(this.proposalEntries.values())
+      .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
+  }
+
+  async upsertProposalEntry(entry, { actor, reason } = {}) {
+    const previous = this.proposalEntries.get(entry.proposal_entry_id);
+    const saved = previous
+      ? {
+        ...previous,
+        proposal_status: entry.proposal_status,
+        proposal_note: entry.proposal_note || '',
+        updated_at: entry.updated_at,
+        updated_by: entry.updated_by,
+      }
+      : entry;
+    this.proposalEntries.set(saved.proposal_entry_id, saved);
+    this.auditEvents.set(
+      `audit_${this.auditEvents.size + 1}`,
+      auditEvent(
+        'PROPOSAL_ENTRY_UPDATED',
+        'ProposalEntry',
+        saved.proposal_entry_id,
+        actor || saved.updated_by,
+        previous ? sanitizeProposalEntryAuditValue(previous) : null,
+        sanitizeProposalEntryAuditValue(saved),
+        reason,
+      ),
+    );
+    return saved;
+  }
+
   async getEligibilityInput(submissionId) {
     const detail = await this.getAdminSubmissionDetail(submissionId);
     if (!detail) return null;
@@ -795,6 +828,20 @@ function sanitizeEvaluationResultAuditValue(result) {
     validated_by: result.validated_by || '',
     calculated_at: result.calculated_at || null,
     calculated_by: result.calculated_by || '',
+  };
+}
+
+function sanitizeProposalEntryAuditValue(entry) {
+  return {
+    proposal_entry_id: entry.proposal_entry_id,
+    candidate_id: entry.candidate_id,
+    submission_id: entry.submission_id,
+    evaluation_result_id: entry.evaluation_result_id,
+    proposal_status: entry.proposal_status,
+    proposed_at: entry.proposed_at || null,
+    proposed_by: entry.proposed_by || '',
+    updated_at: entry.updated_at || null,
+    updated_by: entry.updated_by || '',
   };
 }
 

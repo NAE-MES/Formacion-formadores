@@ -190,6 +190,12 @@ function createApp({ config, repository }) {
         return sendJson(res, 200, { rows: await buildPreliminaryRanking(repository) });
       }
 
+      if (req.method === 'GET' && req.url === '/api/admin/preliminary-ranking.pdf') {
+        await authorizeAdmin(req, config, repository);
+        const rows = await buildPreliminaryRanking(repository);
+        return sendPdf(res, 'fdf-2026-ranking-preliminar-no-vinculante.pdf', preliminaryRankingPdf(rows));
+      }
+
       if (req.method === 'GET' && req.url === '/api/admin/evaluation-matrix.csv') {
         await authorizeAdmin(req, config, repository);
         const criteria = criteriaFromConfig(config.evaluationConfig);
@@ -199,6 +205,12 @@ function createApp({ config, repository }) {
       if (req.method === 'GET' && req.url === '/api/admin/preliminary-ranking.csv') {
         await authorizeAdmin(req, config, repository);
         return sendCsv(res, 'fdf-2026-preliminary-ranking.csv', preliminaryRankingCsv(await buildPreliminaryRanking(repository)));
+      }
+
+      if (req.method === 'GET' && req.url === '/api/admin/proposal-summary.pdf') {
+        await authorizeAdmin(req, config, repository);
+        const rows = await buildPreliminaryRanking(repository);
+        return sendPdf(res, 'fdf-2026-resumen-personas-propuestas.pdf', proposalSummaryPdf(rows));
       }
 
       if (req.method === 'GET' && req.url === '/api/admin/issues') {
@@ -275,6 +287,13 @@ function createApp({ config, repository }) {
         const payload = await readJson(req);
         const evaluationResult = await updateEvaluationValidation(evaluationResultId, payload, repository, admin.username || 'ADMIN_UI');
         return sendJson(res, 200, { evaluation_result: evaluationResult });
+      }
+
+      if (req.method === 'PATCH' && req.url === '/api/admin/proposal-entries/bulk') {
+        const admin = await authorizeAdmin(req, config, repository, ['ADMIN', 'REVIEWER']);
+        const payload = await readJson(req);
+        const entries = await updateProposalEntries(payload, repository, admin.username || 'ADMIN_UI');
+        return sendJson(res, 200, { entries });
       }
 
       if (req.method === 'PATCH' && req.url.startsWith('/api/admin/documents/') && req.url.endsWith('/status')) {
@@ -561,6 +580,56 @@ async function updateEvaluationValidation(evaluationResultId, payload, repositor
   });
 }
 
+async function updateProposalEntries(payload, repository, actor) {
+  if (!repository.upsertProposalEntry || !repository.listEvaluationMatrixRows) {
+    const error = new Error('Proposal management is not configured.');
+    error.statusCode = 503;
+    error.code = 'PROPOSAL_MANAGEMENT_NOT_CONFIGURED';
+    throw error;
+  }
+  const evaluationResultIds = boundedStringList(payload.evaluation_result_ids, 'evaluation_result_ids');
+  const proposalStatus = String(payload.proposal_status || '').trim();
+  validateProposalStatus(proposalStatus);
+  const rows = await buildPreliminaryRanking(repository);
+  const byEvaluation = new Map(rows.map(row => [row.evaluation_result_id, row]));
+  const now = new Date().toISOString();
+  const entries = [];
+  for (const evaluationResultId of evaluationResultIds) {
+    const row = byEvaluation.get(evaluationResultId);
+    if (!row) {
+      const error = new Error('Evaluation result not found for proposal.');
+      error.statusCode = 404;
+      error.code = 'NOT_FOUND';
+      throw error;
+    }
+    entries.push(await repository.upsertProposalEntry({
+      proposal_entry_id: `prop_${hash(`proposal-entry|${row.submission_id}|${evaluationResultId}`)}`,
+      candidate_id: row.candidate_id,
+      submission_id: row.submission_id,
+      evaluation_result_id: evaluationResultId,
+      proposal_status: proposalStatus,
+      proposal_note: String(payload.note || ''),
+      proposed_at: now,
+      proposed_by: actor,
+      updated_at: now,
+      updated_by: actor,
+    }, {
+      actor,
+      reason: payload.reason || 'Preliminary proposal status updated.',
+    }));
+  }
+  return entries;
+}
+
+function validateProposalStatus(status) {
+  if (!['NOT_PROPOSED', 'PROPOSED', 'RESERVE', 'REMOVED'].includes(status)) {
+    const error = new Error('Invalid proposal status.');
+    error.statusCode = 400;
+    error.code = 'INVALID_PROPOSAL_STATUS';
+    throw error;
+  }
+}
+
 function sendAdminAsset(res, relativePath) {
   if (relativePath.includes('..') || path.isAbsolute(relativePath)) {
     return sendJson(res, 404, { error: 'NOT_FOUND' });
@@ -697,11 +766,13 @@ async function buildHomeStats(repository, admin = {}) {
 }
 
 async function buildPreliminaryRanking(repository) {
-  const [matrixRows, reviewRows] = await Promise.all([
+  const [matrixRows, reviewRows, proposalEntries] = await Promise.all([
     repository.listEvaluationMatrixRows(),
     repository.listReviewSummaries(),
+    repository.listProposalEntries ? repository.listProposalEntries() : [],
   ]);
   const reviewsBySubmission = new Map(reviewRows.map(row => [row.submission_id, row]));
+  const proposalsByEvaluation = new Map((proposalEntries || []).map(row => [row.evaluation_result_id, row]));
   const rows = [];
   for (const row of matrixRows) {
     const review = reviewsBySubmission.get(row.submission_id) || {};
@@ -715,6 +786,7 @@ async function buildPreliminaryRanking(repository) {
     const eligibilityStatus = row.eligibility_status || review.eligibility_status || 'SIN_EVALUAR';
     const evaluationStatus = row.evaluation_status || review.evaluation_status || 'NOT_STARTED';
     const validationStatus = row.evaluation_validation_status || review.evaluation_validation_status || 'PENDING_TECHNICAL_VALIDATION';
+    const proposal = proposalsByEvaluation.get(row.evaluation_result_id || review.evaluation_result_id || detail?.evaluation_result?.evaluation_result_id || '') || {};
     const openIssueCount = Number(review.open_issue_count || 0);
     const includedInPreliminaryRanking = (
       totalScore !== null &&
@@ -742,6 +814,11 @@ async function buildPreliminaryRanking(repository) {
       completed_criteria: Number(row.completed_criteria || 0),
       total_criteria: Number(row.total_criteria || 0),
       open_issue_count: openIssueCount,
+      proposal_entry_id: proposal.proposal_entry_id || '',
+      proposal_status: proposal.proposal_status || 'NOT_PROPOSED',
+      proposal_note: proposal.proposal_note || '',
+      proposal_updated_at: proposal.updated_at || '',
+      proposal_updated_by: proposal.updated_by || '',
       included_in_preliminary_ranking: includedInPreliminaryRanking,
       exclusion_reason: preliminaryRankingExclusionReason({
         totalScore,
@@ -1228,6 +1305,43 @@ function executiveReportPdf(report, stats) {
   return buildSimplePdf(rows);
 }
 
+function preliminaryRankingPdf(rankingRows) {
+  const rows = [];
+  const included = rankingRows.filter(row => row.included_in_preliminary_ranking).length;
+  rows.push({ type: 'title', text: 'Ranking preliminar no vinculante FdF 2026' });
+  rows.push({ type: 'muted', text: `Generado: ${formatPdfDate(new Date().toISOString())}   Registros: ${rankingRows.length}   Incluidos preliminarmente: ${included}` });
+  rows.push({ type: 'muted', text: 'No aplica cupos, no resuelve desempates y no constituye aprobacion final.' });
+  rows.push({ type: 'space' });
+  rows.push({ type: 'section', text: 'Primeras posiciones operativas' });
+  rows.push(...rankingRows.slice(0, 40).map(row => ({
+    type: 'text',
+    text: `${row.preliminary_position || '-'} | ${formatScoreForPdf(row.total_score)} | ${row.full_name} | ${row.province || 'Sin provincia'} | ${row.institution || 'Sin institucion'} | ${statusLabelForPdf(row.evaluation_validation_status)} | ${proposalStatusLabel(row.proposal_status)}`,
+  })));
+  return buildSimplePdf(rows);
+}
+
+function proposalSummaryPdf(rankingRows) {
+  const proposedRows = rankingRows.filter(row => ['PROPOSED', 'RESERVE'].includes(row.proposal_status));
+  const rows = [];
+  rows.push({ type: 'title', text: 'Resumen de personas propuestas FdF 2026' });
+  rows.push({ type: 'muted', text: `Generado: ${formatPdfDate(new Date().toISOString())}   Personas en propuesta/reserva: ${proposedRows.length}` });
+  rows.push({ type: 'muted', text: 'Documento operativo interno. No constituye aprobacion final ni seleccion automatica.' });
+  rows.push({ type: 'space' });
+  rows.push({ type: 'section', text: 'Personas propuestas o en reserva' });
+  if (!proposedRows.length) rows.push({ type: 'muted', text: 'No hay personas marcadas como propuesta o reserva.' });
+  rows.push(...proposedRows.map(row => ({
+    type: 'text',
+    text: `${proposalStatusLabel(row.proposal_status)} | ${row.preliminary_position || '-'} | ${formatScoreForPdf(row.total_score)} | ${row.full_name} | ${row.province || 'Sin provincia'} | ${row.institution || 'Sin institucion'} | ${truncateText(row.proposal_note || row.exclusion_reason || 'Sin nota', 36)}`,
+  })));
+  return buildSimplePdf(rows);
+}
+
+function formatScoreForPdf(value) {
+  if (value === null || value === undefined || value === '') return 'Pendiente';
+  const score = Number(value);
+  return Number.isFinite(score) ? score.toFixed(2).replace(/\.00$/, '') : 'Pendiente';
+}
+
 function pdfBarRows(rows, labeler = value => value) {
   const max = Math.max(...(rows || []).map(row => Number(row.count || 0)), 1);
   if (!rows || !rows.length) return [{ type: 'muted', text: 'Sin datos.' }];
@@ -1384,8 +1498,16 @@ function statusLabelForPdf(value) {
     VALIDATED_BY_TECHNICAL_TEAM: 'Validada por Equipo Tecnico',
     IN_TECHNICAL_REVIEW: 'En revision tecnica',
     REQUIRES_SCORE_ADJUSTMENT: 'Requiere ajuste de puntuacion',
+    NOT_PROPOSED: 'No propuesta',
+    PROPOSED: 'Propuesta',
+    RESERVE: 'Reserva',
+    REMOVED: 'Retirada de propuesta',
     SIN_EVALUAR: 'Sin evaluar',
   }[value] || value || 'Sin estado';
+}
+
+function proposalStatusLabel(value) {
+  return statusLabelForPdf(value || 'NOT_PROPOSED');
 }
 
 function reviewSummaryCsv(rows) {
@@ -1506,6 +1628,8 @@ function preliminaryRankingCsv(rows) {
     'eligibility_status',
     'evaluation_status',
     'evaluation_validation_status',
+    'proposal_status',
+    'proposal_note',
     'open_issue_count',
     'exclusion_reason',
     'submission_id',

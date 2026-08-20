@@ -33,9 +33,23 @@ Exportacion CSV:
 
 - `GET /api/admin/preliminary-ranking.csv`
 
+Exportaciones PDF:
+
+- `GET /api/admin/preliminary-ranking.pdf`
+- `GET /api/admin/proposal-summary.pdf`
+
 La vista administrativa permite seleccionar evaluaciones visibles y actualizar
 masivamente su estado de validacion tecnica usando el endpoint existente de
 validacion individual. Esta accion no cambia puntajes ni aplica cupos.
+
+Tambien permite marcar una lista propuesta manual con estados operativos:
+
+- `NOT_PROPOSED`
+- `PROPOSED`
+- `RESERVE`
+- `REMOVED`
+
+Estos estados pertenecen a `proposal_entries` y no equivalen a decision final.
 
 ## Inclusion preliminar
 
@@ -69,3 +83,5 @@ puntajes iguales no representa prioridad funcional.
   Tecnico.
 - La validacion masiva desde ranking solo actualiza el estado de validacion
   tecnica del resultado; no aprueba la lista final.
+- La lista propuesta es una herramienta de trabajo; no sustituye la aprobacion
+  formal del Equipo Tecnico.

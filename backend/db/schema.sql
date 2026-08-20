@@ -149,6 +149,19 @@ create table if not exists admin_sessions (
   revoked_at timestamptz
 );
 
+create table if not exists proposal_entries (
+  proposal_entry_id text primary key,
+  candidate_id text not null references candidates(candidate_id),
+  submission_id text not null references submissions(submission_id),
+  evaluation_result_id text not null references evaluation_results(evaluation_result_id),
+  proposal_status text not null,
+  proposal_note text not null default '',
+  proposed_at timestamptz not null,
+  proposed_by text not null,
+  updated_at timestamptz not null,
+  updated_by text not null
+);
+
 create index if not exists idx_submissions_candidate_id on submissions(candidate_id);
 create index if not exists idx_candidate_responses_candidate_id on candidate_responses(candidate_id);
 create index if not exists idx_documents_candidate_id on documents(candidate_id);
@@ -161,6 +174,9 @@ create index if not exists idx_evaluation_results_submission_id on evaluation_re
 create index if not exists idx_evaluation_results_candidate_id on evaluation_results(candidate_id);
 create index if not exists idx_admin_sessions_token_hash on admin_sessions(session_token_hash);
 create index if not exists idx_admin_sessions_user_id on admin_sessions(admin_user_id);
+create index if not exists idx_proposal_entries_submission_id on proposal_entries(submission_id);
+create index if not exists idx_proposal_entries_candidate_id on proposal_entries(candidate_id);
+create index if not exists idx_proposal_entries_evaluation_result_id on proposal_entries(evaluation_result_id);
 
 alter table documents add column if not exists reviewed_at timestamptz;
 alter table documents add column if not exists reviewed_by text not null default '';

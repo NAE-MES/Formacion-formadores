@@ -1265,6 +1265,11 @@
             <input id="rankingSearchInput" type="search" placeholder="Buscar postulante, provincia o institución" />
             <select id="rankingScopeFilter"><option value="">Todos</option><option value="INCLUDED">Incluidos preliminarmente</option><option value="EXCLUDED">Fuera del ranking preliminar</option></select>
             <select id="rankingValidationFilter"><option value="">Validación técnica</option><option value="PENDING_TECHNICAL_VALIDATION">Pendiente</option><option value="IN_TECHNICAL_REVIEW">En revisión</option><option value="VALIDATED_BY_TECHNICAL_TEAM">Validada</option><option value="REQUIRES_SCORE_ADJUSTMENT">Requiere ajuste</option></select>
+            <select id="rankingProvinceFilter"><option value="">Provincia</option></select>
+            <select id="rankingGenderFilter"><option value="">Género</option></select>
+            <input id="rankingInstitutionFilter" type="search" placeholder="Institución" />
+            <input id="rankingMinScoreFilter" type="number" min="0" max="100" step="0.01" placeholder="Puntaje mín." />
+            <input id="rankingMaxScoreFilter" type="number" min="0" max="100" step="0.01" placeholder="Puntaje máx." />
             <button id="clearRankingFiltersButton" class="ghost" type="button">Limpiar</button>
           </div>
           <div class="bulk-bar">
@@ -1274,11 +1279,19 @@
             <input id="bulkRankingValidationNote" type="text" placeholder="Nota común de validación" />
             <button id="applyBulkRankingValidationButton" type="button">Aplicar</button>
           </div>
+          <div class="bulk-bar">
+            <span class="muted">Lista propuesta</span>
+            <select id="bulkProposalStatus"><option value="PROPOSED">Marcar propuesta</option><option value="RESERVE">Marcar reserva</option><option value="NOT_PROPOSED">No propuesta</option><option value="REMOVED">Retirar de propuesta</option></select>
+            <input id="bulkProposalNote" type="text" placeholder="Nota para propuesta o reserva" />
+            <button id="applyBulkProposalButton" type="button">Aplicar propuesta</button>
+            <button id="exportRankingPdfButton" type="button">PDF ranking</button>
+            <button id="exportProposalPdfButton" type="button">PDF resumen propuesta</button>
+          </div>
           <p id="rankingCount" class="result-count"></p>
           <div class="ranking-note">Ranking preliminar no vinculante: no sustituye la aprobación del Equipo Técnico y no resuelve empates ni cupos.</div>
           <div class="table-wrap wide-table">
             <table>
-              <thead><tr><th></th><th>Pos.</th><th>Postulante</th><th>Puntaje</th><th>Provincia</th><th>Institución</th><th>Validación</th><th>Estado</th><th>Motivo</th></tr></thead>
+              <thead><tr><th></th><th>Pos.</th><th>Postulante</th><th>Puntaje</th><th>Provincia</th><th>Institución</th><th>Validación</th><th>Propuesta</th><th>Estado</th><th>Motivo</th></tr></thead>
               <tbody id="preliminaryRankingTable"></tbody>
             </table>
           </div>

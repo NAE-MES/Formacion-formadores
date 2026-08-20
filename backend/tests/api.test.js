@@ -611,6 +611,27 @@ test('admin API exposes non binding preliminary ranking', async (t) => {
     assert.equal(csv.statusCode, 200);
     assert.match(csv.body, /preliminary_position,included_in_preliminary_ranking,total_score/);
     assert.match(csv.body, /Carla Perez Lopez/);
+
+    const proposal = await adminJsonRequest(port, 'PATCH', '/api/admin/proposal-entries/bulk', {
+      evaluation_result_ids: [included.evaluation_result_id],
+      proposal_status: 'PROPOSED',
+      note: 'Propuesta sintética para revisión.',
+    });
+    assert.equal(proposal.statusCode, 200);
+    assert.equal(proposal.body.entries[0].proposal_status, 'PROPOSED');
+
+    const updatedRanking = await adminRequest(port, 'GET', '/api/admin/preliminary-ranking');
+    assert.equal(updatedRanking.body.rows.find(row => row.full_name === 'Carla Perez Lopez').proposal_status, 'PROPOSED');
+
+    const rankingPdf = await adminRawRequest(port, 'GET', '/api/admin/preliminary-ranking.pdf');
+    assert.equal(rankingPdf.statusCode, 200);
+    assert.equal(rankingPdf.headers['content-type'], 'application/pdf');
+    assert.match(rankingPdf.body.slice(0, 8), /%PDF-1\.4/);
+
+    const proposalPdf = await adminRawRequest(port, 'GET', '/api/admin/proposal-summary.pdf');
+    assert.equal(proposalPdf.statusCode, 200);
+    assert.equal(proposalPdf.headers['content-type'], 'application/pdf');
+    assert.match(proposalPdf.body.slice(0, 8), /%PDF-1\.4/);
   });
 });
 
