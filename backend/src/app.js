@@ -14,6 +14,7 @@ const {
   criterionById,
   criteriaFromConfig,
   summarizeEvaluation,
+  validateEvaluationValidationStatus,
 } = require('./evaluation');
 
 const BUSINESS_TIME_ZONE = 'America/Havana';
@@ -256,6 +257,14 @@ function createApp({ config, repository }) {
         const payload = await readJson(req);
         const saved = await saveCriterionEvaluation(submissionId, criterionId, payload, config, repository, admin.username || 'ADMIN_UI');
         return sendJson(res, 200, saved);
+      }
+
+      if (req.method === 'PATCH' && req.url.startsWith('/api/admin/evaluation-results/') && req.url.endsWith('/validation')) {
+        const admin = await authorizeAdmin(req, config, repository, ['ADMIN', 'REVIEWER']);
+        const evaluationResultId = decodeURIComponent(req.url.slice('/api/admin/evaluation-results/'.length, -'/validation'.length));
+        const payload = await readJson(req);
+        const evaluationResult = await updateEvaluationValidation(evaluationResultId, payload, repository, admin.username || 'ADMIN_UI');
+        return sendJson(res, 200, { evaluation_result: evaluationResult });
       }
 
       if (req.method === 'PATCH' && req.url.startsWith('/api/admin/documents/') && req.url.endsWith('/status')) {
@@ -523,6 +532,23 @@ async function recalculateAutomaticEvaluation(submissionId, config, repository, 
     criterion_evaluations: saved,
     evaluation_result: result,
   };
+}
+
+async function updateEvaluationValidation(evaluationResultId, payload, repository, actor) {
+  if (!repository.updateEvaluationValidation) {
+    const error = new Error('Technical validation is not configured.');
+    error.statusCode = 503;
+    error.code = 'TECHNICAL_VALIDATION_NOT_CONFIGURED';
+    throw error;
+  }
+  const status = String(payload.status || '').trim();
+  validateEvaluationValidationStatus(status);
+  return repository.updateEvaluationValidation(evaluationResultId, {
+    status,
+    note: payload.note || '',
+    actor,
+    reason: payload.reason || 'Technical evaluation validation updated.',
+  });
 }
 
 function sendAdminAsset(res, relativePath) {
@@ -1243,6 +1269,10 @@ function statusLabelForPdf(value) {
     IN_PROGRESS: 'En curso',
     COMPLETED: 'Completada',
     NEEDS_REVIEW: 'Necesita revision',
+    PENDING_TECHNICAL_VALIDATION: 'Pendiente de validacion tecnica',
+    VALIDATED_BY_TECHNICAL_TEAM: 'Validada por Equipo Tecnico',
+    IN_TECHNICAL_REVIEW: 'En revision tecnica',
+    REQUIRES_SCORE_ADJUSTMENT: 'Requiere ajuste de puntuacion',
     SIN_EVALUAR: 'Sin evaluar',
   }[value] || value || 'Sin estado';
 }
@@ -1262,6 +1292,7 @@ function reviewSummaryCsv(rows) {
     'completed_criteria',
     'total_criteria',
     'total_score',
+    'evaluation_validation_status',
     'document_count',
     'documents_validated',
     'documents_needs_review',
@@ -1329,6 +1360,7 @@ function evaluationMatrixCsv(rows, criteria) {
     'completed_criteria',
     'total_criteria',
     'total_score',
+    'evaluation_validation_status',
   ];
   const criterionHeaders = criteria.flatMap(criterion => [
     `${criterion.criterion_id}_status`,

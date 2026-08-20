@@ -1,6 +1,12 @@
 const crypto = require('node:crypto');
 
 const EVALUATION_STATUSES = new Set(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'NEEDS_REVIEW']);
+const EVALUATION_VALIDATION_STATUSES = new Set([
+  'PENDING_TECHNICAL_VALIDATION',
+  'VALIDATED_BY_TECHNICAL_TEAM',
+  'IN_TECHNICAL_REVIEW',
+  'REQUIRES_SCORE_ADJUSTMENT',
+]);
 
 function criteriaFromConfig(evaluationConfig = {}) {
   return (evaluationConfig.criteria || []).map(criterion => ({
@@ -65,12 +71,25 @@ function summarizeEvaluation(submission, evaluations, evaluationConfig = {}, act
     total_score: totalScore,
     rule_version: evaluationConfig.schema_version || '',
     calculation_method: 'CRITERION_WEIGHTED_AVERAGE',
+    validation_status: 'PENDING_TECHNICAL_VALIDATION',
+    validation_note: '',
+    validated_at: null,
+    validated_by: '',
     calculated_at: new Date().toISOString(),
     calculated_by: actor,
     notes: totalScore === null
       ? 'Resumen operativo sin ranking. Puntaje total pendiente hasta completar criterios.'
       : 'Puntaje tecnico automatico segun Anexo 1. No representa ranking ni decision final.',
   };
+}
+
+function validateEvaluationValidationStatus(status) {
+  if (!EVALUATION_VALIDATION_STATUSES.has(status)) {
+    const error = new Error('Invalid technical validation status.');
+    error.statusCode = 400;
+    error.code = 'INVALID_EVALUATION_VALIDATION_STATUS';
+    throw error;
+  }
 }
 
 function buildAutomaticCriterionEvaluations(input, evaluationConfig = {}, actor = 'AUTO_SCORING_ENGINE') {
@@ -204,5 +223,6 @@ module.exports = {
   criterionById,
   criteriaFromConfig,
   summarizeEvaluation,
+  validateEvaluationValidationStatus,
   validateEvaluationStatus,
 };

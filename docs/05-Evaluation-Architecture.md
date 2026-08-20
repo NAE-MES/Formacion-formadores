@@ -51,9 +51,30 @@ La puntuacion automatica se ejecuta tras cada ingesta valida y puede
 recalcularse desde la API administrativa con:
 
 - `POST /api/admin/submissions/:submission_id/evaluation/auto-score`
+- `PATCH /api/admin/evaluation-results/:evaluation_result_id/validation`
 
 Restriccion: el resultado automatico es puntaje tecnico operativo. No
 representa ranking, seleccion, cupo ni decision final.
+
+## Validacion tecnica de la evaluacion automatica
+
+La validacion tecnica es una capa de revision sobre `evaluation_results`. No
+modifica por si misma los puntajes ni representa aprobacion final de la lista.
+
+Estados de validacion soportados:
+
+- `PENDING_TECHNICAL_VALIDATION`
+- `IN_TECHNICAL_REVIEW`
+- `VALIDATED_BY_TECHNICAL_TEAM`
+- `REQUIRES_SCORE_ADJUSTMENT`
+
+Cada recalculo automatico o ajuste manual de criterios deja la validacion en
+`PENDING_TECHNICAL_VALIDATION`, porque cambia la base que debe revisar el
+Equipo Tecnico.
+
+La actualizacion de validacion registra
+`EVALUATION_TECHNICAL_VALIDATION_UPDATED` con actor, fecha, estado previo,
+estado nuevo y motivo.
 
 ## Evaluacion tecnica manual
 

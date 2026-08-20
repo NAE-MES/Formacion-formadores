@@ -121,6 +121,10 @@ create table if not exists evaluation_results (
   total_score numeric(8,2),
   rule_version text not null default '',
   calculation_method text not null default '',
+  validation_status text not null default 'PENDING_TECHNICAL_VALIDATION',
+  validation_note text not null default '',
+  validated_at timestamptz,
+  validated_by text not null default '',
   calculated_at timestamptz not null,
   calculated_by text not null,
   notes text not null default ''
@@ -171,3 +175,7 @@ alter table eligibility_assessments add column if not exists reviewed_by text no
 alter table evaluation_results add column if not exists total_score numeric(8,2);
 alter table evaluation_results add column if not exists rule_version text not null default '';
 alter table evaluation_results add column if not exists calculation_method text not null default '';
+alter table evaluation_results add column if not exists validation_status text not null default 'PENDING_TECHNICAL_VALIDATION';
+alter table evaluation_results add column if not exists validation_note text not null default '';
+alter table evaluation_results add column if not exists validated_at timestamptz;
+alter table evaluation_results add column if not exists validated_by text not null default '';

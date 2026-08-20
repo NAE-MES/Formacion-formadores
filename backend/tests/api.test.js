@@ -492,6 +492,70 @@ test('automatic technical scoring applies Anexo 1 closed-response rules', async 
   });
 });
 
+test('reviewer validates automatic technical evaluation result', async (t) => {
+  await withServer(t, async ({ port, repository }) => {
+    const created = await request(port, 'POST', '/api/submissions/google-form', {
+      sourceReference: 'google-response-technical-validation',
+      receivedAt: '2026-08-16T10:00:00.000Z',
+      responses: validResponses(),
+      documents: requiredDocuments(),
+    });
+    assert.equal(created.statusCode, 201);
+    const submissionId = Array.from(repository.submissions.values())[0].submission_id;
+
+    const detail = await adminRequest(port, 'GET', `/api/admin/submissions/${submissionId}`);
+    const evaluationResultId = detail.body.evaluation_result.evaluation_result_id;
+    assert.equal(detail.body.evaluation_result.validation_status, 'PENDING_TECHNICAL_VALIDATION');
+
+    const validated = await adminJsonRequest(port, 'PATCH', `/api/admin/evaluation-results/${evaluationResultId}/validation`, {
+      status: 'VALIDATED_BY_TECHNICAL_TEAM',
+      note: 'Cálculo revisado con respuestas cerradas del Anexo 1.',
+    });
+    assert.equal(validated.statusCode, 200);
+    assert.equal(validated.body.evaluation_result.validation_status, 'VALIDATED_BY_TECHNICAL_TEAM');
+    assert.equal(validated.body.evaluation_result.validation_note, 'Cálculo revisado con respuestas cerradas del Anexo 1.');
+    assert.ok(validated.body.evaluation_result.validated_at);
+    assert.equal(validated.body.evaluation_result.validated_by, 'ADMIN_TOKEN');
+
+    const updatedDetail = await adminRequest(port, 'GET', `/api/admin/submissions/${submissionId}`);
+    assert.equal(updatedDetail.body.evaluation_result.validation_status, 'VALIDATED_BY_TECHNICAL_TEAM');
+    assert.ok(updatedDetail.body.audit_events.some(event => event.action === 'EVALUATION_TECHNICAL_VALIDATION_UPDATED'));
+  });
+});
+
+test('technical validation rejects invalid status and intake role', async (t) => {
+  await withServer(t, async ({ port, repository }) => {
+    const created = await request(port, 'POST', '/api/submissions/google-form', {
+      sourceReference: 'google-response-technical-validation-permissions',
+      receivedAt: '2026-08-16T10:00:00.000Z',
+      responses: validResponses(),
+      documents: requiredDocuments(),
+    });
+    assert.equal(created.statusCode, 201);
+    const submissionId = Array.from(repository.submissions.values())[0].submission_id;
+
+    const detail = await adminRequest(port, 'GET', `/api/admin/submissions/${submissionId}`);
+    const evaluationResultId = detail.body.evaluation_result.evaluation_result_id;
+
+    const invalid = await adminJsonRequest(port, 'PATCH', `/api/admin/evaluation-results/${evaluationResultId}/validation`, {
+      status: 'APPROVED_FOR_RANKING',
+    });
+    assert.equal(invalid.statusCode, 400);
+    assert.equal(invalid.body.error, 'INVALID_EVALUATION_VALIDATION_STATUS');
+
+    await adminJsonRequest(port, 'POST', '/api/admin/users', {
+      username: 'intake-validation',
+      password: 'intake-password',
+      role: 'INTAKE',
+    });
+    const cookie = await loginCookie(port, 'intake-validation', 'intake-password');
+    const forbidden = await requestWithHeaders(port, 'PATCH', `/api/admin/evaluation-results/${evaluationResultId}/validation`, {
+      status: 'VALIDATED_BY_TECHNICAL_TEAM',
+    }, { cookie });
+    assert.equal(forbidden.statusCode, 403);
+  });
+});
+
 test('admin API lists and returns submission detail', async (t) => {
   await withServer(t, async ({ port }) => {
     const payload = {

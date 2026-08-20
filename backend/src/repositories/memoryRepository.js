@@ -252,6 +252,7 @@ class MemoryRepository {
           eligibility_status: eligibility?.status || '',
           evaluation_status: evaluationResult?.status || 'NOT_STARTED',
           total_score: evaluationResult?.total_score ?? null,
+          evaluation_validation_status: evaluationResult?.validation_status || 'PENDING_TECHNICAL_VALIDATION',
           document_statuses: documentStatuses.join(','),
           open_issue_count: openIssueCount,
           issue_count: issues.length,
@@ -296,6 +297,10 @@ class MemoryRepository {
           completed_criteria: evaluationResult?.completed_criteria || 0,
           total_criteria: evaluationResult?.total_criteria || 0,
           total_score: evaluationResult?.total_score ?? null,
+          evaluation_validation_status: evaluationResult?.validation_status || 'PENDING_TECHNICAL_VALIDATION',
+          evaluation_validation_note: evaluationResult?.validation_note || '',
+          evaluation_validated_at: evaluationResult?.validated_at || '',
+          evaluation_validated_by: evaluationResult?.validated_by || '',
           document_count: documents.length,
           documents_validated: documents.filter(document => document.status === 'VALIDATED').length,
           documents_needs_review: documents.filter(document => document.status === 'NEEDS_REVIEW').length,
@@ -383,6 +388,10 @@ class MemoryRepository {
           completed_criteria: evaluationResult?.completed_criteria || 0,
           total_criteria: evaluationResult?.total_criteria || 0,
           total_score: evaluationResult?.total_score ?? null,
+          evaluation_validation_status: evaluationResult?.validation_status || 'PENDING_TECHNICAL_VALIDATION',
+          evaluation_validation_note: evaluationResult?.validation_note || '',
+          evaluation_validated_at: evaluationResult?.validated_at || '',
+          evaluation_validated_by: evaluationResult?.validated_by || '',
           criteria,
         };
       });
@@ -508,6 +517,37 @@ class MemoryRepository {
       ),
     );
     return { criterion_evaluation: evaluation, evaluation_result: result };
+  }
+
+  async updateEvaluationValidation(evaluationResultId, { status, note, actor, reason }) {
+    const current = this.evaluationResults.get(evaluationResultId);
+    if (!current) {
+      const error = new Error('Evaluation result not found.');
+      error.statusCode = 404;
+      error.code = 'NOT_FOUND';
+      throw error;
+    }
+    const updated = {
+      ...current,
+      validation_status: status,
+      validation_note: String(note || ''),
+      validated_at: new Date().toISOString(),
+      validated_by: actor || 'ADMIN_UI',
+    };
+    this.evaluationResults.set(evaluationResultId, updated);
+    this.auditEvents.set(
+      `audit_${this.auditEvents.size + 1}`,
+      auditEvent(
+        'EVALUATION_TECHNICAL_VALIDATION_UPDATED',
+        'EvaluationResult',
+        updated.evaluation_result_id,
+        actor || updated.validated_by,
+        sanitizeEvaluationResultAuditValue(current),
+        sanitizeEvaluationResultAuditValue(updated),
+        reason,
+      ),
+    );
+    return updated;
   }
 
   async getEligibilityInput(submissionId) {
@@ -747,6 +787,10 @@ function sanitizeEvaluationResultAuditValue(result) {
     total_score: result.total_score ?? null,
     rule_version: result.rule_version || '',
     calculation_method: result.calculation_method || '',
+    validation_status: result.validation_status || 'PENDING_TECHNICAL_VALIDATION',
+    validation_note: result.validation_note || '',
+    validated_at: result.validated_at || null,
+    validated_by: result.validated_by || '',
     calculated_at: result.calculated_at || null,
     calculated_by: result.calculated_by || '',
   };

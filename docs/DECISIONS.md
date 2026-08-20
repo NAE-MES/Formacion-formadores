@@ -75,3 +75,18 @@ Impacto: cada postulacion valida queda con criterios tecnicos calculados y
 `total_score` ponderado. Los textos cualitativos se mantienen como evidencia y
 no se puntuan automaticamente. El resultado no implementa ranking, cupos,
 desempates, seleccion ni decision final del Equipo Tecnico.
+
+## 2026-08-20 - Validacion tecnica del resultado automatico
+
+Decision: agregar una capa de validacion tecnica sobre `evaluation_results`
+para que el Equipo Tecnico pueda marcar el resultado calculado como pendiente,
+en revision, validado o requerido de ajuste.
+
+Justificacion: el motor automatico reduce trabajo operativo, pero la revision
+tecnica debe poder asumir o cuestionar formalmente el resultado antes de
+construir ranking o propuestas de seleccion.
+
+Impacto: se agregan `validation_status`, `validation_note`, `validated_at` y
+`validated_by` al resumen de evaluacion. Cada recalculo o ajuste de criterio
+devuelve la validacion a pendiente. La validacion no cambia puntajes, no aplica
+cupos y no equivale a decision final del Equipo Tecnico.

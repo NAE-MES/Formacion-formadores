@@ -587,6 +587,25 @@ tbody tr.selected {
   align-items: start;
 }
 
+.technical-validation {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.7fr) minmax(0, 1.3fr);
+  gap: 12px;
+  align-items: end;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-top: 10px;
+  padding: 10px;
+  background: #fff;
+}
+
+.technical-validation-controls {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.8fr) minmax(180px, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
 .score-input {
   min-width: 92px;
 }
@@ -763,7 +782,9 @@ tbody tr.selected {
   .doc-grid,
   .intake-grid,
   .users-grid,
-  .user-actions {
+  .user-actions,
+  .technical-validation,
+  .technical-validation-controls {
     grid-template-columns: 1fr;
   }
 

@@ -40,6 +40,12 @@ const LABELS = {
     COMPLETED: 'Completada',
     NEEDS_REVIEW: 'Necesita revisión',
   },
+  evaluationValidation: {
+    PENDING_TECHNICAL_VALIDATION: 'Pendiente de validación técnica',
+    VALIDATED_BY_TECHNICAL_TEAM: 'Validada por Equipo Técnico',
+    IN_TECHNICAL_REVIEW: 'En revisión técnica',
+    REQUIRES_SCORE_ADJUSTMENT: 'Requiere ajuste de puntuación',
+  },
   documents: {
     RECEIVED: 'Recibido',
     VALIDATED: 'Validado',
@@ -593,7 +599,7 @@ function workboardRow(row) {
       </td>
       <td>${issueWorkboardBadge(row.open_issue_count || 0)}</td>
       <td>${eligibilityBadge(row.eligibility_status)}</td>
-      <td>${technicalWorkboardBadge(row.evaluation_status)}</td>
+      <td>${technicalWorkboardBadge(row.evaluation_status)} ${evaluationValidationBadge(row.evaluation_validation_status)}</td>
       <td>${formatDate(row.received_at)}</td>
       <td><button class="compact" type="button" data-workboard-submission="${escapeHtml(row.submission_id)}">Ver expediente</button></td>
     </tr>
@@ -692,7 +698,7 @@ function renderTable() {
         <span class="muted">${formatDate(item.received_at)}</span>
       </td>
       <td>${eligibilityBadge(item.eligibility_status)}</td>
-      <td>${evaluationBadge(item.evaluation_status)}</td>
+      <td>${evaluationBadge(item.evaluation_status)} ${evaluationValidationBadge(item.evaluation_validation_status)}</td>
       <td>${issueSummary(item)}</td>
     </tr>
   `).join('');
@@ -727,7 +733,7 @@ function renderReviewSummary() {
       <td>${escapeHtml(item.province || '')}</td>
       <td><span class="badge">${escapeHtml(label('sourceChannels', item.source_channel))}</span></td>
       <td>${eligibilityBadge(item.eligibility_status)}</td>
-      <td>${evaluationBadge(item.evaluation_status)}</td>
+      <td>${evaluationBadge(item.evaluation_status)} ${evaluationValidationBadge(item.evaluation_validation_status)}</td>
       <td>${criteriaProgress(item)}</td>
       <td>${reviewDocumentSummary(item)}</td>
       <td>${issueSummary({ issue_count: item.open_issue_count, open_issue_count: item.open_issue_count })}</td>
@@ -898,7 +904,7 @@ function renderEvaluationMatrix() {
       <td><strong>${escapeHtml(item.full_name || 'Sin nombre')}</strong><br><span class="muted">${escapeHtml(item.email || '')}</span></td>
       <td>${escapeHtml(item.province || '')}</td>
       <td>${eligibilityBadge(item.eligibility_status)}</td>
-      <td>${evaluationBadge(item.evaluation_status)}<br><span class="muted">${escapeHtml(item.completed_criteria || 0)} / ${escapeHtml(item.total_criteria || matrixCriteria.length)}</span></td>
+      <td>${evaluationBadge(item.evaluation_status)} ${evaluationValidationBadge(item.evaluation_validation_status)}<br><span class="muted">${escapeHtml(item.completed_criteria || 0)} / ${escapeHtml(item.total_criteria || matrixCriteria.length)}</span></td>
       <td><strong>${formatScore(item.total_score)}</strong><br><span class="muted">No ranking</span></td>
       ${matrixCriteria.map(criterion => matrixCriterionCell(item, criterion)).join('')}
       <td>${formatDate(item.received_at)}</td>
@@ -1141,6 +1147,7 @@ async function selectSubmission(submissionId, options = {}) {
       </div>
       <div class="detail-actions">
         ${evaluationBadge(detail.evaluation_result?.status || 'NOT_STARTED')}
+        ${evaluationValidationBadge(detail.evaluation_result?.validation_status || 'PENDING_TECHNICAL_VALIDATION')}
         <button type="button" class="ghost compact" data-print-summary="${escapeHtml(submission.submission_id)}">Resumen</button>
       </div>
     </div>
@@ -1177,6 +1184,7 @@ async function selectSubmission(submissionId, options = {}) {
           <dt>Normalización</dt><dd>${statusBadge(submission.normalization_status)}</dd>
           <dt>Admisibilidad</dt><dd>${eligibilityBadge(detail.eligibility_assessment?.status || '')}</dd>
           <dt>Evaluación</dt><dd>${evaluationBadge(detail.evaluation_result?.status || 'NOT_STARTED')}</dd>
+          <dt>Validación técnica</dt><dd>${evaluationValidationBadge(detail.evaluation_result?.validation_status || 'PENDING_TECHNICAL_VALIDATION')}</dd>
         </dl>
       </section>
     </div>
@@ -1281,8 +1289,38 @@ function renderTechnicalEvaluation(detail) {
         </div>
         <div class="section-meta">${escapeHtml(result.completed_criteria || 0)} de ${escapeHtml(result.total_criteria || criteria.length)} criterios completados · Puntaje técnico: ${formatScore(result.total_score)}</div>
       </div>
+      ${renderEvaluationValidation(result)}
       <div class="evaluation-grid">
         ${criteria.map(criterion => renderCriterionReview(detail.submission.submission_id, criterion, evaluations.get(criterion.criterion_id))).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderEvaluationValidation(result = {}) {
+  if (!result.evaluation_result_id) {
+    return '<p class="muted">La validación técnica estará disponible cuando exista una evaluación calculada.</p>';
+  }
+  const canEdit = hasRole('ADMIN', 'REVIEWER');
+  return `
+    <div class="technical-validation">
+      <div>
+        <span class="section-kicker">Validación del Equipo Técnico</span>
+        ${evaluationValidationBadge(result.validation_status || 'PENDING_TECHNICAL_VALIDATION')}
+        <span class="section-meta">${escapeHtml(actorLabel(result.validated_by || ''))} ${result.validated_at ? formatDate(result.validated_at) : ''}</span>
+      </div>
+      <div class="technical-validation-controls">
+        <label>
+          <span>Estado de validación</span>
+          <select data-evaluation-validation-status="${escapeHtml(result.evaluation_result_id)}" ${canEdit ? '' : 'disabled'}>
+            ${evaluationValidationOptions(result.validation_status || 'PENDING_TECHNICAL_VALIDATION')}
+          </select>
+        </label>
+        <label>
+          <span>Nota técnica</span>
+          <input type="text" data-evaluation-validation-note="${escapeHtml(result.evaluation_result_id)}" value="${escapeHtml(result.validation_note || '')}" placeholder="Justificación breve" ${canEdit ? '' : 'disabled'}>
+        </label>
+        <button type="button" data-evaluation-validation-save="${escapeHtml(result.evaluation_result_id)}" ${canEdit ? '' : 'disabled'}>Guardar validación</button>
       </div>
     </div>
   `;
@@ -1629,7 +1667,7 @@ async function saveMatrixCriterion(event) {
 
 function bindDetailActions() {
   if (!hasRole('ADMIN', 'REVIEWER')) {
-    detailPanel.querySelectorAll('button[data-document-save], button[data-issue-save], button[data-eligibility-save], button[data-eligibility-recalculate], button[data-evaluation-save]')
+    detailPanel.querySelectorAll('button[data-document-save], button[data-issue-save], button[data-eligibility-save], button[data-eligibility-recalculate], button[data-evaluation-save], button[data-evaluation-validation-save]')
       .forEach(button => button.disabled = true);
   }
 
@@ -1728,6 +1766,23 @@ function bindDetailActions() {
     });
   });
 
+  detailPanel.querySelectorAll('[data-evaluation-validation-save]').forEach(button => {
+    button.addEventListener('click', async () => {
+      const evaluationResultId = button.dataset.evaluationValidationSave;
+      const status = detailPanel.querySelector(`[data-evaluation-validation-status="${cssEscape(evaluationResultId)}"]`);
+      const note = detailPanel.querySelector(`[data-evaluation-validation-note="${cssEscape(evaluationResultId)}"]`);
+      await api(`/api/admin/evaluation-results/${encodeURIComponent(evaluationResultId)}/validation`, {
+        method: 'PATCH',
+        body: {
+          status: status.value,
+          note: note.value,
+          reason: 'Validación técnica de evaluación automática desde la consola',
+        },
+      });
+      await loadData();
+    });
+  });
+
   detailPanel.querySelectorAll('[data-print-summary]').forEach(button => {
     button.addEventListener('click', printCurrentSummary);
   });
@@ -1754,6 +1809,16 @@ function eligibilityStatusOptions(selected) {
 function evaluationStatusOptions(selected) {
   return ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'NEEDS_REVIEW']
     .map(status => `<option value="${status}" ${status === selected ? 'selected' : ''}>${escapeHtml(label('evaluation', status))}</option>`)
+    .join('');
+}
+
+function evaluationValidationOptions(selected) {
+  return [
+    'PENDING_TECHNICAL_VALIDATION',
+    'IN_TECHNICAL_REVIEW',
+    'VALIDATED_BY_TECHNICAL_TEAM',
+    'REQUIRES_SCORE_ADJUSTMENT',
+  ].map(status => `<option value="${status}" ${status === selected ? 'selected' : ''}>${escapeHtml(label('evaluationValidation', status))}</option>`)
     .join('');
 }
 
@@ -1913,6 +1978,18 @@ function evaluationBadge(status) {
         ? 'warn'
         : '';
   return `<span class="badge ${cls}">${escapeHtml(label('evaluation', normalized))}</span>`;
+}
+
+function evaluationValidationBadge(status) {
+  const normalized = status || 'PENDING_TECHNICAL_VALIDATION';
+  const cls = normalized === 'VALIDATED_BY_TECHNICAL_TEAM'
+    ? 'ok'
+    : normalized === 'REQUIRES_SCORE_ADJUSTMENT'
+      ? 'bad'
+      : normalized === 'IN_TECHNICAL_REVIEW'
+        ? 'warn'
+        : '';
+  return `<span class="badge ${cls}">${escapeHtml(label('evaluationValidation', normalized))}</span>`;
 }
 
 function checkStatusBadge(checkOrStatus) {
