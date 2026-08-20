@@ -15,6 +15,8 @@ const {
   summarizeEvaluation,
 } = require('./evaluation');
 
+const BUSINESS_TIME_ZONE = 'America/Havana';
+
 function createApp({ config, repository }) {
   async function handle(req, res) {
     try {
@@ -599,7 +601,7 @@ function countByDay(rows, getter) {
   for (const row of rows || []) {
     const rawValue = getter(row);
     const date = rawValue ? new Date(rawValue) : null;
-    const label = date && !Number.isNaN(date.getTime()) ? date.toISOString().slice(0, 10) : 'Sin fecha';
+    const label = date && !Number.isNaN(date.getTime()) ? dateKeyInTimeZone(date, BUSINESS_TIME_ZONE) : 'Sin fecha';
     counts.set(label, (counts.get(label) || 0) + 1);
   }
   return mapEntries(counts).sort((a, b) => a.key.localeCompare(b.key));
@@ -610,7 +612,7 @@ function countByWeek(rows, getter) {
   for (const row of rows || []) {
     const rawValue = getter(row);
     const date = rawValue ? new Date(rawValue) : null;
-    const label = date && !Number.isNaN(date.getTime()) ? weekLabel(date) : 'Sin fecha';
+    const label = date && !Number.isNaN(date.getTime()) ? weekLabel(date, BUSINESS_TIME_ZONE) : 'Sin fecha';
     counts.set(label, (counts.get(label) || 0) + 1);
   }
   return mapEntries(counts).sort((a, b) => a.key.localeCompare(b.key));
@@ -625,13 +627,34 @@ function countByValue(rows, getter) {
   return mapEntries(counts).sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
 }
 
-function weekLabel(date) {
-  const copy = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+function dateKeyInTimeZone(date, timeZone) {
+  const parts = datePartsInTimeZone(date, timeZone);
+  return `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
+}
+
+function weekLabel(date, timeZone = 'UTC') {
+  const parts = datePartsInTimeZone(date, timeZone);
+  const copy = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
   const day = copy.getUTCDay() || 7;
   copy.setUTCDate(copy.getUTCDate() + 4 - day);
   const yearStart = new Date(Date.UTC(copy.getUTCFullYear(), 0, 1));
   const week = Math.ceil((((copy - yearStart) / 86400000) + 1) / 7);
   return `${copy.getUTCFullYear()}-S${String(week).padStart(2, '0')}`;
+}
+
+function datePartsInTimeZone(date, timeZone) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return {
+    year: Number(values.year),
+    month: Number(values.month),
+    day: Number(values.day),
+  };
 }
 
 function mapEntries(counts) {

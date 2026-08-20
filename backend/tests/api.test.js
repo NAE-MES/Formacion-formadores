@@ -224,6 +224,12 @@ test('home stats API exposes aggregate data only for the lowest access role', as
       respuestas: validResponses({ 'FDF-05': 'SYN-0002', 'FDF-07': 'otra.persona@example.test', 'FDF-09': 'Santiago de Cuba' }),
       documents: requiredDocuments(),
     });
+    await request(port, 'POST', '/api/submissions/google-form', {
+      sourceReference: 'google-response-home-havana-boundary',
+      receivedAt: '2026-08-20T03:40:00.000Z',
+      responses: validResponses({ 'FDF-05': 'SYN-0003', 'FDF-07': 'noche.habana@example.test', 'FDF-09': 'La Habana' }),
+      documents: requiredDocuments(),
+    });
     await adminJsonRequest(port, 'POST', '/api/admin/users', {
       username: 'viewer-stats',
       password: 'viewer-password',
@@ -234,9 +240,14 @@ test('home stats API exposes aggregate data only for the lowest access role', as
     const response = await requestWithHeaders(port, 'GET', '/api/home/stats', undefined, { cookie });
 
     assert.equal(response.statusCode, 200);
-    assert.equal(response.body.totals.submissions, 2);
-    assert.equal(response.body.by_day.length, 2);
+    assert.equal(response.body.totals.submissions, 3);
+    assert.equal(response.body.by_day.length, 3);
     assert.equal(response.body.by_week.length, 2);
+    assert.deepEqual(
+      response.body.by_day.map(item => item.key),
+      ['2026-08-16', '2026-08-17', '2026-08-19'],
+    );
+    assert.ok(!response.body.by_day.some(item => item.key === '2026-08-20'));
     assert.equal(typeof response.body.operational.critical_pending, 'number');
     assert.equal(typeof response.body.progress.percent_completed, 'number');
     assert.deepEqual(response.body.by_source.map(item => item.key).sort(), ['GOOGLE_FORM', 'OFFLINE_JSON']);
