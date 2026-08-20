@@ -1289,6 +1289,7 @@ function renderTechnicalEvaluation(detail) {
 }
 
 function renderCriterionReview(submissionId, criterion, evaluation = {}) {
+  const automaticNote = parseAutomaticEvaluationNote(evaluation.evaluator_note || '');
   return `
     <div class="criterion">
       <div class="criterion-head">
@@ -1315,11 +1316,43 @@ function renderCriterionReview(submissionId, criterion, evaluation = {}) {
         <span>Síntesis</span>
         <textarea data-evaluation-evidence="${escapeHtml(criterion.criterion_id)}" rows="3" placeholder="Elementos que sustentan la revisión">${escapeHtml(evaluation.evidence_summary || '')}</textarea>
       </label>
+      ${renderEvaluationNote(criterion.criterion_id, evaluation.evaluator_note || '', automaticNote)}
+      <span class="section-meta">${escapeHtml(actorLabel(evaluation.evaluated_by || ''))} ${evaluation.evaluated_at ? formatDate(evaluation.evaluated_at) : ''}</span>
+    </div>
+  `;
+}
+
+function renderEvaluationNote(criterionId, note, automaticNote) {
+  if (!automaticNote) {
+    return `
       <label class="field-block">
         <span>Nota interna</span>
-        <textarea data-evaluation-note="${escapeHtml(criterion.criterion_id)}" rows="2" placeholder="Nota interna">${escapeHtml(evaluation.evaluator_note || '')}</textarea>
+        <textarea data-evaluation-note="${escapeHtml(criterionId)}" rows="2" placeholder="Nota interna">${escapeHtml(note || '')}</textarea>
       </label>
-      <span class="section-meta">${escapeHtml(actorLabel(evaluation.evaluated_by || ''))} ${evaluation.evaluated_at ? formatDate(evaluation.evaluated_at) : ''}</span>
+    `;
+  }
+
+  return `
+    <input type="hidden" data-evaluation-note="${escapeHtml(criterionId)}" value="${escapeHtml(note)}">
+    <div class="auto-note">
+      <div class="auto-note-head">
+        <strong>Trazabilidad del cálculo automático</strong>
+        <span>${escapeHtml(automaticNote.rule_version || 'Regla no especificada')}</span>
+      </div>
+      <div class="auto-note-grid">
+        ${automaticNote.attributes.map(attribute => `
+          <div class="auto-note-row">
+            <div>
+              <strong>${escapeHtml(attribute.label || attribute.attribute_id || '')}</strong>
+              <span>${escapeHtml(attribute.field_code || '')} · Peso ${escapeHtml(attribute.weight_percent ?? '')}%</span>
+            </div>
+            <div>
+              <span>${escapeHtml(attribute.normalized_value || 'Sin respuesta')}</span>
+              <strong>${escapeHtml(formatAttributeScore(attribute))}</strong>
+            </div>
+          </div>
+        `).join('')}
+      </div>
     </div>
   `;
 }
@@ -1535,6 +1568,33 @@ function formatScore(value) {
   if (value === null || value === undefined || value === '') return 'Pendiente';
   const score = Number(value);
   return Number.isFinite(score) ? score.toFixed(2).replace(/\.00$/, '') : 'Pendiente';
+}
+
+function parseAutomaticEvaluationNote(note) {
+  if (!note || typeof note !== 'string') return null;
+  try {
+    const parsed = JSON.parse(note);
+    if (
+      parsed
+      && parsed.calculation_method === 'ANEXO_1_CLOSED_RESPONSE_ATTRIBUTE_SCORING'
+      && Array.isArray(parsed.attributes)
+    ) {
+      return parsed;
+    }
+  } catch (error) {
+    return null;
+  }
+  return null;
+}
+
+function formatAttributeScore(attribute) {
+  if (attribute.status && attribute.status !== 'SCORED') {
+    if (attribute.status === 'MISSING_VALUE') return 'Sin valor puntuable';
+    if (attribute.status === 'UNKNOWN_OPTION') return 'Opción no reconocida';
+    return 'Requiere revisión';
+  }
+  if (attribute.attribute_score === null || attribute.attribute_score === undefined) return 'Sin puntaje';
+  return `${formatScore(attribute.attribute_score)} puntos`;
 }
 
 async function saveMatrixCriterion(event) {
