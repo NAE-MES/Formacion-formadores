@@ -108,6 +108,13 @@ function createApp({ config, repository }) {
         return sendJson(res, 200, await buildHomeStats(repository, admin));
       }
 
+      if (req.method === 'GET' && req.url === '/api/home/executive-report.pdf') {
+        const admin = await authorizeAdmin(req, config, repository, ['ADMIN']);
+        const stats = await buildHomeStats(repository, admin);
+        const pdf = executiveReportPdf(stats.executive_report, stats);
+        return sendPdf(res, `fdf-2026-reporte-ejecutivo-${stats.executive_report.report_date}.pdf`, pdf);
+      }
+
       if (req.method === 'GET' && req.url === '/api/admin/users') {
         await authorizeAdmin(req, config, repository, ['ADMIN']);
         return sendJson(res, 200, { users: await repository.listAdminUsers() });
@@ -649,6 +656,8 @@ function buildExecutiveReport({ submissions, reviews, documents, issues, generat
       const review = reviewsBySubmission.get(row.submission_id) || row;
       return review.evaluation_status || review.eligibility_status || row.normalization_status || 'Sin estado';
     }),
+    evaluation_distribution: countByValue(reviews, row => statusLabelForPdf(row.evaluation_status || 'NOT_STARTED')),
+    eligibility_distribution: countByValue(reviews, row => statusLabelForPdf(row.eligibility_status || 'SIN_EVALUAR')),
     recent_by_day: countByDay(recentSubmissions.slice().reverse(), row => row.received_at).slice(-14),
     candidates: recentSubmissions.map(row => {
       const review = reviewsBySubmission.get(row.submission_id) || row;
@@ -1000,6 +1009,199 @@ function sendCsv(res, filename, content) {
     'cache-control': 'no-store',
   });
   res.end(body);
+}
+
+function sendPdf(res, filename, content) {
+  const body = Buffer.isBuffer(content) ? content : Buffer.from(content);
+  res.writeHead(200, {
+    'content-type': 'application/pdf',
+    'content-disposition': `attachment; filename="${filename}"`,
+    'content-length': body.length,
+    'cache-control': 'no-store',
+  });
+  res.end(body);
+}
+
+function executiveReportPdf(report, stats) {
+  const rows = [];
+  rows.push({ type: 'title', text: 'Reporte ejecutivo diario FdF 2026' });
+  rows.push({ type: 'muted', text: `Dia operativo: ${report.report_date}   Generado: ${formatPdfDate(report.generated_at)}` });
+  rows.push({ type: 'space' });
+  rows.push({ type: 'section', text: 'Indicadores principales' });
+  rows.push({ type: 'text', text: `Recibidas hoy: ${report.headline.received_today}    Acumuladas: ${report.headline.accumulated_submissions}    Pendientes criticos: ${report.headline.critical_pending}` });
+  rows.push({ type: 'text', text: `Listas por evaluar: ${report.headline.ready_for_review}    En evaluacion: ${report.headline.evaluation_in_progress}    Evaluaciones completadas: ${stats.totals.evaluation_completed || 0}` });
+  rows.push({ type: 'space' });
+  rows.push({ type: 'section', text: 'Origen del dia' });
+  rows.push(...pdfBarRows(report.today_by_source, sourceChannelLabel));
+  rows.push({ type: 'space' });
+  rows.push({ type: 'section', text: 'Provincias del dia' });
+  rows.push(...pdfBarRows(report.today_by_province.slice(0, 8)));
+  rows.push({ type: 'space' });
+  rows.push({ type: 'section', text: 'Estados del dia' });
+  rows.push(...pdfBarRows(report.today_by_status, statusLabelForPdf));
+  rows.push({ type: 'space' });
+  rows.push({ type: 'section', text: 'Postulantes recientes' });
+  rows.push(...report.candidates.slice(0, 28).map(row => ({
+    type: 'text',
+    text: `${formatPdfDate(row.received_at)} | ${row.full_name} | ${row.province || 'Sin provincia'} | ${sourceChannelLabel(row.source_channel)} | ${statusLabelForPdf(row.eligibility_status)} | ${statusLabelForPdf(row.evaluation_status)}`,
+  })));
+  return buildSimplePdf(rows);
+}
+
+function pdfBarRows(rows, labeler = value => value) {
+  const max = Math.max(...(rows || []).map(row => Number(row.count || 0)), 1);
+  if (!rows || !rows.length) return [{ type: 'muted', text: 'Sin datos.' }];
+  return rows.map(row => ({
+    type: 'bar',
+    label: labeler(row.key),
+    count: Number(row.count || 0),
+    width: Math.max(8, Math.round((Number(row.count || 0) / max) * 145)),
+  }));
+}
+
+function buildSimplePdf(rows) {
+  const objects = [];
+  const pages = [];
+  const pageWidth = 595;
+  const pageHeight = 842;
+  const margin = 42;
+  const lineHeight = 15;
+  let content = '';
+  let y = pageHeight - margin;
+
+  function newPage() {
+    if (content) pages.push(content);
+    content = '';
+    y = pageHeight - margin;
+  }
+
+  function ensureSpace(height = lineHeight) {
+    if (y - height < margin) newPage();
+  }
+
+  for (const row of rows) {
+    if (row.type === 'space') {
+      y -= 8;
+      continue;
+    }
+    if (row.type === 'title') {
+      ensureSpace(24);
+      content += `BT /F1 17 Tf 42 ${y} Td (${pdfEscape(row.text)}) Tj ET\n`;
+      y -= 26;
+      continue;
+    }
+    if (row.type === 'section') {
+      ensureSpace(22);
+      content += `BT /F1 12 Tf 42 ${y} Td (${pdfEscape(row.text)}) Tj ET\n`;
+      content += `0.09 0.31 0.65 rg 42 ${y - 5} 190 1.2 re f\n`;
+      y -= 20;
+      continue;
+    }
+    if (row.type === 'bar') {
+      ensureSpace(18);
+      content += `BT /F1 8 Tf 42 ${y} Td (${pdfEscape(truncateText(row.label, 48))}) Tj ET\n`;
+      content += `0.91 0.95 0.98 rg 255 ${y - 3} 150 8 re f\n`;
+      content += `0.09 0.31 0.65 rg 255 ${y - 3} ${row.width} 8 re f\n`;
+      content += `BT /F1 8 Tf 414 ${y} Td (${row.count}) Tj ET\n`;
+      y -= 15;
+      continue;
+    }
+    ensureSpace(14);
+    const fontSize = row.type === 'muted' ? 8 : 8.5;
+    content += `BT /F1 ${fontSize} Tf 42 ${y} Td (${pdfEscape(truncateText(row.text, 116))}) Tj ET\n`;
+    y -= 13;
+  }
+  if (content) pages.push(content);
+
+  const fontId = addObject(objects, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+  const pageStreams = [];
+  for (const pageContent of pages) {
+    const stream = `<< /Length ${Buffer.byteLength(pageContent, 'latin1')} >>\nstream\n${pageContent}endstream`;
+    const contentId = addObject(objects, stream);
+    pageStreams.push({ contentId });
+  }
+  const kids = [];
+  const pageRefs = [];
+  for (const page of pageStreams) {
+    const pageId = objects.length + 1;
+    pageRefs.push(pageId);
+    kids.push(`${pageId} 0 R`);
+    addObject(objects, `<< /Type /Page /Parent PAGES_REF /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 ${fontId} 0 R >> >> /Contents ${page.contentId} 0 R >>`);
+  }
+  const pagesId = addObject(objects, `<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${kids.length} >>`);
+  for (const pageId of pageRefs) {
+    objects[pageId - 1] = objects[pageId - 1].replace('PAGES_REF', `${pagesId} 0 R`);
+  }
+  const catalogId = addObject(objects, `<< /Type /Catalog /Pages ${pagesId} 0 R >>`);
+
+  let pdf = '%PDF-1.4\n';
+  const offsets = [0];
+  for (let i = 0; i < objects.length; i += 1) {
+    offsets.push(Buffer.byteLength(pdf, 'latin1'));
+    pdf += `${i + 1} 0 obj\n${objects[i]}\nendobj\n`;
+  }
+  const xrefOffset = Buffer.byteLength(pdf, 'latin1');
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (let i = 1; i < offsets.length; i += 1) {
+    pdf += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`;
+  }
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root ${catalogId} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+  return Buffer.from(pdf, 'latin1');
+}
+
+function addObject(objects, content) {
+  objects.push(content);
+  return objects.length;
+}
+
+function pdfEscape(value) {
+  return removeAccents(String(value ?? ''))
+    .replace(/\\/g, '\\\\')
+    .replace(/\(/g, '\\(')
+    .replace(/\)/g, '\\)');
+}
+
+function removeAccents(value) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function truncateText(value, maxLength) {
+  const text = removeAccents(String(value ?? '').replace(/\s+/g, ' ').trim());
+  return text.length > maxLength ? `${text.slice(0, maxLength - 1)}...` : text;
+}
+
+function formatPdfDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Sin fecha';
+  return new Intl.DateTimeFormat('es-CU', {
+    timeZone: BUSINESS_TIME_ZONE,
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(date);
+}
+
+function sourceChannelLabel(value) {
+  return {
+    GOOGLE_FORM: 'Formulario en linea',
+    OFFLINE_JSON: 'Offline con JSON',
+    OFFLINE_MANUAL: 'Offline manual',
+  }[value] || value || 'Sin origen';
+}
+
+function statusLabelForPdf(value) {
+  return {
+    NORMALIZED: 'Normalizada',
+    WITH_ISSUES: 'Con incidencias',
+    REJECTED: 'Rechazada',
+    READY_FOR_TECHNICAL_REVIEW: 'Lista para revision tecnica',
+    BLOCKED_BY_MISSING_REQUIREMENTS: 'Bloqueada por requisitos',
+    REQUIRES_MANUAL_REVIEW: 'Requiere revision manual',
+    NOT_STARTED: 'No iniciada',
+    IN_PROGRESS: 'En curso',
+    COMPLETED: 'Completada',
+    NEEDS_REVIEW: 'Necesita revision',
+    SIN_EVALUAR: 'Sin evaluar',
+  }[value] || value || 'Sin estado';
 }
 
 function reviewSummaryCsv(rows) {

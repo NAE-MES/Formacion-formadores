@@ -446,6 +446,13 @@
         align-items: flex-start;
       }
 
+      .executive-actions {
+        align-items: flex-end;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
       .executive-head h2 {
         font-size: 1.15rem;
       }
@@ -480,13 +487,20 @@
       .headline-item strong {
         color: var(--blue);
         display: block;
-        font-size: 26px;
+        font-size: 24px;
         margin-top: 6px;
       }
 
       .executive-grid {
         display: grid;
-        grid-template-columns: 1.2fr 1fr 1fr 1fr;
+        grid-template-columns: 1.1fr 0.9fr 0.9fr 0.9fr;
+        gap: 16px;
+        margin-bottom: 18px;
+      }
+
+      .executive-visual-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 16px;
         margin-bottom: 18px;
       }
@@ -499,8 +513,59 @@
       }
 
       .subpanel h3 {
-        font-size: 0.92rem;
+        font-size: 0.86rem;
         margin: 0 0 12px;
+      }
+
+      .pie-chart {
+        align-items: center;
+        display: grid;
+        gap: 14px;
+        grid-template-columns: 118px 1fr;
+        min-height: 132px;
+      }
+
+      .pie-donut {
+        aspect-ratio: 1;
+        background: conic-gradient(var(--soft-blue) 0 360deg);
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+      }
+
+      .pie-donut::after {
+        background: #ffffff;
+        border-radius: 50%;
+        content: "";
+        display: block;
+        height: 58%;
+        width: 58%;
+      }
+
+      .legend {
+        display: grid;
+        gap: 7px;
+        min-width: 0;
+      }
+
+      .legend-row {
+        align-items: center;
+        display: grid;
+        gap: 7px;
+        grid-template-columns: 10px minmax(0, 1fr) auto;
+        font-size: 0.78rem;
+      }
+
+      .legend-swatch {
+        border-radius: 2px;
+        height: 10px;
+        width: 10px;
+      }
+
+      .legend-label {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       .table-wrap {
@@ -518,7 +583,8 @@
       .report-table th,
       .report-table td {
         border-bottom: 1px solid var(--line);
-        padding: 10px 12px;
+        font-size: 0.78rem;
+        padding: 8px 10px;
         text-align: left;
         vertical-align: top;
       }
@@ -539,9 +605,10 @@
         border-radius: 999px;
         color: var(--blue-dark);
         display: inline-flex;
-        font-size: 0.76rem;
+        font-size: 0.72rem;
         font-weight: 700;
-        padding: 4px 9px;
+        padding: 3px 8px;
+        white-space: nowrap;
       }
 
       .state-pill.warn {
@@ -581,7 +648,8 @@
           grid-template-columns: repeat(2, 1fr);
         }
         .headline-grid,
-        .executive-grid {
+        .executive-grid,
+        .executive-visual-grid {
           grid-template-columns: 1fr;
         }
         .shell {
@@ -657,9 +725,26 @@
               <h2>Reporte ejecutivo diario</h2>
               <p id="executiveSubtitle"></p>
             </div>
-            <span id="executiveGeneratedAt" class="muted"></span>
+            <div class="executive-actions">
+              <span id="executiveGeneratedAt" class="muted"></span>
+              <button id="downloadExecutivePdfButton" type="button">Descargar PDF</button>
+            </div>
           </div>
           <div id="executiveHeadline" class="headline-grid"></div>
+          <div class="executive-visual-grid">
+            <section class="subpanel">
+              <h3>Distribución por origen</h3>
+              <div id="executiveSourcePie" class="pie-chart"></div>
+            </section>
+            <section class="subpanel">
+              <h3>Estado de evaluación</h3>
+              <div id="executiveEvaluationPie" class="pie-chart"></div>
+            </section>
+            <section class="subpanel">
+              <h3>Admisibilidad</h3>
+              <div id="executiveEligibilityPie" class="pie-chart"></div>
+            </section>
+          </div>
           <div class="executive-grid">
             <section class="subpanel">
               <h3>Tendencia reciente</h3>
@@ -818,11 +903,15 @@
         const executiveSubtitle = document.querySelector('#executiveSubtitle');
         const executiveGeneratedAt = document.querySelector('#executiveGeneratedAt');
         const executiveHeadline = document.querySelector('#executiveHeadline');
+        const executiveSourcePie = document.querySelector('#executiveSourcePie');
+        const executiveEvaluationPie = document.querySelector('#executiveEvaluationPie');
+        const executiveEligibilityPie = document.querySelector('#executiveEligibilityPie');
         const executiveTrend = document.querySelector('#executiveTrend');
         const executiveSource = document.querySelector('#executiveSource');
         const executiveProvince = document.querySelector('#executiveProvince');
         const executiveStatus = document.querySelector('#executiveStatus');
         const executiveCandidates = document.querySelector('#executiveCandidates');
+        const downloadExecutivePdfButton = document.querySelector('#downloadExecutivePdfButton');
         const userBadge = document.querySelector('#userBadge');
         const adminLink = document.querySelector('#adminLink');
         const logoutButton = document.querySelector('#logoutButton');
@@ -831,6 +920,10 @@
         logoutButton.addEventListener('click', async () => {
           await api('/api/auth/logout', { method: 'POST', skipAuthRedirect: true }).catch(() => {});
           window.location.replace('/login');
+        });
+
+        downloadExecutivePdfButton.addEventListener('click', () => {
+          window.location.assign('/api/home/executive-report.pdf');
         });
 
         // ── boot ──
@@ -868,8 +961,6 @@
             ['Postulantes', totals.candidates],
             ['Listas para revisión', totals.eligibility_ready],
             ['Pendientes críticos', operational.critical_pending],
-            ['Incidencias abiertas', operational.open_issues],
-            ['Documentos pendientes', operational.document_tasks],
             ['Evaluación en curso', totals.evaluation_in_progress],
             ['Evaluaciones completadas', totals.evaluation_completed],
           ]);
@@ -916,6 +1007,9 @@
               <strong>${Number(value || 0)}</strong>
             </article>
           `).join('');
+          renderPie(executiveSourcePie, (report.today_by_source || []).map(item => ({ ...item, key: label('sourceChannels', item.key) })));
+          renderPie(executiveEvaluationPie, report.evaluation_distribution || []);
+          renderPie(executiveEligibilityPie, report.eligibility_distribution || []);
           renderBars(executiveTrend, report.recent_by_day || []);
           renderBars(executiveSource, (report.today_by_source || []).map(item => ({ ...item, key: label('sourceChannels', item.key) })));
           renderBars(executiveProvince, report.today_by_province || []);
@@ -1045,18 +1139,50 @@
             return;
           }
           const max = Math.max(...rows.map(row => row.count), 1);
-          container.innerHTML = rows.map(row => {
+          container.innerHTML = rows.map((row, index) => {
             const percent = Math.max(2, Math.round((row.count / max) * 100));
             return `
               <div class="bar-row">
                 <div class="bar-label">
                   <span title="${escapeHtml(row.key)}">${escapeHtml(row.key)}</span>
-                  <span class="bar-track"><span class="bar-fill" style="width:${percent}%"></span></span>
+                  <span class="bar-track"><span class="bar-fill" style="width:${percent}%;background:${chartColor(index)}"></span></span>
                 </div>
                 <span class="bar-count">${row.count}</span>
               </div>
             `;
           }).join('');
+        }
+
+        function renderPie(container, rows) {
+          const values = (rows || []).filter(row => Number(row.count || 0) > 0).slice(0, 6);
+          if (!values.length) {
+            container.innerHTML = '<p class="empty">Sin datos.</p>';
+            return;
+          }
+          const total = values.reduce((sum, row) => sum + Number(row.count || 0), 0);
+          let cursor = 0;
+          const stops = values.map((row, index) => {
+            const start = cursor;
+            const degrees = (Number(row.count || 0) / total) * 360;
+            cursor += degrees;
+            const color = chartColor(index);
+            return `${color} ${start.toFixed(2)}deg ${cursor.toFixed(2)}deg`;
+          }).join(', ');
+          const legend = values.map((row, index) => `
+            <div class="legend-row">
+              <span class="legend-swatch" style="background:${chartColor(index)}"></span>
+              <span class="legend-label" title="${escapeHtml(row.key)}">${escapeHtml(row.key)}</span>
+              <strong>${Number(row.count || 0)}</strong>
+            </div>
+          `).join('');
+          container.innerHTML = `
+            <div class="pie-donut" style="background:conic-gradient(${stops})"></div>
+            <div class="legend">${legend}</div>
+          `;
+        }
+
+        function chartColor(index) {
+          return ['#174ea6', '#0f766e', '#b45309', '#5b6472', '#2563eb', '#14b8a6'][index % 6];
         }
 
         // ── helpers ──

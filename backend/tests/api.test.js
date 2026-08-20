@@ -262,6 +262,15 @@ test('home stats API exposes aggregate data only for the lowest access role', as
     assert.equal(adminResponse.body.executive_report.candidates.length, 3);
     assert.ok(adminResponse.body.executive_report.candidates[0].submission_id);
     assert.ok(adminResponse.body.executive_report.recent_by_day.some(item => item.key === '2026-08-19'));
+
+    const pdf = await adminRawRequest(port, 'GET', '/api/home/executive-report.pdf');
+    assert.equal(pdf.statusCode, 200);
+    assert.equal(pdf.headers['content-type'], 'application/pdf');
+    assert.match(pdf.headers['content-disposition'], /attachment; filename="fdf-2026-reporte-ejecutivo-/);
+    assert.match(pdf.body.slice(0, 8), /%PDF-1\.4/);
+
+    const viewerPdf = await rawRequestWithHeaders(port, 'GET', '/api/home/executive-report.pdf', undefined, { cookie });
+    assert.equal(viewerPdf.statusCode, 403);
   });
 });
 
