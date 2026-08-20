@@ -1267,11 +1267,18 @@
             <select id="rankingValidationFilter"><option value="">Validación técnica</option><option value="PENDING_TECHNICAL_VALIDATION">Pendiente</option><option value="IN_TECHNICAL_REVIEW">En revisión</option><option value="VALIDATED_BY_TECHNICAL_TEAM">Validada</option><option value="REQUIRES_SCORE_ADJUSTMENT">Requiere ajuste</option></select>
             <button id="clearRankingFiltersButton" class="ghost" type="button">Limpiar</button>
           </div>
+          <div class="bulk-bar">
+            <label><input id="selectAllRanking" type="checkbox" /> Seleccionar visibles</label>
+            <span id="selectedRankingCount" class="muted">0 evaluaciones seleccionadas</span>
+            <select id="bulkRankingValidationStatus"><option value="VALIDATED_BY_TECHNICAL_TEAM">Validar por Equipo Técnico</option><option value="IN_TECHNICAL_REVIEW">Marcar en revisión</option><option value="REQUIRES_SCORE_ADJUSTMENT">Requiere ajuste</option><option value="PENDING_TECHNICAL_VALIDATION">Dejar pendiente</option></select>
+            <input id="bulkRankingValidationNote" type="text" placeholder="Nota común de validación" />
+            <button id="applyBulkRankingValidationButton" type="button">Aplicar</button>
+          </div>
           <p id="rankingCount" class="result-count"></p>
           <div class="ranking-note">Ranking preliminar no vinculante: no sustituye la aprobación del Equipo Técnico y no resuelve empates ni cupos.</div>
           <div class="table-wrap wide-table">
             <table>
-              <thead><tr><th>Pos.</th><th>Postulante</th><th>Puntaje</th><th>Provincia</th><th>Institución</th><th>Validación</th><th>Estado</th><th>Motivo</th></tr></thead>
+              <thead><tr><th></th><th>Pos.</th><th>Postulante</th><th>Puntaje</th><th>Provincia</th><th>Institución</th><th>Validación</th><th>Estado</th><th>Motivo</th></tr></thead>
               <tbody id="preliminaryRankingTable"></tbody>
             </table>
           </div>

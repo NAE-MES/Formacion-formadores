@@ -726,6 +726,7 @@ async function buildPreliminaryRanking(repository) {
     rows.push({
       submission_id: row.submission_id,
       candidate_id: row.candidate_id,
+      evaluation_result_id: row.evaluation_result_id || review.evaluation_result_id || detail?.evaluation_result?.evaluation_result_id || '',
       full_name: row.full_name || '',
       email: row.email || '',
       province: row.province || '',
@@ -1509,6 +1510,7 @@ function preliminaryRankingCsv(rows) {
     'exclusion_reason',
     'submission_id',
     'candidate_id',
+    'evaluation_result_id',
   ];
   return rowsCsv(headers, rows);
 }

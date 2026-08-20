@@ -11,6 +11,7 @@ let selectedDetail = null;
 let currentUser = null;
 const selectedIssues = new Set();
 const selectedDocuments = new Set();
+const selectedRankingEvaluations = new Set();
 
 const LABELS = {
   roles: {
@@ -154,6 +155,11 @@ const clearRankingFiltersButton = document.querySelector('#clearRankingFiltersBu
 const exportRankingCsvButton = document.querySelector('#exportRankingCsvButton');
 const preliminaryRankingTable = document.querySelector('#preliminaryRankingTable');
 const rankingCount = document.querySelector('#rankingCount');
+const selectedRankingCount = document.querySelector('#selectedRankingCount');
+const bulkRankingValidationStatus = document.querySelector('#bulkRankingValidationStatus');
+const bulkRankingValidationNote = document.querySelector('#bulkRankingValidationNote');
+const applyBulkRankingValidationButton = document.querySelector('#applyBulkRankingValidationButton');
+const selectAllRanking = document.querySelector('#selectAllRanking');
 const quickFilterButtons = Array.from(document.querySelectorAll('[data-quick-filter]'));
 const currentUserBadge = document.querySelector('#currentUserBadge');
 const tabs = Array.from(document.querySelectorAll('[data-view]'));
@@ -216,6 +222,7 @@ logoutButton.addEventListener('click', async () => {
   preliminaryRankingRows = [];
   selectedIssues.clear();
   selectedDocuments.clear();
+  selectedRankingEvaluations.clear();
   currentUser = null;
   showLogin();
 });
@@ -258,6 +265,8 @@ rankingScopeFilter.addEventListener('change', renderPreliminaryRanking);
 rankingValidationFilter.addEventListener('change', renderPreliminaryRanking);
 clearRankingFiltersButton.addEventListener('click', clearRankingFilters);
 exportRankingCsvButton.addEventListener('click', () => exportCsv('/api/admin/preliminary-ranking.csv', 'fdf-2026-ranking-preliminar.csv'));
+applyBulkRankingValidationButton.addEventListener('click', applyBulkRankingValidation);
+selectAllRanking.addEventListener('change', toggleVisibleRankingEvaluations);
 quickFilterButtons.forEach(button => button.addEventListener('click', () => applyQuickFilter(button.dataset.quickFilter)));
 offlineJsonForm.addEventListener('submit', importOfflineJson);
 offlineManualForm.addEventListener('submit', importOfflineManual);
@@ -985,6 +994,7 @@ function renderPreliminaryRanking() {
 
   preliminaryRankingTable.innerHTML = rows.map(item => `
     <tr data-ranking-id="${escapeHtml(item.submission_id)}">
+      <td>${rankingSelectionCheckbox(item)}</td>
       <td><span class="rank-position">${escapeHtml(item.preliminary_position || '-')}</span></td>
       <td>
         <strong>${escapeHtml(item.full_name || 'Sin nombre')}</strong><br>
@@ -1004,10 +1014,28 @@ function renderPreliminaryRanking() {
     </tr>
   `).join('');
   rankingCount.textContent = resultCountLabel(rows.length, preliminaryRankingRows.length, 'postulación', 'postulaciones');
+  updateBulkRankingUi();
 
   preliminaryRankingTable.querySelectorAll('tr').forEach(row => {
-    row.addEventListener('click', () => openSubmissionPage(row.dataset.rankingId));
+    row.addEventListener('click', event => {
+      if (event.target.closest('input, button, select')) return;
+      openSubmissionPage(row.dataset.rankingId);
+    });
   });
+  preliminaryRankingTable.querySelectorAll('[data-ranking-select]').forEach(checkbox => {
+    checkbox.addEventListener('change', () => {
+      if (checkbox.checked) selectedRankingEvaluations.add(checkbox.dataset.rankingSelect);
+      else selectedRankingEvaluations.delete(checkbox.dataset.rankingSelect);
+      updateBulkRankingUi();
+    });
+  });
+}
+
+function rankingSelectionCheckbox(item) {
+  const evaluationResultId = item.evaluation_result_id || '';
+  if (!evaluationResultId) return '';
+  const canReview = hasRole('ADMIN', 'REVIEWER');
+  return `<input type="checkbox" data-ranking-select="${escapeHtml(evaluationResultId)}" ${selectedRankingEvaluations.has(evaluationResultId) ? 'checked' : ''} ${canReview ? '' : 'disabled'} aria-label="Seleccionar evaluación técnica">`;
 }
 
 function rankingInclusionBadge(item) {
@@ -1050,6 +1078,14 @@ function updateBulkDocumentUi() {
   applyBulkDocumentButton.disabled = !selectedDocuments.size || !hasRole('ADMIN', 'REVIEWER');
 }
 
+function updateBulkRankingUi() {
+  selectedRankingCount.textContent = `${selectedRankingEvaluations.size} ${selectedRankingEvaluations.size === 1 ? 'evaluación seleccionada' : 'evaluaciones seleccionadas'}`;
+  applyBulkRankingValidationButton.disabled = !selectedRankingEvaluations.size || !hasRole('ADMIN', 'REVIEWER');
+  const visible = Array.from(preliminaryRankingTable.querySelectorAll('[data-ranking-select]'));
+  selectAllRanking.checked = visible.length > 0 && visible.every(checkbox => checkbox.checked);
+  selectAllRanking.disabled = !visible.length || !hasRole('ADMIN', 'REVIEWER');
+}
+
 function toggleVisibleIssues() {
   issueReviewTable.querySelectorAll('[data-issue-select]').forEach(checkbox => {
     checkbox.checked = selectAllIssues.checked;
@@ -1057,6 +1093,15 @@ function toggleVisibleIssues() {
     else selectedIssues.delete(checkbox.dataset.issueSelect);
   });
   updateBulkIssueUi();
+}
+
+function toggleVisibleRankingEvaluations() {
+  preliminaryRankingTable.querySelectorAll('[data-ranking-select]').forEach(checkbox => {
+    checkbox.checked = selectAllRanking.checked;
+    if (checkbox.checked) selectedRankingEvaluations.add(checkbox.dataset.rankingSelect);
+    else selectedRankingEvaluations.delete(checkbox.dataset.rankingSelect);
+  });
+  updateBulkRankingUi();
 }
 
 async function applyBulkIssueReview() {
@@ -1081,6 +1126,33 @@ async function applyBulkIssueReview() {
   } finally {
     applyBulkIssueButton.textContent = 'Aplicar';
     updateBulkIssueUi();
+  }
+}
+
+async function applyBulkRankingValidation() {
+  if (!selectedRankingEvaluations.size) return;
+  applyBulkRankingValidationButton.disabled = true;
+  applyBulkRankingValidationButton.textContent = 'Aplicando';
+  try {
+    const ids = Array.from(selectedRankingEvaluations);
+    for (const evaluationResultId of ids) {
+      await api(`/api/admin/evaluation-results/${encodeURIComponent(evaluationResultId)}/validation`, {
+        method: 'PATCH',
+        body: {
+          status: bulkRankingValidationStatus.value,
+          note: bulkRankingValidationNote.value,
+          reason: 'Validación técnica masiva desde ranking preliminar',
+        },
+      });
+    }
+    selectedRankingEvaluations.clear();
+    bulkRankingValidationNote.value = '';
+    await loadData();
+  } catch (error) {
+    alert(error.message);
+  } finally {
+    applyBulkRankingValidationButton.textContent = 'Aplicar';
+    updateBulkRankingUi();
   }
 }
 

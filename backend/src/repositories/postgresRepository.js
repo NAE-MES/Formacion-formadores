@@ -502,6 +502,7 @@ class PostgresRepository {
         s.received_at,
         s.normalization_status,
         coalesce(ea.status, 'SIN_EVALUAR') as eligibility_status,
+        coalesce(er.evaluation_result_id, '') as evaluation_result_id,
         coalesce(er.status, 'NOT_STARTED') as evaluation_status,
         coalesce(er.completed_criteria, 0)::int as completed_criteria,
         coalesce(er.total_criteria, 0)::int as total_criteria,
@@ -527,7 +528,7 @@ class PostgresRepository {
         limit 1
       ) ea on true
       left join lateral (
-        select status, completed_criteria, total_criteria, total_score,
+        select evaluation_result_id, status, completed_criteria, total_criteria, total_score,
           validation_status, validation_note, validated_at, validated_by
         from evaluation_results
         where submission_id = s.submission_id
@@ -548,6 +549,7 @@ class PostgresRepository {
         s.normalization_status,
         ea.status,
         er.status,
+        er.evaluation_result_id,
         er.completed_criteria,
         er.total_criteria,
         er.total_score,
@@ -652,6 +654,7 @@ class PostgresRepository {
         s.source_channel,
         s.received_at,
         coalesce(ea.status, 'SIN_EVALUAR') as eligibility_status,
+        coalesce(er.evaluation_result_id, '') as evaluation_result_id,
         coalesce(er.status, 'NOT_STARTED') as evaluation_status,
         coalesce(er.completed_criteria, 0)::int as completed_criteria,
         coalesce(er.total_criteria, 0)::int as total_criteria,
@@ -687,7 +690,7 @@ class PostgresRepository {
         limit 1
       ) ea on true
       left join lateral (
-        select status, completed_criteria, total_criteria, total_score,
+        select evaluation_result_id, status, completed_criteria, total_criteria, total_score,
           validation_status, validation_note, validated_at, validated_by
         from evaluation_results
         where submission_id = s.submission_id
@@ -707,6 +710,7 @@ class PostgresRepository {
         s.source_channel,
         s.received_at,
         ea.status,
+        er.evaluation_result_id,
         er.status,
         er.completed_criteria,
         er.total_criteria,

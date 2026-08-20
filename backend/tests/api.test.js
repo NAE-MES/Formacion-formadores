@@ -603,6 +603,7 @@ test('admin API exposes non binding preliminary ranking', async (t) => {
     const included = ranking.body.rows.find(row => row.full_name === 'Carla Perez Lopez');
     assert.equal(included.preliminary_position, 2);
     assert.equal(included.included_in_preliminary_ranking, true);
+    assert.match(included.evaluation_result_id, /^er_/);
     assert.equal(included.institution, 'Centro Provincial Sintético');
     assert.equal(included.gender, 'Hombre');
 

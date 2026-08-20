@@ -33,6 +33,10 @@ Exportacion CSV:
 
 - `GET /api/admin/preliminary-ranking.csv`
 
+La vista administrativa permite seleccionar evaluaciones visibles y actualizar
+masivamente su estado de validacion tecnica usando el endpoint existente de
+validacion individual. Esta accion no cambia puntajes ni aplica cupos.
+
 ## Inclusion preliminar
 
 Una postulacion queda marcada como incluida preliminarmente solo si:
@@ -63,3 +67,5 @@ puntajes iguales no representa prioridad funcional.
 - El ranking preliminar no genera decisiones finales.
 - El ranking preliminar no sustituye la revision ni aprobacion del Equipo
   Tecnico.
+- La validacion masiva desde ranking solo actualiza el estado de validacion
+  tecnica del resultado; no aprueba la lista final.
