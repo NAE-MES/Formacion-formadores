@@ -1,14 +1,20 @@
 # Open Issues
 
-## OI-001 - Puntuacion de genero pendiente de cierre
+## OI-001 - Puntuacion de genero segun Anexo 1
 
-Fuentes: `README.md`, Anexo 1, Anexo 2.
+Fuentes: `docs/oficiales/anexo-1-matriz-calificacion.pdf`,
+`docs/oficiales/anexo-2-formulario-postulacion.pdf`.
 
-Conflicto: existe referencia a discrepancia entre la puntuacion de `Hombre` en Anexo 1 y Anexo 2.
+Conflicto resuelto: existia discrepancia entre `Hombre = 5` en Anexo 1 y
+`Hombre = 10` en Anexo 2.
 
-Impacto: motor de evaluacion de inclusion/genero. No afecta la ingestión Sprint 1.
+Decision: se adopta Anexo 1 como fuente aplicable para puntuacion:
+`Mujer = 10`, `Hombre = 5`, `No aporta informacion = 0`.
 
-Estado: pendiente de decision del Equipo Tecnico.
+Impacto: el motor de evaluacion de inclusion/genero puede automatizar `FDF-35`
+con esa regla. No implica ranking ni decision final.
+
+Estado: cerrado por decision registrada el 2026-08-20.
 
 ## OI-002 - Plazo exacto de subsanacion
 

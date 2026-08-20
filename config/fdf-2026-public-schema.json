@@ -469,7 +469,7 @@
         "Hombre",
         "No aporta información"
       ],
-      "technical_note": "Puntos ocultos. Contradicción interna pendiente: Anexo 1 Hombre=5 / Anexo 2 Hombre=10."
+      "technical_note": "Puntos ocultos. Regla de puntuación según Anexo 1: Mujer=10 / Hombre=5 / No aporta información=0."
     },
     {
       "code": "FDF-36",

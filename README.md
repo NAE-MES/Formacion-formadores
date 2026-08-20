@@ -225,10 +225,8 @@ validación, ranking y notificaciones.
 
 ### Puntuación de género
 
-Existe una discrepancia: - Anexo 1: Hombre = 5 puntos. - Anexo 2: Hombre
-= 10 puntos.
-
-La regla permanece parametrizada hasta definición oficial.
+Se adopta el valor del Anexo 1 como fuente aplicable para puntuación:
+Mujer = 10 puntos, Hombre = 5 puntos, No aporta información = 0 puntos.
 
 ### Plazo de subsanación
 

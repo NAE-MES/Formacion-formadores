@@ -46,3 +46,17 @@ Impacto: `FDF-17` queda como carga documental opcional en la configuracion
 operativa. El chequeo `CARTA_AVAL_RECEIVED` pasa a severidad informativa. La
 matriz tecnica no cambia automaticamente: la carta puede usarse como evidencia
 contextual si existe, pero su ausencia no modifica puntajes por regla automatica.
+
+## 2026-08-20 - Puntuacion de genero segun Anexo 1
+
+Decision: para `FDF-35` se adopta el valor definido en
+`docs/oficiales/anexo-1-matriz-calificacion.pdf`: `Mujer = 10`,
+`Hombre = 5`, `No aporta informacion = 0`.
+
+Justificacion: el Anexo 1 es la matriz oficial de calificacion y tiene mayor
+jerarquia para reglas de puntuacion que el Anexo 2/formulario publico. La
+referencia previa del Anexo 2 a `Hombre = 10` queda tratada como discrepancia
+superada para efectos del motor de evaluacion.
+
+Impacto: se cierra `OI-001`. El motor automatico de evaluacion podra aplicar
+la regla de genero desde Anexo 1 cuando se implemente la puntuacion tecnica.
