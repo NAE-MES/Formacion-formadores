@@ -1,0 +1,46 @@
+{
+  "schema_version": "FDF-2026-SELECTION-POLICY-REV-ET-19082026-1",
+  "status": "DRAFT_PENDING_FINAL_APPROVAL",
+  "source": "REv_ET_19082026. Proceso de convocatoria y seleccion para FdF.docx",
+  "notes": [
+    "Politica extraida de la revision ET/UGP del 19/08/2026.",
+    "El sistema la usa para analisis operativo y alertas; no aprueba seleccion final automaticamente."
+  ],
+  "provincial_cohort": {
+    "quota_per_province": 4,
+    "max_per_municipality": 2,
+    "max_per_institution": 2
+  },
+  "score_bands": [
+    {
+      "id": "PRIORITARIA",
+      "label": "Seleccion prioritaria",
+      "min_score": 80,
+      "max_score": 100
+    },
+    {
+      "id": "RESERVA",
+      "label": "Elegible / lista de reserva",
+      "min_score": 70,
+      "max_score": 79.999
+    },
+    {
+      "id": "CONDICIONADA",
+      "label": "Elegible condicionada",
+      "min_score": 60,
+      "max_score": 69.999
+    },
+    {
+      "id": "NO_RECOMENDADA",
+      "label": "No recomendada",
+      "min_score": 0,
+      "max_score": 59.999
+    }
+  ],
+  "tie_breaker_priorities": [
+    "equilibrio_territorial",
+    "representacion_institucional",
+    "participacion_mujeres_juventudes_perfiles_diversos",
+    "capacidad_multiplicacion_validada_por_territorio"
+  ]
+}

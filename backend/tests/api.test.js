@@ -10,6 +10,7 @@ const root = path.resolve(__dirname, '..', '..');
 const publicSchema = JSON.parse(fs.readFileSync(path.join(root, 'config', 'fdf-2026-public-schema.json'), 'utf8'));
 const eligibilityConfig = JSON.parse(fs.readFileSync(path.join(root, 'config', 'fdf-2026-eligibility-baseline.json'), 'utf8'));
 const evaluationConfig = JSON.parse(fs.readFileSync(path.join(root, 'config', 'fdf-2026-evaluation-baseline.json'), 'utf8'));
+const selectionPolicy = JSON.parse(fs.readFileSync(path.join(root, 'config', 'fdf-2026-selection-policy.json'), 'utf8'));
 
 function validResponses(overrides = {}) {
   const responses = {};
@@ -65,6 +66,7 @@ async function withServer(t, handler, configOverrides = {}) {
     publicSchema,
     eligibilityConfig,
     evaluationConfig,
+    selectionPolicy,
     ...configOverrides,
   };
   const app = createApp({ config, repository });
@@ -632,6 +634,65 @@ test('admin API exposes non binding preliminary ranking', async (t) => {
     assert.equal(proposalPdf.statusCode, 200);
     assert.equal(proposalPdf.headers['content-type'], 'application/pdf');
     assert.match(proposalPdf.body.slice(0, 8), /%PDF-1\.4/);
+  });
+});
+
+test('admin API analyzes provincial selection policy without final approval', async (t) => {
+  await withServer(t, async ({ port, repository }) => {
+    const syntheticRows = [
+      ['Ana', 'SYN-POL-1', 'ana.policy@example.test', 'Municipio Uno', 'Institucion Uno'],
+      ['Berta', 'SYN-POL-2', 'berta.policy@example.test', 'Municipio Uno', 'Institucion Dos'],
+      ['Clara', 'SYN-POL-3', 'clara.policy@example.test', 'Municipio Uno', 'Institucion Tres'],
+      ['Diana', 'SYN-POL-4', 'diana.policy@example.test', 'Municipio Dos', 'Institucion Cuatro'],
+      ['Elena', 'SYN-POL-5', 'elena.policy@example.test', 'Municipio Tres', 'Institucion Cinco'],
+    ];
+
+    for (const [name, id, email, municipality, institution] of syntheticRows) {
+      const response = await request(port, 'POST', '/api/submissions/google-form', {
+        sourceReference: `google-response-policy-${id}`,
+        receivedAt: '2026-08-16T10:00:00.000Z',
+        responses: validResponses({
+          'FDF-01': name,
+          'FDF-05': id,
+          'FDF-07': email,
+          'FDF-09': 'Granma',
+          'FDF-10': municipality,
+          'FDF-12': institution,
+        }),
+        documents: requiredDocuments(),
+      });
+      assert.equal(response.statusCode, 201);
+    }
+
+    for (const submission of repository.submissions.values()) {
+      const detail = await adminRequest(port, 'GET', `/api/admin/submissions/${submission.submission_id}`);
+      await adminJsonRequest(port, 'PATCH', `/api/admin/evaluation-results/${detail.body.evaluation_result.evaluation_result_id}/validation`, {
+        status: 'VALIDATED_BY_TECHNICAL_TEAM',
+        note: 'Validado para analisis de politica provincial.',
+      });
+    }
+
+    const analysis = await adminRequest(port, 'GET', '/api/admin/selection-policy-analysis');
+    assert.equal(analysis.statusCode, 200);
+    assert.equal(analysis.body.policy.quota_per_province, 4);
+    assert.equal(analysis.body.policy.max_per_municipality, 2);
+    assert.equal(analysis.body.summary.eligible_for_policy, 5);
+    assert.equal(analysis.body.summary.recommended_proposed, 4);
+    assert.equal(analysis.body.summary.recommended_reserve, 1);
+    const clara = analysis.body.rows.find(row => row.full_name === 'Clara Perez Lopez');
+    assert.equal(clara.policy_recommendation, 'POLICY_RESERVE');
+    assert.match(clara.policy_recommendation_label, /municipal/i);
+    assert.equal(clara.proposal_status, 'NOT_PROPOSED');
+
+    const csv = await adminRawRequest(port, 'GET', '/api/admin/selection-policy-analysis.csv');
+    assert.equal(csv.statusCode, 200);
+    assert.match(csv.body, /policy_recommendation/);
+    assert.match(csv.body, /POLICY_RESERVE/);
+
+    const pdf = await adminRawRequest(port, 'GET', '/api/admin/selection-policy-analysis.pdf');
+    assert.equal(pdf.statusCode, 200);
+    assert.equal(pdf.headers['content-type'], 'application/pdf');
+    assert.match(pdf.body.slice(0, 8), /%PDF-1\.4/);
   });
 });
 

@@ -190,6 +190,12 @@ function createApp({ config, repository }) {
         return sendJson(res, 200, { rows: await buildPreliminaryRanking(repository) });
       }
 
+      if (req.method === 'GET' && req.url === '/api/admin/selection-policy-analysis') {
+        await authorizeAdmin(req, config, repository);
+        const rankingRows = await buildPreliminaryRanking(repository);
+        return sendJson(res, 200, buildSelectionPolicyAnalysis(rankingRows, config.selectionPolicy));
+      }
+
       if (req.method === 'GET' && req.url === '/api/admin/preliminary-ranking.pdf') {
         await authorizeAdmin(req, config, repository);
         const rows = await buildPreliminaryRanking(repository);
@@ -207,10 +213,23 @@ function createApp({ config, repository }) {
         return sendCsv(res, 'fdf-2026-preliminary-ranking.csv', preliminaryRankingCsv(await buildPreliminaryRanking(repository)));
       }
 
+      if (req.method === 'GET' && req.url === '/api/admin/selection-policy-analysis.csv') {
+        await authorizeAdmin(req, config, repository);
+        const rankingRows = await buildPreliminaryRanking(repository);
+        const analysis = buildSelectionPolicyAnalysis(rankingRows, config.selectionPolicy);
+        return sendCsv(res, 'fdf-2026-politica-seleccion-provincial.csv', selectionPolicyCsv(analysis.rows));
+      }
+
       if (req.method === 'GET' && req.url === '/api/admin/proposal-summary.pdf') {
         await authorizeAdmin(req, config, repository);
         const rows = await buildPreliminaryRanking(repository);
-        return sendPdf(res, 'fdf-2026-resumen-personas-propuestas.pdf', proposalSummaryPdf(rows));
+        return sendPdf(res, 'fdf-2026-resumen-personas-propuestas.pdf', proposalSummaryPdf(rows, config.selectionPolicy));
+      }
+
+      if (req.method === 'GET' && req.url === '/api/admin/selection-policy-analysis.pdf') {
+        await authorizeAdmin(req, config, repository);
+        const rankingRows = await buildPreliminaryRanking(repository);
+        return sendPdf(res, 'fdf-2026-analisis-politica-seleccion.pdf', selectionPolicyPdf(buildSelectionPolicyAnalysis(rankingRows, config.selectionPolicy)));
       }
 
       if (req.method === 'GET' && req.url === '/api/admin/issues') {
@@ -804,7 +823,9 @@ async function buildPreliminaryRanking(repository) {
       province: row.province || '',
       institution: responses.get('FDF-12') || '',
       institution_type: responses.get('FDF-13') || '',
+      municipality: responses.get('FDF-10') || '',
       gender: responses.get('FDF-35') || '',
+      age_range: responses.get('FDF-36') || '',
       source_channel: row.source_channel || '',
       received_at: row.received_at || '',
       eligibility_status: eligibilityStatus,
@@ -872,6 +893,174 @@ function preliminaryRankingExclusionReason({ totalScore, eligibilityStatus, eval
   if (validationStatus !== 'VALIDATED_BY_TECHNICAL_TEAM') return 'Evaluacion tecnica no validada por el Equipo Tecnico.';
   if (openIssueCount > 0) return 'Tiene incidencias operativas abiertas.';
   return '';
+}
+
+function buildSelectionPolicyAnalysis(rankingRows, policy = {}) {
+  const provincialPolicy = policy?.provincial_cohort || {};
+  const quota = Number(provincialPolicy.quota_per_province || 4);
+  const maxPerMunicipality = Number(provincialPolicy.max_per_municipality || 2);
+  const maxPerInstitution = Number(provincialPolicy.max_per_institution || 2);
+  const scoreBands = Array.isArray(policy?.score_bands) ? policy.score_bands : [];
+  const rows = rankingRows.map(row => ({
+    ...row,
+    score_band: scoreBand(row.total_score, scoreBands),
+    policy_recommendation: row.included_in_preliminary_ranking ? 'PENDING_POLICY_ANALYSIS' : 'NOT_ELIGIBLE_FOR_POLICY',
+    policy_recommendation_label: row.included_in_preliminary_ranking ? 'Pendiente de analisis' : 'No elegible para politica provincial',
+    policy_alerts: [],
+    province_policy_position: null,
+  }));
+
+  const byProvince = groupBy(rows.filter(row => row.included_in_preliminary_ranking), row => normalizedPolicyValue(row.province, 'Sin provincia'));
+  for (const [province, provinceRows] of byProvince.entries()) {
+    const selected = [];
+    const municipalityCounts = new Map();
+    const institutionCounts = new Map();
+    const ordered = [...provinceRows].sort(preliminaryRankingSort);
+    const scoreCounts = countByRawValue(ordered, row => scoreKey(row.total_score));
+
+    ordered.forEach((row, index) => {
+      row.province_policy_position = index + 1;
+      const municipality = normalizedPolicyValue(row.municipality, 'Sin municipio');
+      const institution = normalizedPolicyValue(row.institution, 'Sin institucion');
+      const alerts = [];
+      if ((scoreCounts.get(scoreKey(row.total_score)) || 0) > 1) {
+        alerts.push('Empate tecnico: requiere aplicar prioridades aprobadas por el Equipo Tecnico.');
+      }
+      if (selected.length >= quota) {
+        row.policy_recommendation = 'POLICY_RESERVE';
+        row.policy_recommendation_label = 'Reserva por cupo provincial';
+        alerts.push(`Cupo provincial cubierto (${quota}).`);
+      } else if ((municipalityCounts.get(municipality) || 0) >= maxPerMunicipality) {
+        row.policy_recommendation = 'POLICY_RESERVE';
+        row.policy_recommendation_label = 'Reserva por limite municipal';
+        alerts.push(`Limite municipal excedido: maximo ${maxPerMunicipality} por municipio.`);
+      } else if ((institutionCounts.get(institution) || 0) >= maxPerInstitution) {
+        row.policy_recommendation = 'POLICY_RESERVE';
+        row.policy_recommendation_label = 'Reserva por limite institucional';
+        alerts.push(`Limite institucional excedido: maximo ${maxPerInstitution} por institucion.`);
+      } else {
+        row.policy_recommendation = 'POLICY_PROPOSED';
+        row.policy_recommendation_label = 'Propuesta segun politica provincial';
+        selected.push(row);
+        municipalityCounts.set(municipality, (municipalityCounts.get(municipality) || 0) + 1);
+        institutionCounts.set(institution, (institutionCounts.get(institution) || 0) + 1);
+      }
+      row.policy_alerts = alerts;
+    });
+
+    if (!ordered.length) {
+      byProvince.set(province, []);
+    }
+  }
+
+  const proposalAlerts = proposalComplianceAlerts(rows, { quota, maxPerMunicipality, maxPerInstitution });
+  const summary = selectionPolicySummary(rows, { quota });
+  return {
+    policy: {
+      schema_version: policy?.schema_version || '',
+      status: policy?.status || 'DRAFT_PENDING_FINAL_APPROVAL',
+      source: policy?.source || '',
+      quota_per_province: quota,
+      max_per_municipality: maxPerMunicipality,
+      max_per_institution: maxPerInstitution,
+      tie_breaker_priorities: policy?.tie_breaker_priorities || [],
+    },
+    summary,
+    alerts: proposalAlerts,
+    rows,
+  };
+}
+
+function scoreBand(totalScore, bands) {
+  if (totalScore === null || totalScore === undefined || totalScore === '') {
+    return { id: 'SIN_PUNTAJE', label: 'Sin puntaje' };
+  }
+  const score = Number(totalScore);
+  const band = bands.find(item => score >= Number(item.min_score) && score <= Number(item.max_score));
+  return band ? { id: band.id, label: band.label } : { id: 'SIN_RANGO', label: 'Sin rango configurado' };
+}
+
+function proposalComplianceAlerts(rows, policy) {
+  const proposed = rows.filter(row => row.proposal_status === 'PROPOSED');
+  const alerts = [];
+  for (const [province, provinceRows] of groupBy(proposed, row => normalizedPolicyValue(row.province, 'Sin provincia')).entries()) {
+    if (provinceRows.length > policy.quota) {
+      alerts.push({
+        severity: 'WARN',
+        type: 'PROVINCE_QUOTA_EXCEEDED',
+        message: `${province}: ${provinceRows.length} propuestas para cupo ${policy.quota}.`,
+      });
+    }
+    for (const [municipality, municipalityRows] of groupBy(provinceRows, row => normalizedPolicyValue(row.municipality, 'Sin municipio')).entries()) {
+      if (municipalityRows.length > policy.maxPerMunicipality) {
+        alerts.push({
+          severity: 'WARN',
+          type: 'MUNICIPALITY_LIMIT_EXCEEDED',
+          message: `${province} / ${municipality}: ${municipalityRows.length} propuestas; maximo ${policy.maxPerMunicipality}.`,
+        });
+      }
+    }
+    for (const [institution, institutionRows] of groupBy(provinceRows, row => normalizedPolicyValue(row.institution, 'Sin institucion')).entries()) {
+      if (institutionRows.length > policy.maxPerInstitution) {
+        alerts.push({
+          severity: 'WARN',
+          type: 'INSTITUTION_LIMIT_EXCEEDED',
+          message: `${province} / ${institution}: ${institutionRows.length} propuestas; maximo ${policy.maxPerInstitution}.`,
+        });
+      }
+    }
+  }
+  return alerts;
+}
+
+function selectionPolicySummary(rows, policy) {
+  const provinceNames = Array.from(new Set(rows.map(row => normalizedPolicyValue(row.province, 'Sin provincia')))).sort();
+  return {
+    total_rows: rows.length,
+    eligible_for_policy: rows.filter(row => row.included_in_preliminary_ranking).length,
+    recommended_proposed: rows.filter(row => row.policy_recommendation === 'POLICY_PROPOSED').length,
+    recommended_reserve: rows.filter(row => row.policy_recommendation === 'POLICY_RESERVE').length,
+    manually_proposed: rows.filter(row => row.proposal_status === 'PROPOSED').length,
+    manually_reserve: rows.filter(row => row.proposal_status === 'RESERVE').length,
+    provinces: provinceNames.map(province => {
+      const provinceRows = rows.filter(row => normalizedPolicyValue(row.province, 'Sin provincia') === province);
+      return {
+        province,
+        quota: policy.quota,
+        eligible: provinceRows.filter(row => row.included_in_preliminary_ranking).length,
+        recommended_proposed: provinceRows.filter(row => row.policy_recommendation === 'POLICY_PROPOSED').length,
+        recommended_reserve: provinceRows.filter(row => row.policy_recommendation === 'POLICY_RESERVE').length,
+        manually_proposed: provinceRows.filter(row => row.proposal_status === 'PROPOSED').length,
+        manually_reserve: provinceRows.filter(row => row.proposal_status === 'RESERVE').length,
+      };
+    }),
+  };
+}
+
+function groupBy(rows, getter) {
+  return rows.reduce((groups, row) => {
+    const key = getter(row);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+    return groups;
+  }, new Map());
+}
+
+function countByRawValue(rows, getter) {
+  return rows.reduce((counts, row) => {
+    const key = getter(row);
+    counts.set(key, (counts.get(key) || 0) + 1);
+    return counts;
+  }, new Map());
+}
+
+function normalizedPolicyValue(value, fallback) {
+  const text = String(value || '').trim();
+  return text || fallback;
+}
+
+function scoreKey(value) {
+  return value === null || value === undefined || value === '' ? 'SIN_PUNTAJE' : Number(value).toFixed(4);
 }
 
 function buildExecutiveReport({ submissions, reviews, documents, issues, generatedAt, totals, operational }) {
@@ -1320,12 +1509,18 @@ function preliminaryRankingPdf(rankingRows) {
   return buildSimplePdf(rows);
 }
 
-function proposalSummaryPdf(rankingRows) {
+function proposalSummaryPdf(rankingRows, policy) {
   const proposedRows = rankingRows.filter(row => ['PROPOSED', 'RESERVE'].includes(row.proposal_status));
+  const policyAnalysis = buildSelectionPolicyAnalysis(rankingRows, policy);
   const rows = [];
   rows.push({ type: 'title', text: 'Resumen de personas propuestas FdF 2026' });
   rows.push({ type: 'muted', text: `Generado: ${formatPdfDate(new Date().toISOString())}   Personas en propuesta/reserva: ${proposedRows.length}` });
   rows.push({ type: 'muted', text: 'Documento operativo interno. No constituye aprobacion final ni seleccion automatica.' });
+  rows.push({ type: 'muted', text: `Politica provincial: cupo ${policyAnalysis.policy.quota_per_province}; maximo ${policyAnalysis.policy.max_per_municipality} por municipio y ${policyAnalysis.policy.max_per_institution} por institucion.` });
+  rows.push({ type: 'space' });
+  rows.push({ type: 'section', text: 'Alertas de cumplimiento' });
+  if (!policyAnalysis.alerts.length) rows.push({ type: 'muted', text: 'No se detectan alertas en la propuesta manual marcada.' });
+  rows.push(...policyAnalysis.alerts.slice(0, 16).map(alert => ({ type: 'text', text: alert.message })));
   rows.push({ type: 'space' });
   rows.push({ type: 'section', text: 'Personas propuestas o en reserva' });
   if (!proposedRows.length) rows.push({ type: 'muted', text: 'No hay personas marcadas como propuesta o reserva.' });
@@ -1333,6 +1528,37 @@ function proposalSummaryPdf(rankingRows) {
     type: 'text',
     text: `${proposalStatusLabel(row.proposal_status)} | ${row.preliminary_position || '-'} | ${formatScoreForPdf(row.total_score)} | ${row.full_name} | ${row.province || 'Sin provincia'} | ${row.institution || 'Sin institucion'} | ${truncateText(row.proposal_note || row.exclusion_reason || 'Sin nota', 36)}`,
   })));
+  return buildSimplePdf(rows);
+}
+
+function selectionPolicyPdf(analysis) {
+  const rows = [];
+  rows.push({ type: 'title', text: 'Analisis de politica de seleccion provincial FdF 2026' });
+  rows.push({ type: 'muted', text: `Generado: ${formatPdfDate(new Date().toISOString())}   Version: ${analysis.policy.schema_version || 'Sin version'}` });
+  rows.push({ type: 'muted', text: 'Analisis operativo. No constituye aprobacion final ni sustituye al Equipo Tecnico.' });
+  rows.push({ type: 'space' });
+  rows.push({ type: 'section', text: 'Reglas aplicadas para analisis' });
+  rows.push({ type: 'text', text: `Cupo provincial: ${analysis.policy.quota_per_province}; maximo por municipio: ${analysis.policy.max_per_municipality}; maximo por institucion: ${analysis.policy.max_per_institution}.` });
+  rows.push({ type: 'text', text: `Elegibles para politica: ${analysis.summary.eligible_for_policy}; recomendadas: ${analysis.summary.recommended_proposed}; reserva sugerida: ${analysis.summary.recommended_reserve}.` });
+  rows.push({ type: 'space' });
+  rows.push({ type: 'section', text: 'Resumen por provincia' });
+  rows.push(...analysis.summary.provinces.map(row => ({
+    type: 'text',
+    text: `${row.province}: elegibles ${row.eligible}, recomendadas ${row.recommended_proposed}/${row.quota}, reserva sugerida ${row.recommended_reserve}, marcadas propuesta ${row.manually_proposed}.`,
+  })));
+  rows.push({ type: 'space' });
+  rows.push({ type: 'section', text: 'Alertas de propuesta manual' });
+  if (!analysis.alerts.length) rows.push({ type: 'muted', text: 'Sin alertas de cupo o limites en personas marcadas como propuesta.' });
+  rows.push(...analysis.alerts.slice(0, 20).map(alert => ({ type: 'text', text: alert.message })));
+  rows.push({ type: 'space' });
+  rows.push({ type: 'section', text: 'Primeras recomendaciones' });
+  rows.push(...analysis.rows
+    .filter(row => row.included_in_preliminary_ranking)
+    .slice(0, 45)
+    .map(row => ({
+      type: 'text',
+      text: `${row.province_policy_position || '-'} | ${row.province || 'Sin provincia'} | ${formatScoreForPdf(row.total_score)} | ${row.full_name} | ${row.policy_recommendation_label}`,
+    })));
   return buildSimplePdf(rows);
 }
 
@@ -1621,9 +1847,11 @@ function preliminaryRankingCsv(rows) {
     'full_name',
     'email',
     'province',
+    'municipality',
     'institution',
     'institution_type',
     'gender',
+    'age_range',
     'source_channel',
     'eligibility_status',
     'evaluation_status',
@@ -1637,6 +1865,38 @@ function preliminaryRankingCsv(rows) {
     'evaluation_result_id',
   ];
   return rowsCsv(headers, rows);
+}
+
+function selectionPolicyCsv(rows) {
+  const headers = [
+    'province_policy_position',
+    'preliminary_position',
+    'policy_recommendation',
+    'policy_recommendation_label',
+    'score_band',
+    'policy_alerts',
+    'total_score',
+    'full_name',
+    'email',
+    'province',
+    'municipality',
+    'institution',
+    'institution_type',
+    'gender',
+    'age_range',
+    'proposal_status',
+    'included_in_preliminary_ranking',
+    'exclusion_reason',
+    'submission_id',
+    'candidate_id',
+    'evaluation_result_id',
+  ];
+  const expandedRows = rows.map(row => ({
+    ...row,
+    score_band: row.score_band?.label || '',
+    policy_alerts: (row.policy_alerts || []).join(' | '),
+  }));
+  return rowsCsv(headers, expandedRows);
 }
 
 function rowsCsv(headers, rows) {

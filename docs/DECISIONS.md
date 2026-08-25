@@ -116,3 +116,20 @@ propuesta operativa sin que el sistema aplique cupos o apruebe la seleccion.
 Impacto: se agrega `proposal_entries`, exportacion PDF del ranking preliminar y
 PDF resumen de personas propuestas. Estos documentos son internos y no
 constituyen aprobacion final.
+
+## 2026-08-24 - Analisis de politica provincial
+
+Decision: agregar una capa de analisis operativo basada en la revision
+ET/UGP del 19/08/2026, versionada en
+`config/fdf-2026-selection-policy.json`.
+
+Justificacion: el documento revisado explicita cupo de 4 personas por
+provincia, maximo 2 por municipio y maximo 2 por institucion para conformar la
+propuesta provincial. El sistema debe ayudar a detectar incumplimientos sin
+convertir la recomendacion en aprobacion automatica.
+
+Impacto: se agregan `GET /api/admin/selection-policy-analysis`,
+exportacion CSV y PDF. La vista de ranking muestra resumen y alertas de
+politica provincial. No se modifican puntajes, no se persisten decisiones
+finales y los desempates cualitativos quedan como alerta para el Equipo
+Tecnico.

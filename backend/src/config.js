@@ -13,6 +13,8 @@ function loadRuntimeConfig(env = process.env) {
     path.join(root, 'config', 'fdf-2026-eligibility-baseline.json');
   const evaluationPath = env.FDF_EVALUATION_CONFIG_PATH ||
     path.join(root, 'config', 'fdf-2026-evaluation-baseline.json');
+  const selectionPolicyPath = env.FDF_SELECTION_POLICY_PATH ||
+    path.join(root, 'config', 'fdf-2026-selection-policy.json');
 
   return {
     port: Number(env.PORT || 8080),
@@ -24,6 +26,7 @@ function loadRuntimeConfig(env = process.env) {
     publicSchema: loadJson(publicSchemaPath),
     eligibilityConfig: loadJson(eligibilityPath),
     evaluationConfig: loadJson(evaluationPath),
+    selectionPolicy: loadJson(selectionPolicyPath),
   };
 }
 

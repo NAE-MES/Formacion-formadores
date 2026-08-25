@@ -6,6 +6,7 @@ let matrixCriteria = [];
 let issueReviewRows = [];
 let issueFieldCatalog = [];
 let preliminaryRankingRows = [];
+let selectionPolicyAnalysis = null;
 let selectedId = '';
 let selectedDetail = null;
 let currentUser = null;
@@ -166,8 +167,10 @@ const clearRankingFiltersButton = document.querySelector('#clearRankingFiltersBu
 const exportRankingCsvButton = document.querySelector('#exportRankingCsvButton');
 const exportRankingPdfButton = document.querySelector('#exportRankingPdfButton');
 const exportProposalPdfButton = document.querySelector('#exportProposalPdfButton');
+const exportSelectionPolicyPdfButton = document.querySelector('#exportSelectionPolicyPdfButton');
 const preliminaryRankingTable = document.querySelector('#preliminaryRankingTable');
 const rankingCount = document.querySelector('#rankingCount');
+const selectionPolicyPanel = document.querySelector('#selectionPolicyPanel');
 const selectedRankingCount = document.querySelector('#selectedRankingCount');
 const bulkRankingValidationStatus = document.querySelector('#bulkRankingValidationStatus');
 const bulkRankingValidationNote = document.querySelector('#bulkRankingValidationNote');
@@ -288,6 +291,7 @@ clearRankingFiltersButton.addEventListener('click', clearRankingFilters);
 exportRankingCsvButton.addEventListener('click', () => exportCsv('/api/admin/preliminary-ranking.csv', 'fdf-2026-ranking-preliminar.csv'));
 exportRankingPdfButton.addEventListener('click', () => exportCsv('/api/admin/preliminary-ranking.pdf', 'fdf-2026-ranking-preliminar.pdf'));
 exportProposalPdfButton.addEventListener('click', () => exportCsv('/api/admin/proposal-summary.pdf', 'fdf-2026-resumen-propuesta.pdf'));
+exportSelectionPolicyPdfButton.addEventListener('click', () => exportCsv('/api/admin/selection-policy-analysis.pdf', 'fdf-2026-politica-seleccion-provincial.pdf'));
 applyBulkRankingValidationButton.addEventListener('click', applyBulkRankingValidation);
 selectAllRanking.addEventListener('change', toggleVisibleRankingEvaluations);
 applyBulkProposalButton.addEventListener('click', applyBulkProposalStatus);
@@ -327,13 +331,14 @@ function showLogin(message = '') {
 }
 
 async function loadData() {
-  const [list, review, documents, matrix, issues, ranking] = await Promise.all([
+  const [list, review, documents, matrix, issues, ranking, selectionPolicy] = await Promise.all([
     api('/api/admin/submissions'),
     api('/api/admin/review-summary'),
     api('/api/admin/document-review'),
     api('/api/admin/evaluation-matrix'),
     api('/api/admin/issues'),
     api('/api/admin/preliminary-ranking'),
+    api('/api/admin/selection-policy-analysis'),
   ]);
   submissions = list.submissions || [];
   reviewSummaries = review.summaries || [];
@@ -342,7 +347,8 @@ async function loadData() {
   matrixCriteria = matrix.criteria || [];
   issueReviewRows = issues.issues || [];
   issueFieldCatalog = issues.field_catalog || [];
-  preliminaryRankingRows = ranking.rows || [];
+  selectionPolicyAnalysis = selectionPolicy || null;
+  preliminaryRankingRows = selectionPolicyAnalysis?.rows || ranking.rows || [];
   populateRankingFacetFilters();
   renderWorkboard();
   renderTable();
@@ -350,6 +356,7 @@ async function loadData() {
   renderIssueReview();
   renderDocumentReview();
   renderEvaluationMatrix();
+  renderSelectionPolicyPanel();
   renderPreliminaryRanking();
   if (selectedId) await selectSubmission(selectedId);
   if (currentUser?.role === 'ADMIN') await loadUsers();
@@ -1049,7 +1056,7 @@ function renderPreliminaryRanking() {
       <td>${evaluationValidationBadge(item.evaluation_validation_status)}</td>
       <td>${proposalBadge(item.proposal_status)}</td>
       <td>${rankingInclusionBadge(item)}</td>
-      <td>${escapeHtml(item.exclusion_reason || 'Incluida en ranking preliminar')}</td>
+      <td>${escapeHtml(rankingReason(item))}</td>
     </tr>
   `).join('');
   rankingCount.textContent = resultCountLabel(rows.length, preliminaryRankingRows.length, 'postulación', 'postulaciones');
@@ -1068,6 +1075,49 @@ function renderPreliminaryRanking() {
       updateBulkRankingUi();
     });
   });
+}
+
+function renderSelectionPolicyPanel() {
+  if (!selectionPolicyPanel) return;
+  const analysis = selectionPolicyAnalysis;
+  if (!analysis) {
+    selectionPolicyPanel.innerHTML = '<p class="muted">Sin análisis de política provincial.</p>';
+    return;
+  }
+  const policy = analysis.policy || {};
+  const summary = analysis.summary || {};
+  const provinceWarnings = (summary.provinces || [])
+    .filter(item => Number(item.manually_proposed || 0) > Number(item.quota || 0))
+    .length;
+  selectionPolicyPanel.innerHTML = `
+    <div class="policy-card">
+      <span>Política provincial</span>
+      <strong>${escapeHtml(policy.quota_per_province || 4)} por provincia</strong>
+      <small>Máx. ${escapeHtml(policy.max_per_municipality || 2)} por municipio y ${escapeHtml(policy.max_per_institution || 2)} por institución</small>
+    </div>
+    <div class="policy-card">
+      <span>Recomendadas</span>
+      <strong>${escapeHtml(summary.recommended_proposed || 0)}</strong>
+      <small>${escapeHtml(summary.recommended_reserve || 0)} en reserva sugerida</small>
+    </div>
+    <div class="policy-card">
+      <span>Marcadas manualmente</span>
+      <strong>${escapeHtml(summary.manually_proposed || 0)}</strong>
+      <small>${escapeHtml(summary.manually_reserve || 0)} en reserva manual</small>
+    </div>
+    <div class="policy-card ${analysis.alerts?.length ? 'warn' : 'ok'}">
+      <span>Alertas</span>
+      <strong>${escapeHtml(analysis.alerts?.length || 0)}</strong>
+      <small>${provinceWarnings ? `${provinceWarnings} provincia(s) sobre cupo` : 'Cupos sin alerta manual'}</small>
+    </div>
+    ${analysis.alerts?.length ? `<div class="policy-alerts">${analysis.alerts.slice(0, 4).map(alert => `<p>${escapeHtml(alert.message)}</p>`).join('')}</div>` : ''}
+  `;
+}
+
+function rankingReason(item) {
+  if (item.policy_alerts?.length) return item.policy_alerts.join(' ');
+  if (item.policy_recommendation_label) return item.policy_recommendation_label;
+  return item.exclusion_reason || 'Incluida en ranking preliminar';
 }
 
 function populateRankingFacetFilters() {
