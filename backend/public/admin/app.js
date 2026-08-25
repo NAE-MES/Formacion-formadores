@@ -102,6 +102,7 @@ const loginError = document.querySelector('#loginError');
 const usernameInput = document.querySelector('#adminUsername');
 const passwordInput = document.querySelector('#adminPassword');
 const logoutButton = document.querySelector('#logoutButton');
+const appErrorPanel = document.querySelector('#appErrorPanel');
 const workboardRefreshButton = document.querySelector('#workboardRefreshButton');
 const workboardSections = document.querySelector('#workboardSections');
 const table = document.querySelector('#submissionsTable');
@@ -312,16 +313,19 @@ async function boot() {
     return;
   }
 
+  loginPanel.hidden = true;
+  appPanel.hidden = false;
+  logoutButton.hidden = false;
+  loginError.textContent = '';
+  applyRoleUi();
+
   try {
     await loadData();
-    applyRoleUi();
     await applyPageRoute();
-    loginPanel.hidden = true;
-    appPanel.hidden = false;
-    logoutButton.hidden = false;
-    loginError.textContent = '';
   } catch (error) {
-    showLogin(error.message);
+    if (error.status === 401) return;
+    showLoadError(error);
+    showView('workboard');
   }
 }
 
@@ -331,13 +335,12 @@ function showLogin(message = '') {
 }
 
 async function loadData() {
-  const [list, review, documents, matrix, issues, ranking, selectionPolicy] = await Promise.all([
+  const [list, review, documents, matrix, issues, selectionPolicy] = await Promise.all([
     api('/api/admin/submissions'),
     api('/api/admin/review-summary'),
     api('/api/admin/document-review'),
     api('/api/admin/evaluation-matrix'),
     api('/api/admin/issues'),
-    api('/api/admin/preliminary-ranking'),
     api('/api/admin/selection-policy-analysis'),
   ]);
   submissions = list.submissions || [];
@@ -348,7 +351,7 @@ async function loadData() {
   issueReviewRows = issues.issues || [];
   issueFieldCatalog = issues.field_catalog || [];
   selectionPolicyAnalysis = selectionPolicy || null;
-  preliminaryRankingRows = selectionPolicyAnalysis?.rows || ranking.rows || [];
+  preliminaryRankingRows = selectionPolicyAnalysis?.rows || [];
   populateRankingFacetFilters();
   renderWorkboard();
   renderTable();
@@ -360,6 +363,28 @@ async function loadData() {
   renderPreliminaryRanking();
   if (selectedId) await selectSubmission(selectedId);
   if (currentUser?.role === 'ADMIN') await loadUsers();
+  clearLoadError();
+}
+
+async function reloadData() {
+  try {
+    await loadData();
+  } catch (error) {
+    if (error.status === 401) return;
+    showLoadError(error);
+  }
+}
+
+function showLoadError(error) {
+  if (!appErrorPanel) return;
+  appErrorPanel.hidden = false;
+  appErrorPanel.textContent = `No fue posible cargar algunos datos. Revise la conexión e intente de nuevo. Detalle: ${error.message || 'error de red'}`;
+}
+
+function clearLoadError() {
+  if (!appErrorPanel) return;
+  appErrorPanel.hidden = true;
+  appErrorPanel.textContent = '';
 }
 
 function applyRoleUi() {
@@ -411,11 +436,13 @@ async function api(url, options = {}) {
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
+    const error = new Error(body.message || body.error || `HTTP ${response.status}`);
+    error.status = response.status;
     if (response.status === 401 && !options.skipAuthRedirect) {
       currentUser = null;
       showLogin('Sesión expirada o no autorizada.');
     }
-    throw new Error(body.message || body.error || `HTTP ${response.status}`);
+    throw error;
   }
   return body;
 }
