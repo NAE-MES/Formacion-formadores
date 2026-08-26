@@ -795,10 +795,6 @@ async function buildPreliminaryRanking(repository) {
   const rows = [];
   for (const row of matrixRows) {
     const review = reviewsBySubmission.get(row.submission_id) || {};
-    const detail = repository.getAdminSubmissionDetail
-      ? await repository.getAdminSubmissionDetail(row.submission_id)
-      : null;
-    const responses = responseMap(detail?.responses || []);
     const totalScore = row.total_score === null || row.total_score === undefined || row.total_score === ''
       ? null
       : Number(row.total_score);
@@ -821,11 +817,11 @@ async function buildPreliminaryRanking(repository) {
       full_name: row.full_name || '',
       email: row.email || '',
       province: row.province || '',
-      institution: responses.get('FDF-12') || '',
-      institution_type: responses.get('FDF-13') || '',
-      municipality: responses.get('FDF-10') || '',
-      gender: responses.get('FDF-35') || '',
-      age_range: responses.get('FDF-36') || '',
+      institution: row.institution || '',
+      institution_type: row.institution_type || '',
+      municipality: row.municipality || '',
+      gender: row.gender || '',
+      age_range: row.age_range || '',
       source_channel: row.source_channel || '',
       received_at: row.received_at || '',
       eligibility_status: eligibilityStatus,

@@ -913,11 +913,16 @@
       }
 
       .matrix-wrap table {
-        min-width: 1600px;
+        min-width: 2300px;
+      }
+
+      .matrix-wrap {
+        overflow: auto;
+        max-height: calc(100vh - 250px);
       }
 
       .matrix-cell {
-        min-width: 260px;
+        min-width: 360px;
         vertical-align: top;
       }
 
@@ -931,7 +936,7 @@
 
       .matrix-editor {
         display: grid;
-        grid-template-columns: minmax(110px, 1fr) 88px auto;
+        grid-template-columns: minmax(140px, 1fr) 92px auto;
         gap: 8px;
         align-items: start;
       }
@@ -948,7 +953,7 @@
       }
 
       .matrix-editor textarea {
-        min-height: 84px;
+        min-height: 120px;
         resize: vertical;
         line-height: 1.4;
       }

@@ -498,6 +498,11 @@ class PostgresRepository {
         )) as full_name,
         c.email,
         c.province,
+        coalesce(resp.municipality, '') as municipality,
+        coalesce(resp.institution, '') as institution,
+        coalesce(resp.institution_type, '') as institution_type,
+        coalesce(resp.gender, '') as gender,
+        coalesce(resp.age_range, '') as age_range,
         s.source_channel,
         s.received_at,
         s.normalization_status,
@@ -697,6 +702,17 @@ class PostgresRepository {
         order by calculated_at desc
         limit 1
       ) er on true
+      left join lateral (
+        select
+          max(value #>> '{}') filter (where field_code = 'FDF-10') as municipality,
+          max(value #>> '{}') filter (where field_code = 'FDF-12') as institution,
+          max(value #>> '{}') filter (where field_code = 'FDF-13') as institution_type,
+          max(value #>> '{}') filter (where field_code = 'FDF-35') as gender,
+          max(value #>> '{}') filter (where field_code = 'FDF-36') as age_range
+        from candidate_responses
+        where submission_id = s.submission_id
+          and field_code in ('FDF-10', 'FDF-12', 'FDF-13', 'FDF-35', 'FDF-36')
+      ) resp on true
       left join criterion_evaluations ce on ce.submission_id = s.submission_id
       group by
         s.submission_id,
@@ -707,6 +723,11 @@ class PostgresRepository {
         c.second_surname,
         c.email,
         c.province,
+        resp.municipality,
+        resp.institution,
+        resp.institution_type,
+        resp.gender,
+        resp.age_range,
         s.source_channel,
         s.received_at,
         ea.status,

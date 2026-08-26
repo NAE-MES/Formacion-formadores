@@ -371,6 +371,9 @@ class MemoryRepository {
         const criteria = Array.from(this.criterionEvaluations.values())
           .filter(item => item.submission_id === submission.submission_id)
           .sort((a, b) => a.criterion_id.localeCompare(b.criterion_id));
+        const responses = new Map(Array.from(this.responses.values())
+          .filter(response => response.submission_id === submission.submission_id)
+          .map(response => [response.field_code, Array.isArray(response.value) ? response.value.join('; ') : String(response.value ?? '')]));
 
         return {
           submission_id: submission.submission_id,
@@ -383,6 +386,11 @@ class MemoryRepository {
           ].filter(Boolean).join(' '),
           email: candidate.email || '',
           province: candidate.province || '',
+          municipality: responses.get('FDF-10') || '',
+          institution: responses.get('FDF-12') || '',
+          institution_type: responses.get('FDF-13') || '',
+          gender: responses.get('FDF-35') || '',
+          age_range: responses.get('FDF-36') || '',
           source_channel: submission.source_channel,
           received_at: submission.received_at,
           eligibility_status: eligibility?.status || 'SIN_EVALUAR',

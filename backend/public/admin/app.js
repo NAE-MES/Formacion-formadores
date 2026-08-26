@@ -7,6 +7,7 @@ let issueReviewRows = [];
 let issueFieldCatalog = [];
 let preliminaryRankingRows = [];
 let selectionPolicyAnalysis = null;
+const loadedViews = new Set();
 let selectedId = '';
 let selectedDetail = null;
 let currentUser = null;
@@ -247,8 +248,8 @@ logoutButton.addEventListener('click', async () => {
   showLogin();
 });
 
-refreshButton.addEventListener('click', loadData);
-workboardRefreshButton.addEventListener('click', loadData);
+refreshButton.addEventListener('click', () => reloadData(currentViewName()));
+workboardRefreshButton.addEventListener('click', () => reloadData('workboard'));
 clearFiltersButton.addEventListener('click', clearSubmissionFilters);
 searchInput.addEventListener('input', renderTable);
 statusFilter.addEventListener('change', renderTable);
@@ -334,41 +335,56 @@ function showLogin(message = '') {
   window.location.replace(target);
 }
 
-async function loadData() {
-  const [list, review, documents, matrix, issues, selectionPolicy] = await Promise.all([
+async function loadData(viewName = 'workboard') {
+  const [list, review, documents] = await Promise.all([
     api('/api/admin/submissions'),
     api('/api/admin/review-summary'),
     api('/api/admin/document-review'),
-    api('/api/admin/evaluation-matrix'),
-    api('/api/admin/issues'),
-    api('/api/admin/selection-policy-analysis'),
   ]);
   submissions = list.submissions || [];
   reviewSummaries = review.summaries || [];
   documentReviewRows = documents.rows || [];
-  evaluationMatrixRows = matrix.rows || [];
-  matrixCriteria = matrix.criteria || [];
-  issueReviewRows = issues.issues || [];
-  issueFieldCatalog = issues.field_catalog || [];
-  selectionPolicyAnalysis = selectionPolicy || null;
-  preliminaryRankingRows = selectionPolicyAnalysis?.rows || [];
-  populateRankingFacetFilters();
+  loadedViews.add('workboard');
+  loadedViews.add('submissions');
+  loadedViews.add('review');
+  loadedViews.add('documents');
+  await loadViewData(viewName);
   renderWorkboard();
   renderTable();
   renderReviewSummary();
-  renderIssueReview();
   renderDocumentReview();
-  renderEvaluationMatrix();
-  renderSelectionPolicyPanel();
-  renderPreliminaryRanking();
+  renderLoadedView(viewName);
   if (selectedId) await selectSubmission(selectedId);
   if (currentUser?.role === 'ADMIN') await loadUsers();
   clearLoadError();
 }
 
-async function reloadData() {
+async function loadViewData(viewName) {
+  if (viewName === 'issues' && !loadedViews.has('issues')) {
+    const issues = await api('/api/admin/issues');
+    issueReviewRows = issues.issues || [];
+    issueFieldCatalog = issues.field_catalog || [];
+    loadedViews.add('issues');
+  }
+  if (viewName === 'matrix' && !loadedViews.has('matrix')) {
+    const matrix = await api('/api/admin/evaluation-matrix');
+    evaluationMatrixRows = matrix.rows || [];
+    matrixCriteria = matrix.criteria || [];
+    loadedViews.add('matrix');
+  }
+  if (viewName === 'ranking' && !loadedViews.has('ranking')) {
+    const selectionPolicy = await api('/api/admin/selection-policy-analysis');
+    selectionPolicyAnalysis = selectionPolicy || null;
+    preliminaryRankingRows = selectionPolicyAnalysis?.rows || [];
+    populateRankingFacetFilters();
+    loadedViews.add('ranking');
+  }
+}
+
+async function reloadData(viewName = currentViewName()) {
+  loadedViews.delete(viewName);
   try {
-    await loadData();
+    await loadData(viewName);
   } catch (error) {
     if (error.status === 401) return;
     showLoadError(error);
@@ -416,13 +432,37 @@ function hasRole(...roles) {
 function showView(name) {
   tabs.forEach(tab => tab.classList.toggle('active', tab.dataset.view === name));
   views.forEach(view => view.classList.toggle('active', view.id === `view-${name}`));
-  if (name === 'users' && currentUser?.role === 'ADMIN') loadUsers();
+  ensureViewData(name);
+}
+
+async function ensureViewData(name) {
+  try {
+    await loadViewData(name);
+    renderLoadedView(name);
+    if (name === 'users' && currentUser?.role === 'ADMIN') loadUsers();
+    clearLoadError();
+  } catch (error) {
+    if (error.status === 401) return;
+    showLoadError(error);
+  }
+}
+
+function renderLoadedView(name) {
   if (name === 'workboard') renderWorkboard();
+  if (name === 'submissions') renderTable();
   if (name === 'review') renderReviewSummary();
   if (name === 'issues') renderIssueReview();
   if (name === 'documents') renderDocumentReview();
   if (name === 'matrix') renderEvaluationMatrix();
-  if (name === 'ranking') renderPreliminaryRanking();
+  if (name === 'ranking') {
+    renderSelectionPolicyPanel();
+    renderPreliminaryRanking();
+  }
+}
+
+function currentViewName() {
+  const active = views.find(view => view.classList.contains('active'));
+  return active ? active.id.replace(/^view-/, '') : 'workboard';
 }
 
 async function api(url, options = {}) {
@@ -1971,6 +2011,7 @@ async function saveMatrixCriterion(event) {
   const score = evaluationMatrixTable.querySelector(`[data-matrix-score="${cssEscape(key)}"]`);
   const evidence = evaluationMatrixTable.querySelector(`[data-matrix-evidence="${cssEscape(key)}"]`);
   button.disabled = true;
+  const originalText = button.textContent;
   button.textContent = 'Guardando';
   try {
     await api(`/api/admin/submissions/${encodeURIComponent(submissionId)}/evaluation/criteria/${encodeURIComponent(criterionId)}`, {
@@ -1983,10 +2024,16 @@ async function saveMatrixCriterion(event) {
         reason: 'Actualización de criterio técnico desde la matriz',
       },
     });
-    await loadData();
+    button.textContent = 'Guardado';
+    setTimeout(async () => {
+      loadedViews.delete('matrix');
+      loadedViews.delete('ranking');
+      await loadViewData('matrix');
+      renderEvaluationMatrix();
+    }, 350);
   } catch (error) {
     button.disabled = false;
-    button.textContent = 'Guardar';
+    button.textContent = originalText;
     alert(error.message);
   }
 }
