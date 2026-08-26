@@ -151,6 +151,7 @@ const documentReviewCount = document.querySelector('#documentReviewCount');
 const matrixSearchInput = document.querySelector('#matrixSearchInput');
 const matrixEvaluationFilter = document.querySelector('#matrixEvaluationFilter');
 const matrixEligibilityFilter = document.querySelector('#matrixEligibilityFilter');
+const evaluationMatrixNotice = document.querySelector('#evaluationMatrixNotice');
 const clearMatrixFiltersButton = document.querySelector('#clearMatrixFiltersButton');
 const exportMatrixCsvButton = document.querySelector('#exportMatrixCsvButton');
 const evaluationMatrixHead = document.querySelector('#evaluationMatrixHead');
@@ -1945,6 +1946,9 @@ function matrixCriterionCell(item, criterion) {
   const evaluation = evaluations.find(candidate => candidate.criterion_id === criterion.criterion_id);
   const status = evaluation?.status || 'NOT_STARTED';
   const score = evaluation?.score ?? '';
+  const meta = evaluation?.evaluated_at
+    ? `Actualizado por ${evaluation.evaluated_by || 'sistema'} - ${formatDate(evaluation.evaluated_at)}`
+    : 'Sin actualización registrada';
   const canReview = hasRole('ADMIN', 'REVIEWER');
   const readOnly = canReview ? '' : 'disabled';
   return `
@@ -1953,6 +1957,7 @@ function matrixCriterionCell(item, criterion) {
         ${evaluationBadge(status)}
         <span class="muted">${escapeHtml(criterion.weight_percent)}%</span>
       </div>
+      <div class="matrix-meta">${escapeHtml(meta)}</div>
       <div class="matrix-editor">
         <select data-matrix-status="${escapeHtml(item.submission_id)}:${escapeHtml(criterion.criterion_id)}" ${readOnly}>
           ${evaluationStatusOptions(status)}
@@ -2014,7 +2019,7 @@ async function saveMatrixCriterion(event) {
   const originalText = button.textContent;
   button.textContent = 'Guardando';
   try {
-    await api(`/api/admin/submissions/${encodeURIComponent(submissionId)}/evaluation/criteria/${encodeURIComponent(criterionId)}`, {
+    const saved = await api(`/api/admin/submissions/${encodeURIComponent(submissionId)}/evaluation/criteria/${encodeURIComponent(criterionId)}`, {
       method: 'PUT',
       body: {
         status: status.value,
@@ -2024,7 +2029,10 @@ async function saveMatrixCriterion(event) {
         reason: 'Actualización de criterio técnico desde la matriz',
       },
     });
+    updateMatrixRowAfterSave(submissionId, saved);
     button.textContent = 'Guardado';
+    button.classList.add('saved');
+    showMatrixNotice(`Evaluación guardada. Resultado actual: ${label('evaluation', saved.evaluation_result?.status || '') || 'actualizado'} (${formatScore(saved.evaluation_result?.total_score)}).`);
     setTimeout(async () => {
       loadedViews.delete('matrix');
       loadedViews.delete('ranking');
@@ -2036,6 +2044,34 @@ async function saveMatrixCriterion(event) {
     button.textContent = originalText;
     alert(error.message);
   }
+}
+
+function updateMatrixRowAfterSave(submissionId, saved) {
+  const row = evaluationMatrixRows.find(item => item.submission_id === submissionId);
+  if (!row || !saved) return;
+  if (saved.evaluation_result) {
+    row.evaluation_status = saved.evaluation_result.status || row.evaluation_status;
+    row.completed_criteria = saved.evaluation_result.completed_criteria ?? row.completed_criteria;
+    row.total_criteria = saved.evaluation_result.total_criteria ?? row.total_criteria;
+    row.total_score = saved.evaluation_result.total_score ?? row.total_score;
+    row.evaluation_validation_status = saved.evaluation_result.validation_status || row.evaluation_validation_status;
+  }
+  if (saved.criterion_evaluation) {
+    const criteria = Array.isArray(row.criteria) ? row.criteria : [];
+    const index = criteria.findIndex(item => item.criterion_id === saved.criterion_evaluation.criterion_id);
+    if (index >= 0) {
+      criteria[index] = saved.criterion_evaluation;
+    } else {
+      criteria.push(saved.criterion_evaluation);
+    }
+    row.criteria = criteria;
+  }
+}
+
+function showMatrixNotice(message) {
+  if (!evaluationMatrixNotice) return;
+  evaluationMatrixNotice.hidden = false;
+  evaluationMatrixNotice.textContent = message;
 }
 
 function bindDetailActions() {

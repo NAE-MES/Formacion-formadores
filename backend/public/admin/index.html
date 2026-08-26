@@ -931,7 +931,25 @@
         align-items: center;
         justify-content: space-between;
         gap: 8px;
+        margin-bottom: 4px;
+      }
+
+      .matrix-meta {
+        color: var(--muted);
+        font-size: 0.72rem;
+        line-height: 1.35;
         margin-bottom: 8px;
+      }
+
+      .matrix-notice {
+        background: #edf7f1;
+        border: 1px solid #b8ddc4;
+        border-radius: var(--radius-sm);
+        color: #1f6d3d;
+        font-size: 0.86rem;
+        font-weight: 600;
+        margin: 0 0 12px;
+        padding: 10px 14px;
       }
 
       .matrix-editor {
@@ -980,6 +998,10 @@
         padding: 7px 14px;
         font-weight: 600;
         cursor: pointer;
+      }
+
+      .matrix-editor button.saved {
+        background: #277a45;
       }
 
       .ranking-note {
@@ -1259,6 +1281,7 @@
             <button id="exportMatrixCsvButton" type="button">Exportar CSV</button>
           </div>
           <p id="evaluationMatrixCount" class="result-count"></p>
+          <div id="evaluationMatrixNotice" class="matrix-notice" hidden></div>
           <div id="evaluationMatrixStats" class="matrix-stats"></div>
           <div class="table-wrap matrix-wrap">
             <table>
