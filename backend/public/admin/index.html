@@ -912,47 +912,9 @@
         font-weight: 700;
       }
 
-      .matrix-wrap table {
-        min-width: 2300px;
-      }
-
-      .matrix-top-scroll {
-        height: 18px;
-        overflow-x: auto;
-        overflow-y: hidden;
-        margin-bottom: 6px;
-      }
-
-      .matrix-top-scroll-spacer {
-        height: 1px;
-      }
-
       .matrix-wrap {
-        overflow: auto;
-        max-height: calc(100vh - 250px);
-      }
-
-      .matrix-wrap thead th {
-        position: sticky;
-        top: 0;
-        z-index: 3;
-        background: var(--panel);
-      }
-
-      .matrix-wrap th:first-child,
-      .matrix-wrap td:first-child {
-        left: 0;
-        min-width: 260px;
-        position: sticky;
-        z-index: 2;
-      }
-
-      .matrix-wrap thead th:first-child {
-        z-index: 4;
-      }
-
-      .matrix-wrap tbody td:first-child {
-        background: var(--panel);
+        display: grid;
+        gap: 14px;
       }
 
       .matrix-actions {
@@ -979,9 +941,49 @@
         background: #277a45;
       }
 
+      .matrix-card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 14px;
+      }
+
+      .matrix-card-head {
+        align-items: start;
+        display: grid;
+        gap: 14px;
+        grid-template-columns: minmax(260px, 1.2fr) minmax(260px, 1fr) minmax(240px, 0.9fr);
+        margin-bottom: 14px;
+      }
+
+      .matrix-card-title {
+        display: grid;
+        gap: 6px;
+      }
+
+      .matrix-card-title strong {
+        font-size: 1rem;
+      }
+
+      .matrix-card-meta,
+      .matrix-card-status {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .matrix-criteria-grid {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(2, minmax(280px, 1fr));
+      }
+
       .matrix-cell {
-        min-width: 360px;
-        vertical-align: top;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        background: #fbfcfe;
+        padding: 12px;
       }
 
       .matrix-cell-head {
@@ -1110,6 +1112,10 @@
         }
         .workboard-sections {
           grid-template-columns: 1fr 1fr;
+        }
+        .matrix-card-head,
+        .matrix-criteria-grid {
+          grid-template-columns: 1fr;
         }
         .review-controls,
         .criterion-controls {
@@ -1337,13 +1343,7 @@
           <p id="evaluationMatrixCount" class="result-count"></p>
           <div id="evaluationMatrixNotice" class="matrix-notice" hidden></div>
           <div id="evaluationMatrixStats" class="matrix-stats"></div>
-          <div id="matrixTopScroll" class="matrix-top-scroll" aria-hidden="true"><div id="matrixTopScrollSpacer" class="matrix-top-scroll-spacer"></div></div>
-          <div id="matrixWrap" class="table-wrap matrix-wrap">
-            <table>
-              <thead id="evaluationMatrixHead"></thead>
-              <tbody id="evaluationMatrixTable"></tbody>
-            </table>
-          </div>
+          <div id="evaluationMatrixTable" class="matrix-wrap"></div>
         </section>
 
         <!-- VIEW: RANKING -->

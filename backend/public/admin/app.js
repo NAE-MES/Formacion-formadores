@@ -154,13 +154,9 @@ const matrixEligibilityFilter = document.querySelector('#matrixEligibilityFilter
 const evaluationMatrixNotice = document.querySelector('#evaluationMatrixNotice');
 const clearMatrixFiltersButton = document.querySelector('#clearMatrixFiltersButton');
 const exportMatrixCsvButton = document.querySelector('#exportMatrixCsvButton');
-const evaluationMatrixHead = document.querySelector('#evaluationMatrixHead');
 const evaluationMatrixTable = document.querySelector('#evaluationMatrixTable');
 const evaluationMatrixCount = document.querySelector('#evaluationMatrixCount');
 const evaluationMatrixStats = document.querySelector('#evaluationMatrixStats');
-const matrixWrap = document.querySelector('#matrixWrap');
-const matrixTopScroll = document.querySelector('#matrixTopScroll');
-const matrixTopScrollSpacer = document.querySelector('#matrixTopScrollSpacer');
 const rankingSearchInput = document.querySelector('#rankingSearchInput');
 const rankingScopeFilter = document.querySelector('#rankingScopeFilter');
 const rankingValidationFilter = document.querySelector('#rankingValidationFilter');
@@ -1018,37 +1014,9 @@ function renderEvaluationMatrix() {
     return matchesEvaluation && matchesEligibility && (!query || haystack.includes(query));
   });
 
-  evaluationMatrixHead.innerHTML = `
-    <tr>
-      <th>Postulante</th>
-      <th>Provincia</th>
-      <th>Admisibilidad</th>
-      <th>Evaluación</th>
-      <th>Puntaje técnico</th>
-      <th>Validación técnica</th>
-      ${matrixCriteria.map(criterion => `<th>${escapeHtml(criterion.label)}</th>`).join('')}
-      <th>Recibido</th>
-    </tr>
-  `;
-  evaluationMatrixTable.innerHTML = rows.map(item => `
-    <tr data-matrix-id="${escapeHtml(item.submission_id)}">
-      <td>
-        <strong>${escapeHtml(item.full_name || 'Sin nombre')}</strong><br>
-        <span class="muted">${escapeHtml(item.email || '')}</span><br>
-        <button class="compact ghost" type="button" data-matrix-open="${escapeHtml(item.submission_id)}">Ver expediente</button>
-      </td>
-      <td>${escapeHtml(item.province || '')}</td>
-      <td>${eligibilityBadge(item.eligibility_status)}</td>
-      <td>${evaluationBadge(item.evaluation_status)} ${evaluationValidationBadge(item.evaluation_validation_status)}<br><span class="muted">${escapeHtml(item.completed_criteria || 0)} / ${escapeHtml(item.total_criteria || matrixCriteria.length)}</span></td>
-      <td><strong>${formatScore(item.total_score)}</strong><br><span class="muted">No ranking</span></td>
-      <td>${matrixValidationCell(item)}</td>
-      ${matrixCriteria.map(criterion => matrixCriterionCell(item, criterion)).join('')}
-      <td>${formatDate(item.received_at)}</td>
-    </tr>
-  `).join('');
+  evaluationMatrixTable.innerHTML = rows.map(item => matrixCandidateCard(item)).join('');
   evaluationMatrixCount.textContent = resultCountLabel(rows.length, evaluationMatrixRows.length, 'postulación', 'postulaciones');
   evaluationMatrixStats.innerHTML = matrixStatsHtml(rows);
-  syncMatrixTopScroll();
 
   evaluationMatrixTable.querySelectorAll('[data-matrix-save]').forEach(button => {
     button.addEventListener('click', saveMatrixCriterion);
@@ -1067,16 +1035,36 @@ function renderEvaluationMatrix() {
   });
 }
 
-function syncMatrixTopScroll() {
-  if (!matrixWrap || !matrixTopScroll || !matrixTopScrollSpacer) return;
-  const table = matrixWrap.querySelector('table');
-  matrixTopScrollSpacer.style.width = `${table?.scrollWidth || matrixWrap.scrollWidth}px`;
-  matrixTopScroll.onscroll = () => {
-    matrixWrap.scrollLeft = matrixTopScroll.scrollLeft;
-  };
-  matrixWrap.onscroll = () => {
-    matrixTopScroll.scrollLeft = matrixWrap.scrollLeft;
-  };
+function matrixCandidateCard(item) {
+  return `
+    <article class="matrix-card" data-matrix-id="${escapeHtml(item.submission_id)}">
+      <div class="matrix-card-head">
+        <div class="matrix-card-title">
+          <strong>${escapeHtml(item.full_name || 'Sin nombre')}</strong>
+          <span class="muted">${escapeHtml(item.email || '')}</span>
+          <div class="matrix-card-meta">
+            <span class="stat-chip">${escapeHtml(item.province || 'Sin provincia')}</span>
+            <span class="stat-chip">${escapeHtml(label('sourceChannels', item.source_channel || '') || item.source_channel || '')}</span>
+            <span class="stat-chip">Recibido ${escapeHtml(formatDate(item.received_at))}</span>
+          </div>
+          <button class="compact ghost" type="button" data-matrix-open="${escapeHtml(item.submission_id)}">Ver expediente</button>
+        </div>
+        <div>
+          <div class="matrix-card-status">
+            ${eligibilityBadge(item.eligibility_status)}
+            ${evaluationBadge(item.evaluation_status)}
+            ${evaluationValidationBadge(item.evaluation_validation_status)}
+          </div>
+          <p class="muted">${escapeHtml(item.completed_criteria || 0)} de ${escapeHtml(item.total_criteria || matrixCriteria.length)} criterios evaluados</p>
+          <p><strong>Puntaje técnico: ${formatScore(item.total_score)}</strong> <span class="muted">No ranking</span></p>
+        </div>
+        ${matrixValidationCell(item)}
+      </div>
+      <div class="matrix-criteria-grid">
+        ${matrixCriteria.map(criterion => matrixCriterionCell(item, criterion)).join('')}
+      </div>
+    </article>
+  `;
 }
 
 function matrixStatsHtml(rows) {
@@ -1991,8 +1979,9 @@ function matrixCriterionCell(item, criterion) {
   const canReview = hasRole('ADMIN', 'REVIEWER');
   const readOnly = canReview ? '' : 'disabled';
   return `
-    <td class="matrix-cell">
+    <section class="matrix-cell">
       <div class="matrix-cell-head">
+        <strong>${escapeHtml(criterion.label)}</strong>
         ${evaluationBadge(status)}
         <span class="muted">${escapeHtml(criterion.weight_percent)}%</span>
       </div>
@@ -2008,7 +1997,7 @@ function matrixCriterionCell(item, criterion) {
           <textarea data-matrix-evidence="${escapeHtml(item.submission_id)}:${escapeHtml(criterion.criterion_id)}" rows="3" placeholder="Elementos que sustentan la revisión" ${readOnly}>${escapeHtml(evaluation?.evidence_summary || '')}</textarea>
         </label>
       </div>
-    </td>
+    </section>
   `;
 }
 
