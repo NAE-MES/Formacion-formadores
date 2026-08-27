@@ -717,8 +717,10 @@ test('admin API analyzes provincial selection policy without final approval', as
     const excel = await adminRawRequest(port, 'GET', '/api/admin/selection-policy-analysis.xls');
     assert.equal(excel.statusCode, 200);
     assert.match(excel.headers['content-type'], /application\/vnd\.ms-excel/);
-    assert.match(excel.body, /Propuesta por region y provincia/);
-    assert.match(excel.body, /Resumen por provincia/);
+    assert.match(excel.body, /<Workbook/);
+    assert.match(excel.body, /ss:Name="Resumen provincias"/);
+    assert.match(excel.body, /ss:Name="Region Oriente"/);
+    assert.match(excel.body, /ss:Name="Prov Granma"/);
     assert.match(excel.body, /Oriente/);
   });
 });

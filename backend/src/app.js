@@ -1974,18 +1974,28 @@ function selectionPolicyExcel(analysis) {
     manually_proposed: row.manually_proposed,
     manually_reserve: row.manually_reserve,
   }));
-  return excelHtml([
-    excelSection('Resumen', summaryRows),
-    excelSection('Resumen por provincia', provinceSummary),
-    excelSection('Propuesta sugerida', proposedRows.map(selectionExcelRow)),
-    excelSection('Reserva sugerida', reserveRows.map(selectionExcelRow)),
-    excelSection('Ranking principal completo', mainRows.map(selectionExcelRow)),
-    excelSection('Valoracion adicional fuera de corte', additionalRows.map(selectionExcelRow)),
-  ]);
+  const sheets = [
+    excelSheet('Resumen', summaryRows),
+    excelSheet('Resumen provincias', provinceSummary),
+    excelSheet('Propuesta sugerida', proposedRows.map(selectionExcelRow)),
+    excelSheet('Reserva sugerida', reserveRows.map(selectionExcelRow)),
+    excelSheet('Ranking principal', mainRows.map(selectionExcelRow)),
+    excelSheet('Fuera de corte', additionalRows.map(selectionExcelRow)),
+  ];
+  const byRegion = groupBy(mainRows, row => normalizedPolicyValue(row.region, 'Sin region'));
+  for (const [region, regionRows] of Array.from(byRegion.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
+    sheets.push(excelSheet(`Region ${region}`, regionRows.sort(selectionWorkbookSort).map(selectionExcelRow)));
+  }
+  const byProvince = groupBy(mainRows, row => normalizedPolicyValue(row.province, 'Sin provincia'));
+  for (const [province, provinceRows] of Array.from(byProvince.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
+    sheets.push(excelSheet(`Prov ${province}`, provinceRows.sort(selectionWorkbookSort).map(selectionExcelRow)));
+  }
+  return excelWorkbook(sheets);
 }
 
 function selectionExcelRow(row) {
   return {
+    category: selectionCategory(row),
     region: row.region || '',
     province: row.province || '',
     province_policy_position: row.province_policy_position || '',
@@ -2010,50 +2020,89 @@ function selectionExcelRow(row) {
   };
 }
 
+function selectionCategory(row) {
+  if (row.received_after_cutoff) return 'Valoracion adicional fuera de corte';
+  if (row.policy_recommendation === 'POLICY_PROPOSED') return 'Propuesta sugerida';
+  if (row.policy_recommendation === 'POLICY_RESERVE') return 'Reserva sugerida';
+  if (row.included_in_preliminary_ranking) return 'Elegible pendiente de politica';
+  return 'No elegible para propuesta';
+}
+
+function selectionWorkbookSort(a, b) {
+  const categoryOrder = selectionCategoryOrder(a) - selectionCategoryOrder(b);
+  if (categoryOrder !== 0) return categoryOrder;
+  const provincePositionA = Number(a.province_policy_position || Number.MAX_SAFE_INTEGER);
+  const provincePositionB = Number(b.province_policy_position || Number.MAX_SAFE_INTEGER);
+  if (provincePositionA !== provincePositionB) return provincePositionA - provincePositionB;
+  return preliminaryRankingSort(a, b);
+}
+
+function selectionCategoryOrder(row) {
+  if (row.policy_recommendation === 'POLICY_PROPOSED') return 1;
+  if (row.policy_recommendation === 'POLICY_RESERVE') return 2;
+  if (row.included_in_preliminary_ranking) return 3;
+  if (row.received_after_cutoff) return 5;
+  return 4;
+}
+
 function regionForProvince(rows, province) {
   const found = rows.find(row => normalizedPolicyValue(row.province, 'Sin provincia') === province && row.region);
   return found?.region || '';
 }
 
-function excelHtml(sections) {
-  return `<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <style>
-    body { font-family: Arial, sans-serif; }
-    h1 { font-size: 18px; }
-    h2 { font-size: 15px; margin-top: 22px; }
-    table { border-collapse: collapse; margin-bottom: 18px; }
-    th { background: #17324d; color: #ffffff; font-weight: bold; }
-    th, td { border: 1px solid #9aa9b5; padding: 4px 6px; font-size: 11px; vertical-align: top; }
-  </style>
-</head>
-<body>
-  <h1>FdF 2026 - Propuesta por region y provincia</h1>
-  <p>Documento operativo interno. No constituye aprobacion final.</p>
-  ${sections.join('\n')}
-</body>
-</html>`;
+function excelWorkbook(sheets) {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+ <Styles>
+  <Style ss:ID="header"><Font ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#17324D" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="text"><Alignment ss:Vertical="Top" ss:WrapText="1"/></Style>
+  <Style ss:ID="number"><NumberFormat ss:Format="0.00"/></Style>
+ </Styles>
+ ${sheets.join('\n')}
+</Workbook>`;
 }
 
-function excelSection(title, rows) {
+function excelSheet(title, rows) {
   const headers = Array.from(rows.reduce((set, row) => {
     Object.keys(row).forEach(key => set.add(key));
     return set;
   }, new Set()));
-  if (!headers.length) return `<h2>${htmlEscape(title)}</h2><p>Sin datos.</p>`;
-  return `<h2>${htmlEscape(title)}</h2>
-<table>
-  <thead><tr>${headers.map(header => `<th>${htmlEscape(excelHeaderLabel(header))}</th>`).join('')}</tr></thead>
-  <tbody>
-    ${rows.map(row => `<tr>${headers.map(header => `<td>${htmlEscape(row[header])}</td>`).join('')}</tr>`).join('\n')}
-  </tbody>
-</table>`;
+  return `<Worksheet ss:Name="${xmlEscape(excelSheetName(title))}">
+  <Table>
+    ${headers.length ? `<Row>${headers.map(header => `<Cell ss:StyleID="header"><Data ss:Type="String">${xmlEscape(excelHeaderLabel(header))}</Data></Cell>`).join('')}</Row>` : ''}
+    ${rows.length ? rows.map(row => `<Row>${headers.map(header => excelCell(row[header])).join('')}</Row>`).join('\n') : '<Row><Cell><Data ss:Type="String">Sin datos.</Data></Cell></Row>'}
+  </Table>
+  <WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">
+    <FreezePanes/>
+    <FrozenNoSplit/>
+    <SplitHorizontal>1</SplitHorizontal>
+    <TopRowBottomPane>1</TopRowBottomPane>
+  </WorksheetOptions>
+</Worksheet>`;
+}
+
+function excelCell(value) {
+  if (value !== '' && value !== null && value !== undefined && typeof value !== 'boolean' && Number.isFinite(Number(value))) {
+    return `<Cell ss:StyleID="number"><Data ss:Type="Number">${Number(value)}</Data></Cell>`;
+  }
+  return `<Cell ss:StyleID="text"><Data ss:Type="String">${xmlEscape(value)}</Data></Cell>`;
+}
+
+function excelSheetName(value) {
+  return String(value || 'Hoja')
+    .replace(/[\\/?*[\]:]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 31) || 'Hoja';
 }
 
 function excelHeaderLabel(value) {
   return {
+    category: 'Categoria',
     metric: 'Indicador',
     value: 'Valor',
     region: 'Region',
@@ -2086,7 +2135,7 @@ function excelHeaderLabel(value) {
   }[value] || value;
 }
 
-function htmlEscape(value) {
+function xmlEscape(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
