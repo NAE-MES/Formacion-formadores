@@ -158,6 +158,9 @@ const evaluationMatrixHead = document.querySelector('#evaluationMatrixHead');
 const evaluationMatrixTable = document.querySelector('#evaluationMatrixTable');
 const evaluationMatrixCount = document.querySelector('#evaluationMatrixCount');
 const evaluationMatrixStats = document.querySelector('#evaluationMatrixStats');
+const matrixWrap = document.querySelector('#matrixWrap');
+const matrixTopScroll = document.querySelector('#matrixTopScroll');
+const matrixTopScrollSpacer = document.querySelector('#matrixTopScrollSpacer');
 const rankingSearchInput = document.querySelector('#rankingSearchInput');
 const rankingScopeFilter = document.querySelector('#rankingScopeFilter');
 const rankingValidationFilter = document.querySelector('#rankingValidationFilter');
@@ -1022,32 +1025,39 @@ function renderEvaluationMatrix() {
       <th>Admisibilidad</th>
       <th>Evaluación</th>
       <th>Puntaje técnico</th>
+      <th>Validación técnica</th>
       ${matrixCriteria.map(criterion => `<th>${escapeHtml(criterion.label)}</th>`).join('')}
       <th>Recibido</th>
     </tr>
   `;
   evaluationMatrixTable.innerHTML = rows.map(item => `
     <tr data-matrix-id="${escapeHtml(item.submission_id)}">
-      <td><strong>${escapeHtml(item.full_name || 'Sin nombre')}</strong><br><span class="muted">${escapeHtml(item.email || '')}</span></td>
+      <td>
+        <strong>${escapeHtml(item.full_name || 'Sin nombre')}</strong><br>
+        <span class="muted">${escapeHtml(item.email || '')}</span><br>
+        <button class="compact ghost" type="button" data-matrix-open="${escapeHtml(item.submission_id)}">Ver expediente</button>
+      </td>
       <td>${escapeHtml(item.province || '')}</td>
       <td>${eligibilityBadge(item.eligibility_status)}</td>
       <td>${evaluationBadge(item.evaluation_status)} ${evaluationValidationBadge(item.evaluation_validation_status)}<br><span class="muted">${escapeHtml(item.completed_criteria || 0)} / ${escapeHtml(item.total_criteria || matrixCriteria.length)}</span></td>
       <td><strong>${formatScore(item.total_score)}</strong><br><span class="muted">No ranking</span></td>
+      <td>${matrixValidationCell(item)}</td>
       ${matrixCriteria.map(criterion => matrixCriterionCell(item, criterion)).join('')}
       <td>${formatDate(item.received_at)}</td>
     </tr>
   `).join('');
   evaluationMatrixCount.textContent = resultCountLabel(rows.length, evaluationMatrixRows.length, 'postulación', 'postulaciones');
   evaluationMatrixStats.innerHTML = matrixStatsHtml(rows);
+  syncMatrixTopScroll();
 
-  evaluationMatrixTable.querySelectorAll('tr').forEach(row => {
-    row.addEventListener('click', event => {
-      if (event.target.closest('button, input, select, textarea')) return;
-      openSubmissionPage(row.dataset.matrixId);
-    });
-  });
   evaluationMatrixTable.querySelectorAll('[data-matrix-save]').forEach(button => {
     button.addEventListener('click', saveMatrixCriterion);
+  });
+  evaluationMatrixTable.querySelectorAll('[data-matrix-validation-save]').forEach(button => {
+    button.addEventListener('click', saveMatrixValidation);
+  });
+  evaluationMatrixTable.querySelectorAll('[data-matrix-open]').forEach(button => {
+    button.addEventListener('click', () => openSubmissionPage(button.dataset.matrixOpen));
   });
   evaluationMatrixStats.querySelectorAll('[data-matrix-status-shortcut]').forEach(button => {
     button.addEventListener('click', () => {
@@ -1055,6 +1065,18 @@ function renderEvaluationMatrix() {
       renderEvaluationMatrix();
     });
   });
+}
+
+function syncMatrixTopScroll() {
+  if (!matrixWrap || !matrixTopScroll || !matrixTopScrollSpacer) return;
+  const table = matrixWrap.querySelector('table');
+  matrixTopScrollSpacer.style.width = `${table?.scrollWidth || matrixWrap.scrollWidth}px`;
+  matrixTopScroll.onscroll = () => {
+    matrixWrap.scrollLeft = matrixTopScroll.scrollLeft;
+  };
+  matrixWrap.onscroll = () => {
+    matrixTopScroll.scrollLeft = matrixWrap.scrollLeft;
+  };
 }
 
 function matrixStatsHtml(rows) {
@@ -1941,13 +1963,30 @@ function issueStatsHtml(rows) {
   `).join('');
 }
 
+function matrixValidationCell(item) {
+  const status = item.evaluation_validation_status || 'PENDING_TECHNICAL_VALIDATION';
+  const canReview = hasRole('ADMIN', 'REVIEWER') && item.evaluation_result_id;
+  if (!item.evaluation_result_id) {
+    return `${evaluationValidationBadge(status)}<br><span class="muted">Disponible al calcular la evaluación</span>`;
+  }
+  return `
+    <div class="matrix-actions">
+      ${evaluationValidationBadge(status)}
+      <select data-matrix-validation-status="${escapeHtml(item.evaluation_result_id)}" ${canReview ? '' : 'disabled'}>
+        ${evaluationValidationOptions(status)}
+      </select>
+      ${canReview ? `<button class="compact" type="button" data-matrix-validation-save="${escapeHtml(item.evaluation_result_id)}" data-submission-id="${escapeHtml(item.submission_id)}">Guardar validación</button>` : ''}
+    </div>
+  `;
+}
+
 function matrixCriterionCell(item, criterion) {
   const evaluations = Array.isArray(item.criteria) ? item.criteria : [];
   const evaluation = evaluations.find(candidate => candidate.criterion_id === criterion.criterion_id);
   const status = evaluation?.status || 'NOT_STARTED';
   const score = evaluation?.score ?? '';
   const meta = evaluation?.evaluated_at
-    ? `Actualizado por ${evaluation.evaluated_by || 'sistema'} - ${formatDate(evaluation.evaluated_at)}`
+    ? `Actualizado por ${actorLabel(evaluation.evaluated_by || 'sistema')} - ${formatDate(evaluation.evaluated_at)}`
     : 'Sin actualización registrada';
   const canReview = hasRole('ADMIN', 'REVIEWER');
   const readOnly = canReview ? '' : 'disabled';
@@ -2072,6 +2111,42 @@ function showMatrixNotice(message) {
   if (!evaluationMatrixNotice) return;
   evaluationMatrixNotice.hidden = false;
   evaluationMatrixNotice.textContent = message;
+}
+
+async function saveMatrixValidation(event) {
+  event.stopPropagation();
+  const button = event.currentTarget;
+  const evaluationResultId = button.dataset.matrixValidationSave;
+  const submissionId = button.dataset.submissionId;
+  const status = evaluationMatrixTable.querySelector(`[data-matrix-validation-status="${cssEscape(evaluationResultId)}"]`);
+  if (!evaluationResultId || !status) return;
+  button.disabled = true;
+  const originalText = button.textContent;
+  button.textContent = 'Guardando';
+  try {
+    const saved = await api(`/api/admin/evaluation-results/${encodeURIComponent(evaluationResultId)}/validation`, {
+      method: 'PATCH',
+      body: {
+        status: status.value,
+        note: '',
+        reason: 'Validación técnica desde la matriz',
+      },
+    });
+    const row = evaluationMatrixRows.find(item => item.submission_id === submissionId);
+    if (row && saved.evaluation_result) {
+      row.evaluation_validation_status = saved.evaluation_result.validation_status || row.evaluation_validation_status;
+      row.evaluation_validation_note = saved.evaluation_result.validation_note || '';
+    }
+    loadedViews.delete('ranking');
+    button.textContent = 'Guardado';
+    button.classList.add('saved');
+    showMatrixNotice(`Validación técnica guardada: ${label('evaluationValidation', saved.evaluation_result?.validation_status || status.value)}.`);
+    setTimeout(() => renderEvaluationMatrix(), 350);
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = originalText;
+    alert(error.message);
+  }
 }
 
 function bindDetailActions() {
@@ -2509,6 +2584,7 @@ function actorLabel(actor) {
   return {
     admin: 'Administrador',
     API_ELIGIBILITY_ASSESSOR: 'Evaluador automático',
+    API_AUTO_SCORING_ENGINE: 'Motor automático de puntuación',
     ADMIN_UI: 'Consola administrativa',
     ADMIN_TOKEN: 'Acceso técnico',
     API: 'API de ingesta',

@@ -916,9 +916,67 @@
         min-width: 2300px;
       }
 
+      .matrix-top-scroll {
+        height: 18px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        margin-bottom: 6px;
+      }
+
+      .matrix-top-scroll-spacer {
+        height: 1px;
+      }
+
       .matrix-wrap {
         overflow: auto;
         max-height: calc(100vh - 250px);
+      }
+
+      .matrix-wrap thead th {
+        position: sticky;
+        top: 0;
+        z-index: 3;
+        background: var(--panel);
+      }
+
+      .matrix-wrap th:first-child,
+      .matrix-wrap td:first-child {
+        left: 0;
+        min-width: 260px;
+        position: sticky;
+        z-index: 2;
+      }
+
+      .matrix-wrap thead th:first-child {
+        z-index: 4;
+      }
+
+      .matrix-wrap tbody td:first-child {
+        background: var(--panel);
+      }
+
+      .matrix-actions {
+        display: grid;
+        gap: 8px;
+        min-width: 230px;
+      }
+
+      .matrix-actions select {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        background: #fafcfe;
+        font: inherit;
+        padding: 7px 10px;
+      }
+
+      .matrix-actions button {
+        justify-self: start;
+      }
+
+      .matrix-actions button.saved,
+      .matrix-editor button.saved {
+        background: #277a45;
       }
 
       .matrix-cell {
@@ -998,10 +1056,6 @@
         padding: 7px 14px;
         font-weight: 600;
         cursor: pointer;
-      }
-
-      .matrix-editor button.saved {
-        background: #277a45;
       }
 
       .ranking-note {
@@ -1283,7 +1337,8 @@
           <p id="evaluationMatrixCount" class="result-count"></p>
           <div id="evaluationMatrixNotice" class="matrix-notice" hidden></div>
           <div id="evaluationMatrixStats" class="matrix-stats"></div>
-          <div class="table-wrap matrix-wrap">
+          <div id="matrixTopScroll" class="matrix-top-scroll" aria-hidden="true"><div id="matrixTopScrollSpacer" class="matrix-top-scroll-spacer"></div></div>
+          <div id="matrixWrap" class="table-wrap matrix-wrap">
             <table>
               <thead id="evaluationMatrixHead"></thead>
               <tbody id="evaluationMatrixTable"></tbody>
