@@ -673,6 +673,7 @@ test('admin API analyzes provincial selection policy without final approval', as
           'FDF-01': name,
           'FDF-05': id,
           'FDF-07': email,
+          'FDF-08': 'Oriente',
           'FDF-09': 'Granma',
           'FDF-10': municipality,
           'FDF-12': institution,
@@ -701,6 +702,7 @@ test('admin API analyzes provincial selection policy without final approval', as
     assert.equal(clara.policy_recommendation, 'POLICY_RESERVE');
     assert.match(clara.policy_recommendation_label, /municipal/i);
     assert.equal(clara.proposal_status, 'NOT_PROPOSED');
+    assert.equal(clara.region, 'Oriente');
 
     const csv = await adminRawRequest(port, 'GET', '/api/admin/selection-policy-analysis.csv');
     assert.equal(csv.statusCode, 200);
@@ -711,6 +713,13 @@ test('admin API analyzes provincial selection policy without final approval', as
     assert.equal(pdf.statusCode, 200);
     assert.equal(pdf.headers['content-type'], 'application/pdf');
     assert.match(pdf.body.slice(0, 8), /%PDF-1\.4/);
+
+    const excel = await adminRawRequest(port, 'GET', '/api/admin/selection-policy-analysis.xls');
+    assert.equal(excel.statusCode, 200);
+    assert.match(excel.headers['content-type'], /application\/vnd\.ms-excel/);
+    assert.match(excel.body, /Propuesta por region y provincia/);
+    assert.match(excel.body, /Resumen por provincia/);
+    assert.match(excel.body, /Oriente/);
   });
 });
 

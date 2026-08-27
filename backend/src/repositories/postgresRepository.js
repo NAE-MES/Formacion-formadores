@@ -651,6 +651,7 @@ class PostgresRepository {
         )) as full_name,
         c.email,
         c.province,
+        coalesce(resp.region, '') as region,
         coalesce(resp.municipality, '') as municipality,
         coalesce(resp.institution, '') as institution,
         coalesce(resp.institution_type, '') as institution_type,
@@ -705,13 +706,14 @@ class PostgresRepository {
       left join lateral (
         select
           max(value #>> '{}') filter (where field_code = 'FDF-10') as municipality,
+          max(value #>> '{}') filter (where field_code = 'FDF-08') as region,
           max(value #>> '{}') filter (where field_code = 'FDF-12') as institution,
           max(value #>> '{}') filter (where field_code = 'FDF-13') as institution_type,
           max(value #>> '{}') filter (where field_code = 'FDF-35') as gender,
           max(value #>> '{}') filter (where field_code = 'FDF-36') as age_range
         from candidate_responses
         where submission_id = s.submission_id
-          and field_code in ('FDF-10', 'FDF-12', 'FDF-13', 'FDF-35', 'FDF-36')
+          and field_code in ('FDF-08', 'FDF-10', 'FDF-12', 'FDF-13', 'FDF-35', 'FDF-36')
       ) resp on true
       left join criterion_evaluations ce on ce.submission_id = s.submission_id
       group by
@@ -723,6 +725,7 @@ class PostgresRepository {
         c.second_surname,
         c.email,
         c.province,
+        resp.region,
         resp.municipality,
         resp.institution,
         resp.institution_type,

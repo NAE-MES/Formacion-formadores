@@ -386,6 +386,7 @@ class MemoryRepository {
           ].filter(Boolean).join(' '),
           email: candidate.email || '',
           province: candidate.province || '',
+          region: responses.get('FDF-08') || '',
           municipality: responses.get('FDF-10') || '',
           institution: responses.get('FDF-12') || '',
           institution_type: responses.get('FDF-13') || '',

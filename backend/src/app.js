@@ -221,6 +221,13 @@ function createApp({ config, repository }) {
         return sendCsv(res, 'fdf-2026-politica-seleccion-provincial.csv', selectionPolicyCsv(analysis.rows));
       }
 
+      if (req.method === 'GET' && req.url === '/api/admin/selection-policy-analysis.xls') {
+        await authorizeAdmin(req, config, repository);
+        const rankingRows = await buildPreliminaryRanking(repository);
+        const analysis = buildSelectionPolicyAnalysis(rankingRows, config.selectionPolicy);
+        return sendExcel(res, 'fdf-2026-propuesta-region-provincia.xls', selectionPolicyExcel(analysis));
+      }
+
       if (req.method === 'GET' && req.url === '/api/admin/proposal-summary.pdf') {
         await authorizeAdmin(req, config, repository);
         const rows = await buildPreliminaryRanking(repository);
@@ -821,6 +828,7 @@ async function buildPreliminaryRanking(repository) {
       full_name: row.full_name || '',
       email: row.email || '',
       province: row.province || '',
+      region: row.region || '',
       institution: row.institution || '',
       institution_type: row.institution_type || '',
       municipality: row.municipality || '',
@@ -1470,6 +1478,17 @@ function sendCsv(res, filename, content) {
   res.end(body);
 }
 
+function sendExcel(res, filename, content) {
+  const body = Buffer.from(content, 'utf8');
+  res.writeHead(200, {
+    'content-type': 'application/vnd.ms-excel; charset=utf-8',
+    'content-disposition': `attachment; filename="${filename}"`,
+    'content-length': body.length,
+    'cache-control': 'no-store',
+  });
+  res.end(body);
+}
+
 function sendPdf(res, filename, content) {
   const body = Buffer.isBuffer(content) ? content : Buffer.from(content);
   res.writeHead(200, {
@@ -1905,6 +1924,7 @@ function selectionPolicyCsv(rows) {
     'total_score',
     'full_name',
     'email',
+    'region',
     'province',
     'municipality',
     'institution',
@@ -1927,6 +1947,151 @@ function selectionPolicyCsv(rows) {
     policy_alerts: (row.policy_alerts || []).join(' | '),
   }));
   return rowsCsv(headers, expandedRows);
+}
+
+function selectionPolicyExcel(analysis) {
+  const rows = analysis.rows || [];
+  const mainRows = rows.filter(row => !row.received_after_cutoff);
+  const additionalRows = rows.filter(row => row.received_after_cutoff);
+  const proposedRows = rows.filter(row => row.policy_recommendation === 'POLICY_PROPOSED');
+  const reserveRows = rows.filter(row => row.policy_recommendation === 'POLICY_RESERVE');
+  const summaryRows = [
+    { metric: 'Corte operativo', value: analysis.summary?.cutoff_date || OPERATIONAL_RANKING_CUTOFF_DATE },
+    { metric: 'Total visible en sistema', value: rows.length },
+    { metric: 'Ranking principal', value: mainRows.length },
+    { metric: 'Valoracion adicional fuera de corte', value: additionalRows.length },
+    { metric: 'Elegibles para politica provincial', value: analysis.summary?.eligible_for_policy || 0 },
+    { metric: 'Propuesta sugerida', value: analysis.summary?.recommended_proposed || 0 },
+    { metric: 'Reserva sugerida', value: analysis.summary?.recommended_reserve || 0 },
+  ];
+  const provinceSummary = (analysis.summary?.provinces || []).map(row => ({
+    region: regionForProvince(rows, row.province),
+    province: row.province,
+    quota: row.quota,
+    eligible: row.eligible,
+    recommended_proposed: row.recommended_proposed,
+    recommended_reserve: row.recommended_reserve,
+    manually_proposed: row.manually_proposed,
+    manually_reserve: row.manually_reserve,
+  }));
+  return excelHtml([
+    excelSection('Resumen', summaryRows),
+    excelSection('Resumen por provincia', provinceSummary),
+    excelSection('Propuesta sugerida', proposedRows.map(selectionExcelRow)),
+    excelSection('Reserva sugerida', reserveRows.map(selectionExcelRow)),
+    excelSection('Ranking principal completo', mainRows.map(selectionExcelRow)),
+    excelSection('Valoracion adicional fuera de corte', additionalRows.map(selectionExcelRow)),
+  ]);
+}
+
+function selectionExcelRow(row) {
+  return {
+    region: row.region || '',
+    province: row.province || '',
+    province_policy_position: row.province_policy_position || '',
+    preliminary_position: row.preliminary_position || '',
+    policy_recommendation: row.policy_recommendation_label || row.policy_recommendation || '',
+    score_band: row.score_band?.label || '',
+    total_score: row.total_score ?? '',
+    full_name: row.full_name || '',
+    email: row.email || '',
+    municipality: row.municipality || '',
+    institution: row.institution || '',
+    institution_type: row.institution_type || '',
+    gender: row.gender || '',
+    age_range: row.age_range || '',
+    source_channel: row.source_channel || '',
+    received_date: row.received_date || '',
+    cutoff: row.received_after_cutoff ? 'Fuera de corte' : 'Principal',
+    validation_status: row.evaluation_validation_status || '',
+    proposal_status: row.proposal_status || '',
+    alerts: (row.policy_alerts || []).join(' | '),
+    reason: row.exclusion_reason || '',
+  };
+}
+
+function regionForProvince(rows, province) {
+  const found = rows.find(row => normalizedPolicyValue(row.province, 'Sin provincia') === province && row.region);
+  return found?.region || '';
+}
+
+function excelHtml(sections) {
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; }
+    h1 { font-size: 18px; }
+    h2 { font-size: 15px; margin-top: 22px; }
+    table { border-collapse: collapse; margin-bottom: 18px; }
+    th { background: #17324d; color: #ffffff; font-weight: bold; }
+    th, td { border: 1px solid #9aa9b5; padding: 4px 6px; font-size: 11px; vertical-align: top; }
+  </style>
+</head>
+<body>
+  <h1>FdF 2026 - Propuesta por region y provincia</h1>
+  <p>Documento operativo interno. No constituye aprobacion final.</p>
+  ${sections.join('\n')}
+</body>
+</html>`;
+}
+
+function excelSection(title, rows) {
+  const headers = Array.from(rows.reduce((set, row) => {
+    Object.keys(row).forEach(key => set.add(key));
+    return set;
+  }, new Set()));
+  if (!headers.length) return `<h2>${htmlEscape(title)}</h2><p>Sin datos.</p>`;
+  return `<h2>${htmlEscape(title)}</h2>
+<table>
+  <thead><tr>${headers.map(header => `<th>${htmlEscape(excelHeaderLabel(header))}</th>`).join('')}</tr></thead>
+  <tbody>
+    ${rows.map(row => `<tr>${headers.map(header => `<td>${htmlEscape(row[header])}</td>`).join('')}</tr>`).join('\n')}
+  </tbody>
+</table>`;
+}
+
+function excelHeaderLabel(value) {
+  return {
+    metric: 'Indicador',
+    value: 'Valor',
+    region: 'Region',
+    province: 'Provincia',
+    quota: 'Cupo',
+    eligible: 'Elegibles',
+    recommended_proposed: 'Propuesta sugerida',
+    recommended_reserve: 'Reserva sugerida',
+    manually_proposed: 'Propuesta manual',
+    manually_reserve: 'Reserva manual',
+    province_policy_position: 'Posicion provincial',
+    preliminary_position: 'Posicion general',
+    policy_recommendation: 'Recomendacion',
+    score_band: 'Rango',
+    total_score: 'Puntaje',
+    full_name: 'Postulante',
+    email: 'Correo',
+    municipality: 'Municipio',
+    institution: 'Institucion',
+    institution_type: 'Tipo institucion',
+    gender: 'Genero',
+    age_range: 'Edad',
+    source_channel: 'Origen',
+    received_date: 'Fecha recepcion',
+    cutoff: 'Corte',
+    validation_status: 'Validacion tecnica',
+    proposal_status: 'Estado propuesta',
+    alerts: 'Alertas',
+    reason: 'Motivo',
+  }[value] || value;
+}
+
+function htmlEscape(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 function rowsCsv(headers, rows) {

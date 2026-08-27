@@ -169,6 +169,7 @@ const clearRankingFiltersButton = document.querySelector('#clearRankingFiltersBu
 const exportRankingCsvButton = document.querySelector('#exportRankingCsvButton');
 const exportRankingPdfButton = document.querySelector('#exportRankingPdfButton');
 const exportProposalPdfButton = document.querySelector('#exportProposalPdfButton');
+const exportSelectionPolicyExcelButton = document.querySelector('#exportSelectionPolicyExcelButton');
 const exportSelectionPolicyPdfButton = document.querySelector('#exportSelectionPolicyPdfButton');
 const preliminaryRankingTable = document.querySelector('#preliminaryRankingTable');
 const rankingCount = document.querySelector('#rankingCount');
@@ -293,6 +294,7 @@ clearRankingFiltersButton.addEventListener('click', clearRankingFilters);
 exportRankingCsvButton.addEventListener('click', () => exportCsv('/api/admin/preliminary-ranking.csv', 'fdf-2026-ranking-preliminar.csv'));
 exportRankingPdfButton.addEventListener('click', () => exportCsv('/api/admin/preliminary-ranking.pdf', 'fdf-2026-ranking-preliminar.pdf'));
 exportProposalPdfButton.addEventListener('click', () => exportCsv('/api/admin/proposal-summary.pdf', 'fdf-2026-resumen-propuesta.pdf'));
+exportSelectionPolicyExcelButton.addEventListener('click', () => exportCsv('/api/admin/selection-policy-analysis.xls', 'fdf-2026-propuesta-region-provincia.xls'));
 exportSelectionPolicyPdfButton.addEventListener('click', () => exportCsv('/api/admin/selection-policy-analysis.pdf', 'fdf-2026-politica-seleccion-provincial.pdf'));
 applyBulkRankingValidationButton.addEventListener('click', applyBulkRankingValidation);
 selectAllRanking.addEventListener('change', toggleVisibleRankingEvaluations);
