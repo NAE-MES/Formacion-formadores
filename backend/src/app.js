@@ -18,6 +18,7 @@ const {
 } = require('./evaluation');
 
 const BUSINESS_TIME_ZONE = 'America/Havana';
+const OPERATIONAL_RANKING_CUTOFF_DATE = '2026-08-26';
 
 function createApp({ config, repository }) {
   async function handle(req, res) {
@@ -803,7 +804,10 @@ async function buildPreliminaryRanking(repository) {
     const validationStatus = row.evaluation_validation_status || review.evaluation_validation_status || 'PENDING_TECHNICAL_VALIDATION';
     const proposal = proposalsByEvaluation.get(row.evaluation_result_id || review.evaluation_result_id || detail?.evaluation_result?.evaluation_result_id || '') || {};
     const openIssueCount = Number(review.open_issue_count || 0);
+    const receivedDate = dateKeyFromRaw(row.received_at || review.received_at || '');
+    const receivedAfterCutoff = isReceivedAfterOperationalCutoff(row.received_at || review.received_at || '');
     const includedInPreliminaryRanking = (
+      !receivedAfterCutoff &&
       totalScore !== null &&
       evaluationStatus === 'COMPLETED' &&
       validationStatus === 'VALIDATED_BY_TECHNICAL_TEAM' &&
@@ -824,6 +828,9 @@ async function buildPreliminaryRanking(repository) {
       age_range: row.age_range || '',
       source_channel: row.source_channel || '',
       received_at: row.received_at || '',
+      received_date: receivedDate,
+      ranking_cutoff_date: OPERATIONAL_RANKING_CUTOFF_DATE,
+      received_after_cutoff: receivedAfterCutoff,
       eligibility_status: eligibilityStatus,
       evaluation_status: evaluationStatus,
       evaluation_validation_status: validationStatus,
@@ -843,6 +850,7 @@ async function buildPreliminaryRanking(repository) {
         evaluationStatus,
         validationStatus,
         openIssueCount,
+        receivedAfterCutoff,
       }),
     });
   }
@@ -851,7 +859,7 @@ async function buildPreliminaryRanking(repository) {
   let previousScore = null;
   let currentPosition = 0;
   sorted.forEach((row, index) => {
-    if (row.total_score === null) {
+    if (row.received_after_cutoff || row.total_score === null) {
       row.preliminary_position = null;
       return;
     }
@@ -875,6 +883,7 @@ function formatPlainValue(value) {
 }
 
 function preliminaryRankingSort(a, b) {
+  if (!!a.received_after_cutoff !== !!b.received_after_cutoff) return a.received_after_cutoff ? 1 : -1;
   if (a.total_score === null && b.total_score === null) return a.full_name.localeCompare(b.full_name);
   if (a.total_score === null) return 1;
   if (b.total_score === null) return -1;
@@ -882,13 +891,19 @@ function preliminaryRankingSort(a, b) {
   return a.full_name.localeCompare(b.full_name);
 }
 
-function preliminaryRankingExclusionReason({ totalScore, eligibilityStatus, evaluationStatus, validationStatus, openIssueCount }) {
+function preliminaryRankingExclusionReason({ totalScore, eligibilityStatus, evaluationStatus, validationStatus, openIssueCount, receivedAfterCutoff }) {
+  if (receivedAfterCutoff) return `Recibida despues del corte operativo (${OPERATIONAL_RANKING_CUTOFF_DATE}). Valoracion adicional del Equipo Tecnico.`;
   if (totalScore === null) return 'Sin puntaje tecnico completo.';
   if (eligibilityStatus !== 'READY_FOR_TECHNICAL_REVIEW') return 'Admisibilidad no lista para revision tecnica.';
   if (evaluationStatus !== 'COMPLETED') return 'Evaluacion tecnica no completada.';
   if (validationStatus !== 'VALIDATED_BY_TECHNICAL_TEAM') return 'Evaluacion tecnica no validada por el Equipo Tecnico.';
   if (openIssueCount > 0) return 'Tiene incidencias operativas abiertas.';
   return '';
+}
+
+function isReceivedAfterOperationalCutoff(value) {
+  const key = dateKeyFromRaw(value);
+  return key !== 'Sin fecha' && key > OPERATIONAL_RANKING_CUTOFF_DATE;
 }
 
 function buildSelectionPolicyAnalysis(rankingRows, policy = {}) {
@@ -1013,6 +1028,8 @@ function selectionPolicySummary(rows, policy) {
   const provinceNames = Array.from(new Set(rows.map(row => normalizedPolicyValue(row.province, 'Sin provincia')))).sort();
   return {
     total_rows: rows.length,
+    after_cutoff: rows.filter(row => row.received_after_cutoff).length,
+    cutoff_date: OPERATIONAL_RANKING_CUTOFF_DATE,
     eligible_for_policy: rows.filter(row => row.included_in_preliminary_ranking).length,
     recommended_proposed: rows.filter(row => row.policy_recommendation === 'POLICY_PROPOSED').length,
     recommended_reserve: rows.filter(row => row.policy_recommendation === 'POLICY_RESERVE').length,
@@ -1493,15 +1510,25 @@ function executiveReportPdf(report, stats) {
 function preliminaryRankingPdf(rankingRows) {
   const rows = [];
   const included = rankingRows.filter(row => row.included_in_preliminary_ranking).length;
+  const afterCutoff = rankingRows.filter(row => row.received_after_cutoff);
   rows.push({ type: 'title', text: 'Ranking preliminar no vinculante FdF 2026' });
   rows.push({ type: 'muted', text: `Generado: ${formatPdfDate(new Date().toISOString())}   Registros: ${rankingRows.length}   Incluidos preliminarmente: ${included}` });
+  rows.push({ type: 'muted', text: `Corte operativo aplicado: postulaciones recibidas hasta ${OPERATIONAL_RANKING_CUTOFF_DATE}. Recibidas despues del corte: ${afterCutoff.length}.` });
   rows.push({ type: 'muted', text: 'No aplica cupos, no resuelve desempates y no constituye aprobacion final.' });
   rows.push({ type: 'space' });
   rows.push({ type: 'section', text: 'Primeras posiciones operativas' });
-  rows.push(...rankingRows.slice(0, 40).map(row => ({
+  rows.push(...rankingRows.filter(row => !row.received_after_cutoff).slice(0, 40).map(row => ({
     type: 'text',
     text: `${row.preliminary_position || '-'} | ${formatScoreForPdf(row.total_score)} | ${row.full_name} | ${row.province || 'Sin provincia'} | ${row.institution || 'Sin institucion'} | ${statusLabelForPdf(row.evaluation_validation_status)} | ${proposalStatusLabel(row.proposal_status)}`,
   })));
+  if (afterCutoff.length) {
+    rows.push({ type: 'space' });
+    rows.push({ type: 'section', text: 'Recibidas despues del corte para valoracion adicional' });
+    rows.push(...afterCutoff.slice(0, 35).map(row => ({
+      type: 'text',
+      text: `${row.received_date || '-'} | ${formatScoreForPdf(row.total_score)} | ${row.full_name} | ${row.province || 'Sin provincia'} | ${row.institution || 'Sin institucion'} | ${statusLabelForPdf(row.evaluation_validation_status)}`,
+    })));
+  }
   return buildSimplePdf(rows);
 }
 
@@ -1536,6 +1563,7 @@ function selectionPolicyPdf(analysis) {
   rows.push({ type: 'section', text: 'Reglas aplicadas para analisis' });
   rows.push({ type: 'text', text: `Cupo provincial: ${analysis.policy.quota_per_province}; maximo por municipio: ${analysis.policy.max_per_municipality}; maximo por institucion: ${analysis.policy.max_per_institution}.` });
   rows.push({ type: 'text', text: `Elegibles para politica: ${analysis.summary.eligible_for_policy}; recomendadas: ${analysis.summary.recommended_proposed}; reserva sugerida: ${analysis.summary.recommended_reserve}.` });
+  rows.push({ type: 'text', text: `Corte operativo: hasta ${analysis.summary.cutoff_date || OPERATIONAL_RANKING_CUTOFF_DATE}; recibidas despues del corte: ${analysis.summary.after_cutoff || 0}.` });
   rows.push({ type: 'space' });
   rows.push({ type: 'section', text: 'Resumen por provincia' });
   rows.push(...analysis.summary.provinces.map(row => ({
@@ -1848,6 +1876,9 @@ function preliminaryRankingCsv(rows) {
     'institution_type',
     'gender',
     'age_range',
+    'received_date',
+    'ranking_cutoff_date',
+    'received_after_cutoff',
     'source_channel',
     'eligibility_status',
     'evaluation_status',
@@ -1880,6 +1911,9 @@ function selectionPolicyCsv(rows) {
     'institution_type',
     'gender',
     'age_range',
+    'received_date',
+    'ranking_cutoff_date',
+    'received_after_cutoff',
     'proposal_status',
     'included_in_preliminary_ranking',
     'exclusion_reason',

@@ -1092,6 +1092,8 @@ function renderPreliminaryRanking() {
   const maxScore = rankingMaxScoreFilter.value === '' ? null : Number(rankingMaxScoreFilter.value);
   const rows = preliminaryRankingRows.filter(item => {
     const matchesScope = !scope ||
+      (scope === 'MAIN' && !item.received_after_cutoff) ||
+      (scope === 'AFTER_CUTOFF' && item.received_after_cutoff) ||
       (scope === 'INCLUDED' && item.included_in_preliminary_ranking) ||
       (scope === 'EXCLUDED' && !item.included_in_preliminary_ranking);
     const matchesValidation = !validation || (item.evaluation_validation_status || 'PENDING_TECHNICAL_VALIDATION') === validation;
@@ -1133,11 +1135,14 @@ function renderPreliminaryRanking() {
       </td>
       <td>${evaluationValidationBadge(item.evaluation_validation_status)}</td>
       <td>${proposalBadge(item.proposal_status)}</td>
+      <td>${rankingCutoffBadge(item)}</td>
       <td>${rankingInclusionBadge(item)}</td>
       <td>${escapeHtml(rankingReason(item))}</td>
     </tr>
   `).join('');
-  rankingCount.textContent = resultCountLabel(rows.length, preliminaryRankingRows.length, 'postulación', 'postulaciones');
+  const mainRows = rows.filter(item => !item.received_after_cutoff).length;
+  const afterCutoffRows = rows.filter(item => item.received_after_cutoff).length;
+  rankingCount.textContent = `${resultCountLabel(rows.length, preliminaryRankingRows.length, 'postulación', 'postulaciones')} · Principal: ${mainRows} · Valoración adicional: ${afterCutoffRows}`;
   updateBulkRankingUi();
 
   preliminaryRankingTable.querySelectorAll('tr').forEach(row => {
@@ -1177,6 +1182,11 @@ function renderSelectionPolicyPanel() {
       <span>Recomendadas</span>
       <strong>${escapeHtml(summary.recommended_proposed || 0)}</strong>
       <small>${escapeHtml(summary.recommended_reserve || 0)} en reserva sugerida</small>
+    </div>
+    <div class="policy-card ${Number(summary.after_cutoff || 0) ? 'warn' : 'ok'}">
+      <span>Fuera de corte</span>
+      <strong>${escapeHtml(summary.after_cutoff || 0)}</strong>
+      <small>Recibidas después del ${escapeHtml(summary.cutoff_date || '2026-08-26')}</small>
     </div>
     <div class="policy-card">
       <span>Marcadas manualmente</span>
@@ -1222,9 +1232,17 @@ function rankingSelectionCheckbox(item) {
 }
 
 function rankingInclusionBadge(item) {
+  if (item.received_after_cutoff) return '<span class="badge warn">Adicional</span>';
   return item.included_in_preliminary_ranking
     ? '<span class="badge ok">Incluida</span>'
     : '<span class="badge warn">No incluida</span>';
+}
+
+function rankingCutoffBadge(item) {
+  if (item.received_after_cutoff) {
+    return `<span class="badge warn">Fuera de corte</span><br><span class="muted">${escapeHtml(item.received_date || '')}</span>`;
+  }
+  return `<span class="badge ok">Principal</span><br><span class="muted">Hasta ${escapeHtml(item.ranking_cutoff_date || '2026-08-26')}</span>`;
 }
 
 function proposalBadge(status) {

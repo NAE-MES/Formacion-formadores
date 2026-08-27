@@ -1358,7 +1358,7 @@
           <div id="selectionPolicyPanel" class="policy-panel"></div>
           <div class="toolbar ranking-toolbar">
             <input id="rankingSearchInput" type="search" placeholder="Buscar postulante, provincia o institución" />
-            <select id="rankingScopeFilter"><option value="">Todos</option><option value="INCLUDED">Incluidos preliminarmente</option><option value="EXCLUDED">Fuera del ranking preliminar</option></select>
+            <select id="rankingScopeFilter"><option value="">Todos</option><option value="MAIN">Ranking principal</option><option value="AFTER_CUTOFF">Recibidas fuera de corte</option><option value="INCLUDED">Incluidos preliminarmente</option><option value="EXCLUDED">Fuera del ranking preliminar</option></select>
             <select id="rankingValidationFilter"><option value="">Validación técnica</option><option value="PENDING_TECHNICAL_VALIDATION">Pendiente</option><option value="IN_TECHNICAL_REVIEW">En revisión</option><option value="VALIDATED_BY_TECHNICAL_TEAM">Validada</option><option value="REQUIRES_SCORE_ADJUSTMENT">Requiere ajuste</option></select>
             <select id="rankingProvinceFilter"><option value="">Provincia</option></select>
             <select id="rankingGenderFilter"><option value="">Género</option></select>
@@ -1384,10 +1384,10 @@
             <button id="exportSelectionPolicyPdfButton" type="button">PDF política provincial</button>
           </div>
           <p id="rankingCount" class="result-count"></p>
-          <div class="ranking-note">Ranking preliminar no vinculante: no sustituye la aprobación del Equipo Técnico y no resuelve empates ni cupos.</div>
+          <div class="ranking-note">Ranking preliminar no vinculante: toma como principal las postulaciones recibidas hasta el 26/08/2026. Las recibidas el 27/08/2026 o después se muestran aparte para valoración adicional del Equipo Técnico.</div>
           <div class="table-wrap wide-table">
             <table>
-              <thead><tr><th></th><th>Pos.</th><th>Postulante</th><th>Puntaje</th><th>Provincia</th><th>Institución</th><th>Validación</th><th>Propuesta</th><th>Estado</th><th>Motivo</th></tr></thead>
+              <thead><tr><th></th><th>Pos.</th><th>Postulante</th><th>Puntaje</th><th>Provincia</th><th>Institución</th><th>Validación</th><th>Propuesta</th><th>Corte</th><th>Estado</th><th>Motivo</th></tr></thead>
               <tbody id="preliminaryRankingTable"></tbody>
             </table>
           </div>

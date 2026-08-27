@@ -586,6 +586,19 @@ test('admin API exposes non binding preliminary ranking', async (t) => {
       }),
       documents: requiredDocuments(),
     });
+    await request(port, 'POST', '/api/submissions/google-form', {
+      sourceReference: 'google-response-ranking-after-cutoff',
+      receivedAt: '2026-08-27T10:00:00.000-04:00',
+      responses: validResponses({
+        'FDF-01': 'Diana',
+        'FDF-05': 'SYN-RANK-3',
+        'FDF-07': 'diana.ranking@example.test',
+        'FDF-12': 'Institución Posterior',
+        'FDF-13': 'Gobierno provincial',
+        'FDF-35': 'Mujer',
+      }),
+      documents: requiredDocuments(),
+    });
 
     const submissions = Array.from(repository.submissions.values());
     const validatedSubmission = submissions.find(item => item.source_reference === 'google-response-ranking-validated');
@@ -597,7 +610,7 @@ test('admin API exposes non binding preliminary ranking', async (t) => {
 
     const ranking = await adminRequest(port, 'GET', '/api/admin/preliminary-ranking');
     assert.equal(ranking.statusCode, 200);
-    assert.equal(ranking.body.rows.length, 2);
+    assert.equal(ranking.body.rows.length, 3);
     assert.equal(ranking.body.rows[0].full_name, 'Beatriz Perez Lopez');
     assert.equal(ranking.body.rows[0].preliminary_position, 1);
     assert.equal(ranking.body.rows[0].included_in_preliminary_ranking, false);
@@ -608,10 +621,15 @@ test('admin API exposes non binding preliminary ranking', async (t) => {
     assert.match(included.evaluation_result_id, /^er_/);
     assert.equal(included.institution, 'Centro Provincial Sintético');
     assert.equal(included.gender, 'Hombre');
+    const afterCutoff = ranking.body.rows.find(row => row.full_name === 'Diana Perez Lopez');
+    assert.equal(afterCutoff.received_after_cutoff, true);
+    assert.equal(afterCutoff.preliminary_position, null);
+    assert.equal(afterCutoff.included_in_preliminary_ranking, false);
+    assert.match(afterCutoff.exclusion_reason, /corte operativo/i);
 
     const csv = await adminRawRequest(port, 'GET', '/api/admin/preliminary-ranking.csv');
     assert.equal(csv.statusCode, 200);
-    assert.match(csv.body, /preliminary_position,included_in_preliminary_ranking,total_score/);
+    assert.match(csv.body, /ranking_cutoff_date,received_after_cutoff/);
     assert.match(csv.body, /Carla Perez Lopez/);
 
     const proposal = await adminJsonRequest(port, 'PATCH', '/api/admin/proposal-entries/bulk', {
