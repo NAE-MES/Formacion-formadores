@@ -11,6 +11,7 @@ const publicSchema = JSON.parse(fs.readFileSync(path.join(root, 'config', 'fdf-2
 const eligibilityConfig = JSON.parse(fs.readFileSync(path.join(root, 'config', 'fdf-2026-eligibility-baseline.json'), 'utf8'));
 const evaluationConfig = JSON.parse(fs.readFileSync(path.join(root, 'config', 'fdf-2026-evaluation-baseline.json'), 'utf8'));
 const selectionPolicy = JSON.parse(fs.readFileSync(path.join(root, 'config', 'fdf-2026-selection-policy.json'), 'utf8'));
+const municipalitiesCatalog = JSON.parse(fs.readFileSync(path.join(root, 'config', 'cuba-municipalities.json'), 'utf8'));
 
 function validResponses(overrides = {}) {
   const responses = {};
@@ -67,6 +68,7 @@ async function withServer(t, handler, configOverrides = {}) {
     eligibilityConfig,
     evaluationConfig,
     selectionPolicy,
+    municipalitiesCatalog,
     ...configOverrides,
   };
   const app = createApp({ config, repository });
@@ -567,6 +569,8 @@ test('admin API exposes non binding preliminary ranking', async (t) => {
         'FDF-01': 'Carla',
         'FDF-05': 'SYN-RANK-1',
         'FDF-07': 'carla.ranking@example.test',
+        'FDF-09': 'La Habana',
+        'FDF-10': '10 de octubre',
         'FDF-12': 'Centro Provincial Sintético',
         'FDF-13': 'Universidad',
         'FDF-35': 'Hombre',
@@ -621,6 +625,9 @@ test('admin API exposes non binding preliminary ranking', async (t) => {
     assert.match(included.evaluation_result_id, /^er_/);
     assert.equal(included.institution, 'Centro Provincial Sintético');
     assert.equal(included.gender, 'Hombre');
+    assert.equal(included.municipality, 'Diez de Octubre');
+    assert.equal(included.municipality_raw, '10 de octubre');
+    assert.equal(included.municipality_normalization_status, 'NORMALIZED');
     const afterCutoff = ranking.body.rows.find(row => row.full_name === 'Diana Perez Lopez');
     assert.equal(afterCutoff.received_after_cutoff, true);
     assert.equal(afterCutoff.preliminary_position, null);

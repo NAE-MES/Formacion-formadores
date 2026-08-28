@@ -188,18 +188,18 @@ function createApp({ config, repository }) {
 
       if (req.method === 'GET' && req.url === '/api/admin/preliminary-ranking') {
         await authorizeAdmin(req, config, repository);
-        return sendJson(res, 200, { rows: await buildPreliminaryRanking(repository) });
+        return sendJson(res, 200, { rows: await buildPreliminaryRanking(repository, config) });
       }
 
       if (req.method === 'GET' && req.url === '/api/admin/selection-policy-analysis') {
         await authorizeAdmin(req, config, repository);
-        const rankingRows = await buildPreliminaryRanking(repository);
+        const rankingRows = await buildPreliminaryRanking(repository, config);
         return sendJson(res, 200, buildSelectionPolicyAnalysis(rankingRows, config.selectionPolicy));
       }
 
       if (req.method === 'GET' && req.url === '/api/admin/preliminary-ranking.pdf') {
         await authorizeAdmin(req, config, repository);
-        const rows = await buildPreliminaryRanking(repository);
+        const rows = await buildPreliminaryRanking(repository, config);
         return sendPdf(res, 'fdf-2026-ranking-preliminar-no-vinculante.pdf', preliminaryRankingPdf(rows));
       }
 
@@ -211,32 +211,32 @@ function createApp({ config, repository }) {
 
       if (req.method === 'GET' && req.url === '/api/admin/preliminary-ranking.csv') {
         await authorizeAdmin(req, config, repository);
-        return sendCsv(res, 'fdf-2026-preliminary-ranking.csv', preliminaryRankingCsv(await buildPreliminaryRanking(repository)));
+        return sendCsv(res, 'fdf-2026-preliminary-ranking.csv', preliminaryRankingCsv(await buildPreliminaryRanking(repository, config)));
       }
 
       if (req.method === 'GET' && req.url === '/api/admin/selection-policy-analysis.csv') {
         await authorizeAdmin(req, config, repository);
-        const rankingRows = await buildPreliminaryRanking(repository);
+        const rankingRows = await buildPreliminaryRanking(repository, config);
         const analysis = buildSelectionPolicyAnalysis(rankingRows, config.selectionPolicy);
         return sendCsv(res, 'fdf-2026-politica-seleccion-provincial.csv', selectionPolicyCsv(analysis.rows));
       }
 
       if (req.method === 'GET' && req.url === '/api/admin/selection-policy-analysis.xls') {
         await authorizeAdmin(req, config, repository);
-        const rankingRows = await buildPreliminaryRanking(repository);
+        const rankingRows = await buildPreliminaryRanking(repository, config);
         const analysis = buildSelectionPolicyAnalysis(rankingRows, config.selectionPolicy);
         return sendExcel(res, 'fdf-2026-propuesta-region-provincia.xls', selectionPolicyExcel(analysis));
       }
 
       if (req.method === 'GET' && req.url === '/api/admin/proposal-summary.pdf') {
         await authorizeAdmin(req, config, repository);
-        const rows = await buildPreliminaryRanking(repository);
+        const rows = await buildPreliminaryRanking(repository, config);
         return sendPdf(res, 'fdf-2026-resumen-personas-propuestas.pdf', proposalSummaryPdf(rows, config.selectionPolicy));
       }
 
       if (req.method === 'GET' && req.url === '/api/admin/selection-policy-analysis.pdf') {
         await authorizeAdmin(req, config, repository);
-        const rankingRows = await buildPreliminaryRanking(repository);
+        const rankingRows = await buildPreliminaryRanking(repository, config);
         return sendPdf(res, 'fdf-2026-analisis-politica-seleccion.pdf', selectionPolicyPdf(buildSelectionPolicyAnalysis(rankingRows, config.selectionPolicy)));
       }
 
@@ -319,7 +319,7 @@ function createApp({ config, repository }) {
       if (req.method === 'PATCH' && req.url === '/api/admin/proposal-entries/bulk') {
         const admin = await authorizeAdmin(req, config, repository, ['ADMIN', 'REVIEWER']);
         const payload = await readJson(req);
-        const entries = await updateProposalEntries(payload, repository, admin.username || 'ADMIN_UI');
+        const entries = await updateProposalEntries(payload, repository, config, admin.username || 'ADMIN_UI');
         return sendJson(res, 200, { entries });
       }
 
@@ -607,7 +607,7 @@ async function updateEvaluationValidation(evaluationResultId, payload, repositor
   });
 }
 
-async function updateProposalEntries(payload, repository, actor) {
+async function updateProposalEntries(payload, repository, config, actor) {
   if (!repository.upsertProposalEntry || !repository.listEvaluationMatrixRows) {
     const error = new Error('Proposal management is not configured.');
     error.statusCode = 503;
@@ -617,7 +617,7 @@ async function updateProposalEntries(payload, repository, actor) {
   const evaluationResultIds = boundedStringList(payload.evaluation_result_ids, 'evaluation_result_ids');
   const proposalStatus = String(payload.proposal_status || '').trim();
   validateProposalStatus(proposalStatus);
-  const rows = await buildPreliminaryRanking(repository);
+  const rows = await buildPreliminaryRanking(repository, config);
   const byEvaluation = new Map(rows.map(row => [row.evaluation_result_id, row]));
   const now = new Date().toISOString();
   const entries = [];
@@ -792,7 +792,7 @@ async function buildHomeStats(repository, admin = {}) {
   return stats;
 }
 
-async function buildPreliminaryRanking(repository) {
+async function buildPreliminaryRanking(repository, config = {}) {
   const [matrixRows, reviewRows, proposalEntries] = await Promise.all([
     repository.listEvaluationMatrixRows(),
     repository.listReviewSummaries(),
@@ -800,6 +800,7 @@ async function buildPreliminaryRanking(repository) {
   ]);
   const reviewsBySubmission = new Map(reviewRows.map(row => [row.submission_id, row]));
   const proposalsByEvaluation = new Map((proposalEntries || []).map(row => [row.evaluation_result_id, row]));
+  const municipalityNormalizer = createMunicipalityNormalizer(config.municipalitiesCatalog);
   const rows = [];
   for (const row of matrixRows) {
     const review = reviewsBySubmission.get(row.submission_id) || {};
@@ -821,6 +822,8 @@ async function buildPreliminaryRanking(repository) {
       eligibilityStatus === 'READY_FOR_TECHNICAL_REVIEW' &&
       openIssueCount === 0
     );
+    const municipalityRaw = row.municipality || '';
+    const municipalityNormalization = municipalityNormalizer(municipalityRaw, row.province || '');
     rows.push({
       submission_id: row.submission_id,
       candidate_id: row.candidate_id,
@@ -831,7 +834,9 @@ async function buildPreliminaryRanking(repository) {
       region: row.region || '',
       institution: row.institution || '',
       institution_type: row.institution_type || '',
-      municipality: row.municipality || '',
+      municipality: municipalityNormalization.value,
+      municipality_raw: municipalityRaw,
+      municipality_normalization_status: municipalityNormalization.status,
       gender: row.gender || '',
       age_range: row.age_range || '',
       source_channel: row.source_channel || '',
@@ -907,6 +912,39 @@ function preliminaryRankingExclusionReason({ totalScore, eligibilityStatus, eval
   if (validationStatus !== 'VALIDATED_BY_TECHNICAL_TEAM') return 'Evaluacion tecnica no validada por el Equipo Tecnico.';
   if (openIssueCount > 0) return 'Tiene incidencias operativas abiertas.';
   return '';
+}
+
+function createMunicipalityNormalizer(catalog = {}) {
+  const municipalities = Array.isArray(catalog.municipalities) ? catalog.municipalities : [];
+  const byProvince = groupBy(municipalities, item => normalizeCatalogText(item.province));
+  return (rawValue, province) => {
+    const raw = String(rawValue || '').trim();
+    if (!raw) return { value: '', status: 'EMPTY' };
+    const provinceKey = normalizeCatalogText(province);
+    const candidates = byProvince.get(provinceKey) || municipalities;
+    const normalizedRaw = normalizeCatalogText(raw);
+    const exact = candidates.find(item => normalizeCatalogText(item.municipality) === normalizedRaw);
+    if (exact) return { value: exact.municipality, status: exact.municipality === raw ? 'OFFICIAL' : 'NORMALIZED' };
+
+    const contained = candidates.filter(item => {
+      const normalizedMunicipality = normalizeCatalogText(item.municipality);
+      return normalizedRaw.includes(normalizedMunicipality) || normalizedMunicipality.includes(normalizedRaw);
+    });
+    if (contained.length === 1) return { value: contained[0].municipality, status: 'NORMALIZED' };
+    return { value: raw, status: contained.length > 1 ? 'AMBIGUOUS' : 'UNMATCHED' };
+  };
+}
+
+function normalizeCatalogText(value) {
+  return removeAccents(String(value || ''))
+    .toLowerCase()
+    .replace(/\b10\b/g, 'diez')
+    .replace(/\b1ro\b/g, 'primero')
+    .replace(/\b1ero\b/g, 'primero')
+    .replace(/\b1\b/g, 'primero')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function isReceivedAfterOperationalCutoff(value) {
@@ -1891,6 +1929,8 @@ function preliminaryRankingCsv(rows) {
     'email',
     'province',
     'municipality',
+    'municipality_raw',
+    'municipality_normalization_status',
     'institution',
     'institution_type',
     'gender',
@@ -1927,6 +1967,8 @@ function selectionPolicyCsv(rows) {
     'region',
     'province',
     'municipality',
+    'municipality_raw',
+    'municipality_normalization_status',
     'institution',
     'institution_type',
     'gender',
@@ -2009,6 +2051,8 @@ function selectionDecisionExcelRow(row) {
     full_name: row.full_name || '',
     province: row.province || '',
     municipality: row.municipality || '',
+    municipality_raw: row.municipality_raw || '',
+    municipality_normalization_status: row.municipality_normalization_status || '',
     region: row.region || '',
     institution: row.institution || '',
     institution_type: row.institution_type || '',
@@ -2125,6 +2169,8 @@ function excelHeaderLabel(value) {
     full_name: 'Postulante',
     email: 'Correo',
     municipality: 'Municipio',
+    municipality_raw: 'Municipio original',
+    municipality_normalization_status: 'Normalizacion municipio',
     institution: 'Institucion',
     institution_type: 'Tipo institucion',
     gender: 'Genero',
