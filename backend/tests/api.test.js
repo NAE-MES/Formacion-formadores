@@ -726,12 +726,13 @@ test('admin API analyzes provincial selection policy without final approval', as
     assert.match(excel.headers['content-type'], /application\/vnd\.ms-excel/);
     assert.match(excel.body, /<Workbook/);
     assert.match(excel.body, /ss:Name="Resumen provincias"/);
-    assert.match(excel.body, /ss:Name="Para decidir"/);
-    assert.match(excel.body, /ss:Name="Revisar municipios"/);
-    assert.match(excel.body, /ss:Name="Region Oriente"/);
     assert.match(excel.body, /ss:Name="Prov Granma"/);
+    assert.doesNotMatch(excel.body, /ss:Name="Para decidir"/);
+    assert.doesNotMatch(excel.body, /ss:Name="Revisar municipios"/);
+    assert.doesNotMatch(excel.body, /ss:Name="Region Oriente"/);
     assert.match(excel.body, /Decision ET/);
-    assert.match(excel.body, /Oriente/);
+    assert.match(excel.body, /Motivo si no completa cupo/);
+    assert.doesNotMatch(excel.body, /Normalizacion municipio/);
   });
 });
 

@@ -225,7 +225,7 @@ function createApp({ config, repository }) {
         await authorizeAdmin(req, config, repository);
         const rankingRows = await buildPreliminaryRanking(repository, config);
         const analysis = buildSelectionPolicyAnalysis(rankingRows, config.selectionPolicy);
-        return sendExcel(res, 'fdf-2026-propuesta-region-provincia.xls', selectionPolicyExcel(analysis));
+        return sendExcel(res, 'fdf-2026-propuesta-por-provincia.xls', selectionPolicyExcel(analysis));
       }
 
       if (req.method === 'GET' && req.url === '/api/admin/proposal-summary.pdf') {
@@ -237,7 +237,7 @@ function createApp({ config, repository }) {
       if (req.method === 'GET' && req.url === '/api/admin/selection-policy-analysis.pdf') {
         await authorizeAdmin(req, config, repository);
         const rankingRows = await buildPreliminaryRanking(repository, config);
-        return sendPdf(res, 'fdf-2026-analisis-politica-seleccion.pdf', selectionPolicyPdf(buildSelectionPolicyAnalysis(rankingRows, config.selectionPolicy)));
+        return sendPdf(res, 'fdf-2026-propuestas-por-provincia.pdf', selectionPolicyPdf(buildSelectionPolicyAnalysis(rankingRows, config.selectionPolicy)));
       }
 
       if (req.method === 'GET' && req.url === '/api/admin/issues') {
@@ -1124,11 +1124,32 @@ function selectionPolicySummary(rows, policy) {
         eligible: provinceRows.filter(row => row.included_in_preliminary_ranking).length,
         recommended_proposed: provinceRows.filter(row => row.policy_recommendation === 'POLICY_PROPOSED').length,
         recommended_reserve: provinceRows.filter(row => row.policy_recommendation === 'POLICY_RESERVE').length,
+        after_cutoff: provinceRows.filter(row => row.received_after_cutoff).length,
         manually_proposed: provinceRows.filter(row => row.proposal_status === 'PROPOSED').length,
         manually_reserve: provinceRows.filter(row => row.proposal_status === 'RESERVE').length,
+        incomplete_reason: provinceCompletionReason(provinceRows, policy),
       };
     }),
   };
+}
+
+function provinceCompletionReason(provinceRows, policy) {
+  const quota = Number(policy.quota || 0);
+  const proposed = provinceRows.filter(row => row.policy_recommendation === 'POLICY_PROPOSED').length;
+  if (!quota || proposed >= quota) return '';
+
+  const eligible = provinceRows.filter(row => row.included_in_preliminary_ranking).length;
+  if (!eligible) return `No hay postulaciones elegibles para el corte operativo.`;
+  if (eligible < quota) return `Solo hay ${eligible} postulaciones elegibles para cupo ${quota}.`;
+
+  const reserveReasons = provinceRows
+    .filter(row => row.policy_recommendation === 'POLICY_RESERVE')
+    .map(row => row.policy_recommendation_label)
+    .filter(Boolean);
+  if (reserveReasons.some(reason => /municipal/i.test(reason)) || reserveReasons.some(reason => /institucional/i.test(reason))) {
+    return `No completa cupo por limites de distribucion municipal o institucional.`;
+  }
+  return `No completa cupo con las reglas de propuesta configuradas.`;
 }
 
 function groupBy(rows, getter) {
@@ -1648,34 +1669,57 @@ function proposalSummaryPdf(rankingRows, policy) {
 
 function selectionPolicyPdf(analysis) {
   const rows = [];
-  rows.push({ type: 'title', text: 'Analisis de politica de seleccion provincial FdF 2026' });
+  rows.push({ type: 'title', text: 'Propuestas por provincia FdF 2026' });
   rows.push({ type: 'muted', text: `Generado: ${formatPdfDate(new Date().toISOString())}   Version: ${analysis.policy.schema_version || 'Sin version'}` });
-  rows.push({ type: 'muted', text: 'Analisis operativo. No constituye aprobacion final ni sustituye al Equipo Tecnico.' });
+  rows.push({ type: 'muted', text: 'Informe operativo para revision del Equipo Tecnico. No constituye aprobacion final.' });
   rows.push({ type: 'space' });
-  rows.push({ type: 'section', text: 'Reglas aplicadas para analisis' });
-  rows.push({ type: 'text', text: `Cupo provincial: ${analysis.policy.quota_per_province}; maximo por municipio: ${analysis.policy.max_per_municipality}; maximo por institucion: ${analysis.policy.max_per_institution}.` });
-  rows.push({ type: 'text', text: `Elegibles para politica: ${analysis.summary.eligible_for_policy}; recomendadas: ${analysis.summary.recommended_proposed}; reserva sugerida: ${analysis.summary.recommended_reserve}.` });
+  rows.push({ type: 'section', text: 'Resumen general' });
+  rows.push({ type: 'text', text: `Cupo por provincia: ${analysis.policy.quota_per_province}; propuesta sugerida: ${analysis.summary.recommended_proposed}; reserva sugerida: ${analysis.summary.recommended_reserve}.` });
+  rows.push({ type: 'text', text: `Elegibles para politica: ${analysis.summary.eligible_for_policy}; total visible: ${analysis.summary.total_rows}.` });
   rows.push({ type: 'text', text: `Corte operativo: hasta ${analysis.summary.cutoff_date || OPERATIONAL_RANKING_CUTOFF_DATE}; recibidas despues del corte: ${analysis.summary.after_cutoff || 0}.` });
   rows.push({ type: 'space' });
   rows.push({ type: 'section', text: 'Resumen por provincia' });
   rows.push(...analysis.summary.provinces.map(row => ({
     type: 'text',
-    text: `${row.province}: elegibles ${row.eligible}, recomendadas ${row.recommended_proposed}/${row.quota}, reserva sugerida ${row.recommended_reserve}, marcadas propuesta ${row.manually_proposed}.`,
+    text: `${row.province}: propuesta ${row.recommended_proposed}/${row.quota}; reserva ${row.recommended_reserve}; fuera de termino ${row.after_cutoff || 0}${row.incomplete_reason ? `; ${row.incomplete_reason}` : ''}`,
   })));
   rows.push({ type: 'space' });
-  rows.push({ type: 'section', text: 'Alertas de propuesta manual' });
-  if (!analysis.alerts.length) rows.push({ type: 'muted', text: 'Sin alertas de cupo o limites en personas marcadas como propuesta.' });
-  rows.push(...analysis.alerts.slice(0, 20).map(alert => ({ type: 'text', text: alert.message })));
-  rows.push({ type: 'space' });
-  rows.push({ type: 'section', text: 'Primeras recomendaciones' });
-  rows.push(...analysis.rows
-    .filter(row => row.included_in_preliminary_ranking)
-    .slice(0, 45)
-    .map(row => ({
-      type: 'text',
-      text: `${row.province_policy_position || '-'} | ${row.province || 'Sin provincia'} | ${formatScoreForPdf(row.total_score)} | ${row.full_name} | ${row.policy_recommendation_label}`,
-    })));
+  const byProvince = groupBy(analysis.rows || [], row => normalizedPolicyValue(row.province, 'Sin provincia'));
+  for (const [province, provinceRows] of Array.from(byProvince.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
+    const proposed = provinceRows
+      .filter(row => row.policy_recommendation === 'POLICY_PROPOSED')
+      .sort(selectionWorkbookSort);
+    const reserve = provinceRows
+      .filter(row => row.policy_recommendation === 'POLICY_RESERVE')
+      .sort(selectionWorkbookSort);
+    const afterCutoff = provinceRows
+      .filter(row => row.received_after_cutoff)
+      .sort(selectionWorkbookSort);
+    const summary = (analysis.summary.provinces || []).find(row => row.province === province);
+
+    rows.push({ type: 'section', text: province });
+    rows.push({
+      type: 'muted',
+      text: `Propuesta ${proposed.length}/${summary?.quota || analysis.policy.quota_per_province}; reserva ${reserve.length}; fuera de termino ${afterCutoff.length}${summary?.incomplete_reason ? `; ${summary.incomplete_reason}` : ''}`,
+    });
+    appendProposalPdfRows(rows, 'Propuesta sugerida', proposed);
+    appendProposalPdfRows(rows, 'Reserva sugerida', reserve);
+    appendProposalPdfRows(rows, 'Fuera de termino', afterCutoff);
+    rows.push({ type: 'space' });
+  }
   return buildSimplePdf(rows);
+}
+
+function appendProposalPdfRows(rows, title, proposalRows) {
+  rows.push({ type: 'muted', text: title });
+  if (!proposalRows.length) {
+    rows.push({ type: 'muted', text: 'Sin registros.' });
+    return;
+  }
+  rows.push(...proposalRows.map(row => ({
+    type: 'text',
+    text: `${row.province_policy_position || '-'} | ${formatScoreForPdf(row.total_score)} | ${row.full_name} | ${row.institution || 'Sin institucion'} | ${row.policy_recommendation_label || selectionCategory(row)}`,
+  })));
 }
 
 function formatScoreForPdf(value) {
@@ -2028,71 +2072,47 @@ function selectionPolicyCsv(rows) {
 
 function selectionPolicyExcel(analysis) {
   const rows = analysis.rows || [];
-  const mainRows = rows.filter(row => !row.received_after_cutoff);
   const additionalRows = rows.filter(row => row.received_after_cutoff);
-  const proposedRows = rows.filter(row => row.policy_recommendation === 'POLICY_PROPOSED');
-  const reserveRows = rows.filter(row => row.policy_recommendation === 'POLICY_RESERVE');
-  const municipalityReviewRows = rows
-    .filter(row => !['OFFICIAL', 'EMPTY'].includes(row.municipality_normalization_status || ''))
-    .sort((a, b) => String(a.province || '').localeCompare(String(b.province || '')) || String(a.full_name || '').localeCompare(String(b.full_name || '')));
-  const decisionRows = mainRows
-    .filter(row => row.policy_recommendation === 'POLICY_PROPOSED' || row.policy_recommendation === 'POLICY_RESERVE')
-    .sort(selectionWorkbookSort);
   const summaryRows = [
     { metric: 'Corte operativo', value: analysis.summary?.cutoff_date || OPERATIONAL_RANKING_CUTOFF_DATE },
     { metric: 'Total visible en sistema', value: rows.length },
-    { metric: 'Ranking principal', value: mainRows.length },
+    { metric: 'Ranking principal', value: rows.length - additionalRows.length },
     { metric: 'Valoracion adicional fuera de corte', value: additionalRows.length },
     { metric: 'Elegibles para politica provincial', value: analysis.summary?.eligible_for_policy || 0 },
     { metric: 'Propuesta sugerida', value: analysis.summary?.recommended_proposed || 0 },
     { metric: 'Reserva sugerida', value: analysis.summary?.recommended_reserve || 0 },
   ];
   const provinceSummary = (analysis.summary?.provinces || []).map(row => ({
-    region: regionForProvince(rows, row.province),
     province: row.province,
     quota: row.quota,
     eligible: row.eligible,
     recommended_proposed: row.recommended_proposed,
     recommended_reserve: row.recommended_reserve,
+    after_cutoff: row.after_cutoff,
+    incomplete_reason: row.incomplete_reason,
     manually_proposed: row.manually_proposed,
     manually_reserve: row.manually_reserve,
   }));
   const sheets = [
     excelSheet('Resumen', summaryRows),
     excelSheet('Resumen provincias', provinceSummary),
-    excelSheet('Para decidir', decisionRows.map(selectionDecisionExcelRow)),
-    excelSheet('Revisar municipios', municipalityReviewRows.map(municipalityReviewExcelRow)),
-    excelSheet('Propuesta sugerida', proposedRows.sort(selectionWorkbookSort).map(selectionDecisionExcelRow)),
-    excelSheet('Reserva sugerida', reserveRows.sort(selectionWorkbookSort).map(selectionDecisionExcelRow)),
-    excelSheet('Fuera de corte', additionalRows.sort(selectionWorkbookSort).map(selectionDecisionExcelRow)),
   ];
-  const byRegion = groupBy(mainRows, row => normalizedPolicyValue(row.region, 'Sin region'));
-  for (const [region, regionRows] of Array.from(byRegion.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
-    const regionalDecisionRows = regionRows
-      .filter(row => row.policy_recommendation === 'POLICY_PROPOSED' || row.policy_recommendation === 'POLICY_RESERVE')
-      .sort(selectionWorkbookSort);
-    sheets.push(excelSheet(`Region ${region}`, regionalDecisionRows.map(selectionDecisionExcelRow)));
-  }
-  const byProvince = groupBy(mainRows, row => normalizedPolicyValue(row.province, 'Sin provincia'));
+  const byProvince = groupBy(rows, row => normalizedPolicyValue(row.province, 'Sin provincia'));
   for (const [province, provinceRows] of Array.from(byProvince.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
-    sheets.push(excelSheet(`Prov ${province}`, provinceRows.sort(selectionWorkbookSort).map(selectionDecisionExcelRow)));
+    const provinceWorkbookRows = provinceRowsForWorkbook(provinceRows);
+    sheets.push(excelSheet(`Prov ${province}`, provinceWorkbookRows.map(selectionDecisionExcelRow)));
   }
   return excelWorkbook(sheets);
 }
 
-function municipalityReviewExcelRow(row) {
-  return {
-    province: row.province || '',
-    full_name: row.full_name || '',
-    email: row.email || '',
-    municipality_raw: row.municipality_raw || '',
-    municipality: row.municipality || '',
-    municipality_normalization_status: row.municipality_normalization_status || '',
-    category: selectionCategory(row),
-    total_score: row.total_score ?? '',
-    technical_decision: '',
-    technical_observation: '',
-  };
+function provinceRowsForWorkbook(provinceRows) {
+  return provinceRows
+    .filter(row =>
+      row.policy_recommendation === 'POLICY_PROPOSED' ||
+      row.policy_recommendation === 'POLICY_RESERVE' ||
+      row.received_after_cutoff
+    )
+    .sort(selectionWorkbookSort);
 }
 
 function selectionDecisionExcelRow(row) {
@@ -2105,9 +2125,6 @@ function selectionDecisionExcelRow(row) {
     full_name: row.full_name || '',
     province: row.province || '',
     municipality: row.municipality || '',
-    municipality_raw: row.municipality_raw || '',
-    municipality_normalization_status: row.municipality_normalization_status || '',
-    region: row.region || '',
     institution: row.institution || '',
     institution_type: row.institution_type || '',
     gender: row.gender || '',
@@ -2213,6 +2230,8 @@ function excelHeaderLabel(value) {
     eligible: 'Elegibles',
     recommended_proposed: 'Propuesta sugerida',
     recommended_reserve: 'Reserva sugerida',
+    after_cutoff: 'Fuera de termino',
+    incomplete_reason: 'Motivo si no completa cupo',
     manually_proposed: 'Propuesta manual',
     manually_reserve: 'Reserva manual',
     province_policy_position: 'Posicion provincial',
