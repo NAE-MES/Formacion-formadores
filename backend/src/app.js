@@ -1955,6 +1955,9 @@ function selectionPolicyExcel(analysis) {
   const additionalRows = rows.filter(row => row.received_after_cutoff);
   const proposedRows = rows.filter(row => row.policy_recommendation === 'POLICY_PROPOSED');
   const reserveRows = rows.filter(row => row.policy_recommendation === 'POLICY_RESERVE');
+  const decisionRows = mainRows
+    .filter(row => row.policy_recommendation === 'POLICY_PROPOSED' || row.policy_recommendation === 'POLICY_RESERVE')
+    .sort(selectionWorkbookSort);
   const summaryRows = [
     { metric: 'Corte operativo', value: analysis.summary?.cutoff_date || OPERATIONAL_RANKING_CUTOFF_DATE },
     { metric: 'Total visible en sistema', value: rows.length },
@@ -1977,46 +1980,45 @@ function selectionPolicyExcel(analysis) {
   const sheets = [
     excelSheet('Resumen', summaryRows),
     excelSheet('Resumen provincias', provinceSummary),
-    excelSheet('Propuesta sugerida', proposedRows.map(selectionExcelRow)),
-    excelSheet('Reserva sugerida', reserveRows.map(selectionExcelRow)),
-    excelSheet('Ranking principal', mainRows.map(selectionExcelRow)),
-    excelSheet('Fuera de corte', additionalRows.map(selectionExcelRow)),
+    excelSheet('Para decidir', decisionRows.map(selectionDecisionExcelRow)),
+    excelSheet('Propuesta sugerida', proposedRows.sort(selectionWorkbookSort).map(selectionDecisionExcelRow)),
+    excelSheet('Reserva sugerida', reserveRows.sort(selectionWorkbookSort).map(selectionDecisionExcelRow)),
+    excelSheet('Fuera de corte', additionalRows.sort(selectionWorkbookSort).map(selectionDecisionExcelRow)),
   ];
   const byRegion = groupBy(mainRows, row => normalizedPolicyValue(row.region, 'Sin region'));
   for (const [region, regionRows] of Array.from(byRegion.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
-    sheets.push(excelSheet(`Region ${region}`, regionRows.sort(selectionWorkbookSort).map(selectionExcelRow)));
+    const regionalDecisionRows = regionRows
+      .filter(row => row.policy_recommendation === 'POLICY_PROPOSED' || row.policy_recommendation === 'POLICY_RESERVE')
+      .sort(selectionWorkbookSort);
+    sheets.push(excelSheet(`Region ${region}`, regionalDecisionRows.map(selectionDecisionExcelRow)));
   }
   const byProvince = groupBy(mainRows, row => normalizedPolicyValue(row.province, 'Sin provincia'));
   for (const [province, provinceRows] of Array.from(byProvince.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
-    sheets.push(excelSheet(`Prov ${province}`, provinceRows.sort(selectionWorkbookSort).map(selectionExcelRow)));
+    sheets.push(excelSheet(`Prov ${province}`, provinceRows.sort(selectionWorkbookSort).map(selectionDecisionExcelRow)));
   }
   return excelWorkbook(sheets);
 }
 
-function selectionExcelRow(row) {
+function selectionDecisionExcelRow(row) {
   return {
+    technical_decision: '',
+    technical_observation: '',
     category: selectionCategory(row),
-    region: row.region || '',
-    province: row.province || '',
     province_policy_position: row.province_policy_position || '',
-    preliminary_position: row.preliminary_position || '',
-    policy_recommendation: row.policy_recommendation_label || row.policy_recommendation || '',
-    score_band: row.score_band?.label || '',
     total_score: row.total_score ?? '',
     full_name: row.full_name || '',
-    email: row.email || '',
+    province: row.province || '',
     municipality: row.municipality || '',
+    region: row.region || '',
     institution: row.institution || '',
     institution_type: row.institution_type || '',
     gender: row.gender || '',
     age_range: row.age_range || '',
-    source_channel: row.source_channel || '',
     received_date: row.received_date || '',
     cutoff: row.received_after_cutoff ? 'Fuera de corte' : 'Principal',
-    validation_status: row.evaluation_validation_status || '',
-    proposal_status: row.proposal_status || '',
-    alerts: (row.policy_alerts || []).join(' | '),
     reason: row.exclusion_reason || '',
+    alerts: (row.policy_alerts || []).join(' | '),
+    email: row.email || '',
   };
 }
 
@@ -2102,6 +2104,8 @@ function excelSheetName(value) {
 
 function excelHeaderLabel(value) {
   return {
+    technical_decision: 'Decision ET',
+    technical_observation: 'Observacion ET',
     category: 'Categoria',
     metric: 'Indicador',
     value: 'Valor',
