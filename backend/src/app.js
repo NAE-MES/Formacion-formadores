@@ -923,16 +923,51 @@ function createMunicipalityNormalizer(catalog = {}) {
     const provinceKey = normalizeCatalogText(province);
     const candidates = byProvince.get(provinceKey) || municipalities;
     const normalizedRaw = normalizeCatalogText(raw);
+    if (isProvinceWideMunicipalityText(normalizedRaw)) {
+      return { value: raw, status: 'SCOPE_NOT_MUNICIPAL' };
+    }
     const exact = candidates.find(item => normalizeCatalogText(item.municipality) === normalizedRaw);
     if (exact) return { value: exact.municipality, status: exact.municipality === raw ? 'OFFICIAL' : 'NORMALIZED' };
 
-    const contained = candidates.filter(item => {
-      const normalizedMunicipality = normalizeCatalogText(item.municipality);
-      return normalizedRaw.includes(normalizedMunicipality) || normalizedMunicipality.includes(normalizedRaw);
+    const mentions = candidates.filter(item => municipalityAliases(item).some(alias => wholeTextIncludes(normalizedRaw, alias)));
+    if (mentions.length > 1) {
+      return { value: raw, status: 'AMBIGUOUS' };
+    }
+    if (mentions.length === 1) return { value: mentions[0].municipality, status: 'NORMALIZED' };
+
+    const partial = candidates.filter(item => {
+      const aliases = municipalityAliases(item);
+      return aliases.some(alias => alias.includes(normalizedRaw) || normalizedRaw.includes(alias));
     });
-    if (contained.length === 1) return { value: contained[0].municipality, status: 'NORMALIZED' };
-    return { value: raw, status: contained.length > 1 ? 'AMBIGUOUS' : 'UNMATCHED' };
+    if (partial.length === 1) return { value: partial[0].municipality, status: 'NORMALIZED' };
+    return { value: raw, status: partial.length > 1 ? 'AMBIGUOUS' : 'UNMATCHED' };
   };
+}
+
+function isProvinceWideMunicipalityText(normalizedRaw) {
+  return /\b(todos|todas|varios|varias|provincia|provincial|restantes|municipios)\b/.test(normalizedRaw);
+}
+
+function municipalityAliases(item) {
+  const municipality = normalizeCatalogText(item.municipality);
+  const aliases = new Set([municipality]);
+  if (item.province === 'La Habana') {
+    if (item.municipality === 'La Habana Vieja') aliases.add('habana vieja');
+    if (item.municipality === 'La Habana del Este') aliases.add('habana del este');
+    if (item.municipality === 'Plaza de la Revolución') aliases.add('plaza');
+  }
+  if (item.municipality === 'Diez de Octubre') aliases.add('10 de octubre');
+  if (item.municipality === 'Las Tunas') aliases.add('tunas');
+  if (item.municipality === 'Jagüey Grande') aliases.add('jaguey');
+  return Array.from(aliases).filter(Boolean);
+}
+
+function wholeTextIncludes(text, alias) {
+  return new RegExp(`(^|\\s)${escapeRegex(alias)}(\\s|$)`).test(text);
+}
+
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function normalizeCatalogText(value) {
@@ -1997,6 +2032,9 @@ function selectionPolicyExcel(analysis) {
   const additionalRows = rows.filter(row => row.received_after_cutoff);
   const proposedRows = rows.filter(row => row.policy_recommendation === 'POLICY_PROPOSED');
   const reserveRows = rows.filter(row => row.policy_recommendation === 'POLICY_RESERVE');
+  const municipalityReviewRows = rows
+    .filter(row => !['OFFICIAL', 'EMPTY'].includes(row.municipality_normalization_status || ''))
+    .sort((a, b) => String(a.province || '').localeCompare(String(b.province || '')) || String(a.full_name || '').localeCompare(String(b.full_name || '')));
   const decisionRows = mainRows
     .filter(row => row.policy_recommendation === 'POLICY_PROPOSED' || row.policy_recommendation === 'POLICY_RESERVE')
     .sort(selectionWorkbookSort);
@@ -2023,6 +2061,7 @@ function selectionPolicyExcel(analysis) {
     excelSheet('Resumen', summaryRows),
     excelSheet('Resumen provincias', provinceSummary),
     excelSheet('Para decidir', decisionRows.map(selectionDecisionExcelRow)),
+    excelSheet('Revisar municipios', municipalityReviewRows.map(municipalityReviewExcelRow)),
     excelSheet('Propuesta sugerida', proposedRows.sort(selectionWorkbookSort).map(selectionDecisionExcelRow)),
     excelSheet('Reserva sugerida', reserveRows.sort(selectionWorkbookSort).map(selectionDecisionExcelRow)),
     excelSheet('Fuera de corte', additionalRows.sort(selectionWorkbookSort).map(selectionDecisionExcelRow)),
@@ -2039,6 +2078,21 @@ function selectionPolicyExcel(analysis) {
     sheets.push(excelSheet(`Prov ${province}`, provinceRows.sort(selectionWorkbookSort).map(selectionDecisionExcelRow)));
   }
   return excelWorkbook(sheets);
+}
+
+function municipalityReviewExcelRow(row) {
+  return {
+    province: row.province || '',
+    full_name: row.full_name || '',
+    email: row.email || '',
+    municipality_raw: row.municipality_raw || '',
+    municipality: row.municipality || '',
+    municipality_normalization_status: row.municipality_normalization_status || '',
+    category: selectionCategory(row),
+    total_score: row.total_score ?? '',
+    technical_decision: '',
+    technical_observation: '',
+  };
 }
 
 function selectionDecisionExcelRow(row) {

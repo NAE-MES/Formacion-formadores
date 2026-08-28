@@ -727,6 +727,7 @@ test('admin API analyzes provincial selection policy without final approval', as
     assert.match(excel.body, /<Workbook/);
     assert.match(excel.body, /ss:Name="Resumen provincias"/);
     assert.match(excel.body, /ss:Name="Para decidir"/);
+    assert.match(excel.body, /ss:Name="Revisar municipios"/);
     assert.match(excel.body, /ss:Name="Region Oriente"/);
     assert.match(excel.body, /ss:Name="Prov Granma"/);
     assert.match(excel.body, /Decision ET/);
