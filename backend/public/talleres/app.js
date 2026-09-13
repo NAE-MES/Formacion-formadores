@@ -23,6 +23,10 @@ const materialForm = document.querySelector('#materialForm');
 const registrationSummary = document.querySelector('#registrationSummary');
 const registrationsSection = document.querySelector('#registros');
 const registrationsBody = document.querySelector('#registrationsBody');
+const registrationWorkshopLabel = document.querySelector('#registrationWorkshopLabel');
+const modalityFilter = document.querySelector('#modalityFilter');
+const provinceFilter = document.querySelector('#provinceFilter');
+const registrationFilterCount = document.querySelector('#registrationFilterCount');
 
 const ROLE_LABELS = {
   ADMIN: 'Administrador',
@@ -59,6 +63,8 @@ function bindEvents() {
   workshopForm.addEventListener('submit', saveWorkshop);
   agendaForm.addEventListener('submit', saveAgenda);
   materialForm.addEventListener('submit', saveMaterial);
+  modalityFilter?.addEventListener('change', renderRegistrations);
+  provinceFilter?.addEventListener('change', renderRegistrations);
 }
 
 function toggleManagement(enabled) {
@@ -78,6 +84,7 @@ async function loadWorkshops() {
 async function loadRegistrations() {
   const result = await api('/api/admin/workshop-registrations');
   registrations = result.registrations || [];
+  renderProvinceFilter();
   renderRegistrations();
 }
 
@@ -166,12 +173,21 @@ function renderRegistrationSummary(workshop) {
 
 function renderRegistrations() {
   if (!isAdminMode || !registrationsBody) return;
+  const workshop = selectedWorkshop();
+  const selectedModality = modalityFilter?.value || '';
+  const selectedProvince = provinceFilter?.value || '';
   const rows = registrations
     .map(registration => ({
       registration,
       participation: (registration.participations || []).find(item => item.workshop_id === selectedWorkshopId),
     }))
-    .filter(item => item.participation);
+    .filter(item => item.participation)
+    .filter(item => !selectedModality || item.participation.modality === selectedModality)
+    .filter(item => !selectedProvince || normalizedText(item.registration.province) === normalizedText(selectedProvince));
+  if (registrationWorkshopLabel) registrationWorkshopLabel.value = workshop?.title || '';
+  if (registrationFilterCount) {
+    registrationFilterCount.textContent = `${rows.length} ${rows.length === 1 ? 'registro' : 'registros'}`;
+  }
   registrationsBody.innerHTML = rows.length
     ? rows.map(({ registration, participation }) => `
       <tr>
@@ -180,6 +196,7 @@ function renderRegistrations() {
           <span>${escapeHtml(formatDate(registration.registered_at))}</span>
         </td>
         <td>${escapeHtml(registration.participant_type || '')}</td>
+        <td>${escapeHtml(workshop?.region || selectedWorkshopId)}</td>
         <td><span class="pill ${participation.modality === 'Presencial' ? 'ok' : 'info'}">${escapeHtml(participation.modality)}</span></td>
         <td>${escapeHtml(registration.province || '')}</td>
         <td>
@@ -193,7 +210,18 @@ function renderRegistrations() {
         <td>${escapeHtml(registration.image_consent || '')}</td>
       </tr>
     `).join('')
-    : '<tr><td colspan="7" class="empty-cell">No hay registros para este taller.</td></tr>';
+    : '<tr><td colspan="8" class="empty-cell">No hay registros para este taller con los filtros actuales.</td></tr>';
+}
+
+function renderProvinceFilter() {
+  if (!provinceFilter) return;
+  const current = provinceFilter.value;
+  const provinces = Array.from(new Set(registrations.map(item => item.province).filter(Boolean)))
+    .sort((a, b) => normalizedText(a).localeCompare(normalizedText(b)));
+  provinceFilter.innerHTML = '<option value="">Todas</option>' + provinces
+    .map(province => `<option value="${escapeAttr(province)}">${escapeHtml(province)}</option>`)
+    .join('');
+  provinceFilter.value = provinces.includes(current) ? current : '';
 }
 
 function detailRows(rows) {
@@ -369,4 +397,8 @@ function escapeHtml(value) {
 
 function escapeAttr(value) {
   return escapeHtml(value).replace(/`/g, '&#096;');
+}
+
+function normalizedText(value) {
+  return String(value || '').trim().toLocaleLowerCase('es-CU');
 }

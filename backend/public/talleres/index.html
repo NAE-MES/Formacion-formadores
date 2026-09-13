@@ -80,8 +80,30 @@
           <div>
             <p class="eyebrow">Registro</p>
             <h2>Participantes registrados</h2>
+            <p class="section-note" id="registrationsNote">Se muestran solo las personas que marcaron participación en el taller seleccionado.</p>
           </div>
           <a class="button secondary" href="/api/admin/workshop-registrations.csv">Exportar CSV</a>
+        </div>
+        <div class="filters">
+          <label>
+            Taller
+            <input id="registrationWorkshopLabel" type="text" readonly />
+          </label>
+          <label>
+            Modalidad
+            <select id="modalityFilter">
+              <option value="">Todas</option>
+              <option value="Presencial">Presencial</option>
+              <option value="Virtual">Virtual</option>
+            </select>
+          </label>
+          <label>
+            Provincia / país
+            <select id="provinceFilter">
+              <option value="">Todas</option>
+            </select>
+          </label>
+          <div class="filter-count" id="registrationFilterCount">0 registros</div>
         </div>
         <div class="table-wrap">
           <table>
@@ -89,6 +111,7 @@
               <tr>
                 <th>Nombre</th>
                 <th>Tipo</th>
+                <th>Taller marcado</th>
                 <th>Modalidad</th>
                 <th>Provincia</th>
                 <th>Institución</th>
