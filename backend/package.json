@@ -8,12 +8,13 @@
   "scripts": {
     "start": "node src/server.js",
     "test": "node --test tests/*.test.js",
-    "check": "node --check src/server.js && node --check src/app.js && node --check src/ingestion.js && node --check src/eligibility.js && node --check src/evaluation.js && node --check src/workshops.js && node --check src/config.js && node --check src/repositories/memoryRepository.js && node --check src/repositories/postgresRepository.js && node --check public/admin/app.js && node --check public/home/app.js && node --check public/login/app.js && node --check public/talleres/app.js"
+    "check": "node --check src/server.js && node --check src/app.js && node --check src/ingestion.js && node --check src/eligibility.js && node --check src/evaluation.js && node --check src/workshops.js && node --check src/workshopParticipantWorkbook.js && node --check src/config.js && node --check src/repositories/memoryRepository.js && node --check src/repositories/postgresRepository.js && node --check public/admin/app.js && node --check public/home/app.js && node --check public/login/app.js && node --check public/talleres/app.js"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
+    "adm-zip": "^0.5.16",
     "pg": "^8.12.0"
   }
 }

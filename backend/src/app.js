@@ -24,6 +24,7 @@ const {
   sanitizeWorkshopPayload,
   normalizeWorkshopRegistrationPayload,
 } = require('./workshops');
+const { workshopParticipantsWorkbook } = require('./workshopParticipantWorkbook');
 
 const BUSINESS_TIME_ZONE = 'America/Havana';
 const OPERATIONAL_RANKING_CUTOFF_DATE = '2026-08-26';
@@ -192,6 +193,23 @@ function createApp({ config, repository }) {
           res,
           'fdf-2026-registros-talleres.csv',
           workshopRegistrationsCsv(await repository.listWorkshopRegistrations()),
+        );
+      }
+
+      if (req.method === 'GET' && req.url.startsWith('/api/admin/workshops/') && req.url.endsWith('/participants.xlsx')) {
+        await authorizeAdmin(req, config, repository, ['ADMIN', 'REVIEWER', 'INTAKE']);
+        await ensureWorkshopBaseline(repository);
+        const workshopId = decodeURIComponent(req.url.slice('/api/admin/workshops/'.length, -'/participants.xlsx'.length));
+        const workshops = await repository.listWorkshops();
+        const workshop = workshops.find(item => item.workshop_id === workshopId);
+        if (!workshop) return sendJson(res, 404, { error: 'WORKSHOP_NOT_FOUND' });
+        return sendXlsx(
+          res,
+          `fdf-2026-listado-participantes-${workshopId}.xlsx`,
+          workshopParticipantsWorkbook({
+            workshop,
+            registrations: await repository.listWorkshopRegistrations(),
+          }),
         );
       }
 
@@ -1774,6 +1792,17 @@ function sendExcel(res, filename, content) {
   const body = Buffer.from(content, 'utf8');
   res.writeHead(200, {
     'content-type': 'application/vnd.ms-excel; charset=utf-8',
+    'content-disposition': `attachment; filename="${filename}"`,
+    'content-length': body.length,
+    'cache-control': 'no-store',
+  });
+  res.end(body);
+}
+
+function sendXlsx(res, filename, content) {
+  const body = Buffer.isBuffer(content) ? content : Buffer.from(content);
+  res.writeHead(200, {
+    'content-type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'content-disposition': `attachment; filename="${filename}"`,
     'content-length': body.length,
     'cache-control': 'no-store',

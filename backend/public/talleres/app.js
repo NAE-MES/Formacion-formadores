@@ -27,6 +27,7 @@ const registrationWorkshopLabel = document.querySelector('#registrationWorkshopL
 const modalityFilter = document.querySelector('#modalityFilter');
 const provinceFilter = document.querySelector('#provinceFilter');
 const registrationFilterCount = document.querySelector('#registrationFilterCount');
+const exportWorkshopListButton = document.querySelector('#exportWorkshopListButton');
 
 const ROLE_LABELS = {
   ADMIN: 'Administrador',
@@ -185,6 +186,9 @@ function renderRegistrations() {
     .filter(item => !selectedModality || item.participation.modality === selectedModality)
     .filter(item => !selectedProvince || normalizedText(item.registration.province) === normalizedText(selectedProvince));
   if (registrationWorkshopLabel) registrationWorkshopLabel.value = workshop?.title || '';
+  if (exportWorkshopListButton) {
+    exportWorkshopListButton.href = `/api/admin/workshops/${encodeURIComponent(selectedWorkshopId)}/participants.xlsx`;
+  }
   if (registrationFilterCount) {
     registrationFilterCount.textContent = `${rows.length} ${rows.length === 1 ? 'registro' : 'registros'}`;
   }

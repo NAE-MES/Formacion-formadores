@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const test = require('node:test');
+const AdmZip = require('adm-zip');
 const { createApp } = require('../src/app');
 const { MemoryRepository } = require('../src/repositories/memoryRepository');
 
@@ -151,8 +152,40 @@ function adminRawRequest(port, method, url, token = 'admin-token') {
   });
 }
 
+function adminBufferRequest(port, method, url, token = 'admin-token') {
+  return bufferRequestWithHeaders(port, method, url, undefined, {
+    ...(token ? { authorization: `Bearer ${token}` } : {}),
+  });
+}
+
 function adminJsonRequest(port, method, url, body, token = 'admin-token') {
   return request(port, method, url, body, token);
+}
+
+function bufferRequestWithHeaders(port, method, url, body, extraHeaders = {}) {
+  return new Promise((resolve, reject) => {
+    const payload = body === undefined ? '' : JSON.stringify(body);
+    const req = http.request({
+      port,
+      method,
+      path: url,
+      headers: {
+        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+        'content-length': Buffer.byteLength(payload),
+        ...extraHeaders,
+      },
+    }, res => {
+      const chunks = [];
+      res.on('data', chunk => chunks.push(chunk));
+      res.on('end', () => resolve({
+        statusCode: res.statusCode,
+        headers: res.headers,
+        body: Buffer.concat(chunks),
+      }));
+    });
+    req.on('error', reject);
+    req.end(payload);
+  });
 }
 
 async function loginCookie(port, username, password) {
@@ -326,6 +359,68 @@ test('workshop registration API ingests Google Form payload and keeps admin-only
     assert.match(csv.headers['content-type'], /text\/csv/);
     assert.match(csv.body, /registration_id,registered_at,source_channel/);
     assert.match(csv.body, /laura\.rodriguez@example\.test/);
+  });
+});
+
+test('workshop admin exports official participant XLSX for the selected workshop', async (t) => {
+  await withServer(t, async ({ port }) => {
+    await request(port, 'POST', '/api/workshop-registrations/google-form', {
+      sourceReference: 'workshop-registration-xlsx-habana',
+      registeredAt: '2026-09-13T12:00:00.000Z',
+      responses: {
+        'Consentimiento para el tratamiento de datos personales': 'Acepto',
+        Nombre: 'Laura',
+        Apellidos: 'Rodriguez Perez',
+        'Género': 'Femenino',
+        'Rango de edad': '18 a 35',
+        'Teléfono': '+5355550000',
+        'Correo electrónico': 'laura.rodriguez@example.test',
+        'Nombre de la institución, organización o empresa': 'Entidad sintetica',
+        Cargo: 'Especialista',
+        Provincia: 'La Habana',
+        'Tipo de participante': 'Formador',
+        'Consentimiento para el tratamiento de imagen personal': 'Si autorizo',
+        'Participación en el taller Habana': 'Presencial',
+        'Participación en el taller Occidente': 'No participa',
+        'Participación en el taller Centro': 'No participa',
+        'Participación en el taller Oriente': 'No participa',
+      },
+    });
+    await request(port, 'POST', '/api/workshop-registrations/google-form', {
+      sourceReference: 'workshop-registration-xlsx-centro',
+      registeredAt: '2026-09-13T12:05:00.000Z',
+      responses: {
+        'Consentimiento para el tratamiento de datos personales': 'Acepto',
+        Nombre: 'Diego',
+        Apellidos: 'Martinez Soto',
+        'Género': 'Masculino',
+        'Rango de edad': 'Mayor de 35',
+        'Teléfono': '+5355551111',
+        'Correo electrónico': 'diego.martinez@example.test',
+        'Nombre de la institución, organización o empresa': 'Entidad centro',
+        Cargo: 'Coordinador',
+        Provincia: 'Ciego de Avila',
+        'Tipo de participante': 'Invitado',
+        'Consentimiento para el tratamiento de imagen personal': 'Si autorizo',
+        'Participación en el taller Habana': 'No participa',
+        'Participación en el taller Occidente': 'No participa',
+        'Participación en el taller Centro': 'Virtual',
+        'Participación en el taller Oriente': 'No participa',
+      },
+    });
+
+    const response = await adminBufferRequest(port, 'GET', '/api/admin/workshops/habana/participants.xlsx');
+    assert.equal(response.statusCode, 200);
+    assert.match(response.headers['content-type'], /spreadsheetml\.sheet/);
+    assert.match(response.headers['content-disposition'], /fdf-2026-listado-participantes-habana\.xlsx/);
+    assert.equal(response.body.subarray(0, 2).toString('utf8'), 'PK');
+
+    const zip = new AdmZip(response.body);
+    const sheet = zip.readAsText('xl/worksheets/sheet1.xml');
+    assert.match(sheet, /Laura/);
+    assert.match(sheet, /Rodriguez Perez/);
+    assert.match(sheet, /Hotel Parque Central/);
+    assert.doesNotMatch(sheet, /Diego/);
   });
 });
 
