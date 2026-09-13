@@ -23,7 +23,7 @@ nav a:hover, nav button:hover { background: var(--blue-soft); color: var(--blue)
 .button.secondary { background: var(--blue-soft); color: var(--blue-dark); }
 main { max-width: 1180px; margin: 0 auto; padding: 24px 20px 44px; }
 .banner { margin-bottom: 22px; background: #fff; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; box-shadow: var(--shadow); }
-.banner img { display: block; width: 100%; max-height: 220px; object-fit: cover; }
+.banner img { display: block; width: 100%; height: auto; object-fit: contain; }
 .intro { display: grid; grid-template-columns: 1fr 220px; gap: 18px; align-items: start; margin-bottom: 20px; }
 h1, h2, p { margin-top: 0; }
 h1 { font-size: 32px; line-height: 1.1; color: var(--blue-dark); margin-bottom: 8px; }
