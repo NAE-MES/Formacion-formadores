@@ -225,7 +225,7 @@ test('workshops page and API expose manageable workshop information', async (t) 
 
     const adminPageWithoutSession = await adminRawRequest(port, 'GET', '/talleres/admin', '');
     assert.equal(adminPageWithoutSession.statusCode, 302);
-    assert.equal(adminPageWithoutSession.headers.location, '/login');
+    assert.equal(adminPageWithoutSession.headers.location, '/login?next=/talleres/admin');
 
     const cookie = await loginCookie(port, 'admin', 'admin-password');
     const page = await rawRequestWithHeaders(port, 'GET', '/talleres/admin', undefined, { cookie });

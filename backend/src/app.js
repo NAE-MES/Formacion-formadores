@@ -64,7 +64,7 @@ function createApp({ config, repository }) {
 
       if ((req.method === 'GET' || req.method === 'HEAD') && (req.url === '/talleres/admin' || req.url === '/talleres/admin/')) {
         const admin = await authorizeAdminForPage(req, config, repository);
-        if (!admin) return redirect(res, '/login');
+        if (!admin) return redirect(res, '/login?next=/talleres/admin');
         if (!['ADMIN', 'REVIEWER'].includes(admin.role)) return redirect(res, '/talleres');
         return sendStatic(res, path.join(__dirname, '..', 'public', 'talleres', 'index.html'), 'text/html; charset=utf-8');
       }

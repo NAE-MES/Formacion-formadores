@@ -279,6 +279,13 @@
         const usernameInput = document.querySelector('#adminUsername');
         const passwordInput = document.querySelector('#adminPassword');
         const loginError = document.querySelector('#loginError');
+        const nextUrl = safeNextUrl(new URLSearchParams(window.location.search).get('next'));
+
+        function safeNextUrl(value) {
+          if (!value || !value.startsWith('/')) return '/home';
+          if (value.startsWith('//')) return '/home';
+          return value;
+        }
 
         // ─── chequeo de sesión existente ──────────────────────────────
         async function checkExistingSession() {
@@ -287,7 +294,7 @@
               credentials: 'same-origin',
             });
             if (response?.ok) {
-              window.location.replace('/home');
+              window.location.replace(nextUrl);
             }
           } catch (_) {
             // ignoramos errores de red, solo si la sesión existe redirige
@@ -327,7 +334,7 @@
             }
 
             // login exitoso → redirigir
-            window.location.assign('/home');
+            window.location.assign(nextUrl);
           } catch (error) {
             // limpiar campo contraseña por seguridad
             passwordInput.value = '';

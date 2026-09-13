@@ -2,6 +2,7 @@ const loginForm = document.querySelector('#loginForm');
 const usernameInput = document.querySelector('#adminUsername');
 const passwordInput = document.querySelector('#adminPassword');
 const loginError = document.querySelector('#loginError');
+const nextUrl = safeNextUrl(new URLSearchParams(window.location.search).get('next'));
 
 checkExistingSession();
 
@@ -20,7 +21,7 @@ loginForm.addEventListener('submit', async event => {
     });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.message || body.error || 'No autorizado.');
-    window.location.assign('/home');
+    window.location.assign(nextUrl);
   } catch (error) {
     passwordInput.value = '';
     loginError.textContent = 'Usuario o contraseña inválidos.';
@@ -32,5 +33,11 @@ async function checkExistingSession() {
   const response = await fetch('/api/auth/me', {
     credentials: 'same-origin',
   }).catch(() => null);
-  if (response?.ok) window.location.replace('/home');
+  if (response?.ok) window.location.replace(nextUrl);
+}
+
+function safeNextUrl(value) {
+  if (!value || !value.startsWith('/')) return '/home';
+  if (value.startsWith('//')) return '/home';
+  return value;
 }
