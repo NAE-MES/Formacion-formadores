@@ -419,6 +419,411 @@ class PostgresRepository {
     return result.rows[0];
   }
 
+  async ensureDefaultWorkshops(workshops, defaultMaterials, actor) {
+    const existing = await this.pool.query('select count(*)::int as count from workshops');
+    if (existing.rows[0]?.count > 0) return;
+
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const now = new Date().toISOString();
+      for (const workshop of workshops) {
+        await client.query(
+          `insert into workshops (
+            workshop_id, title, region, venue, room, starts_at, ends_at,
+            timezone, modality, meet_url, general_info, updated_at, updated_by
+          ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+          on conflict (workshop_id) do nothing`,
+          [
+            workshop.workshop_id,
+            workshop.title,
+            workshop.region,
+            workshop.venue,
+            workshop.room,
+            workshop.starts_at,
+            workshop.ends_at,
+            workshop.timezone,
+            workshop.modality,
+            workshop.meet_url,
+            workshop.general_info,
+            now,
+            actor || 'SYSTEM_BOOTSTRAP',
+          ],
+        );
+        for (const [index, item] of (workshop.agenda || []).entries()) {
+          await client.query(
+            `insert into workshop_agenda_items (
+              agenda_item_id, workshop_id, position, time_range, title,
+              description, updated_at, updated_by
+            ) values ($1,$2,$3,$4,$5,$6,$7,$8)
+            on conflict (agenda_item_id) do nothing`,
+            [
+              `agenda_${hash(`${workshop.workshop_id}|${index + 1}|${item.time_range}|${item.title}`)}`,
+              workshop.workshop_id,
+              index + 1,
+              item.time_range,
+              item.title,
+              item.description || '',
+              now,
+              actor || 'SYSTEM_BOOTSTRAP',
+            ],
+          );
+        }
+        for (const [index, material] of (defaultMaterials || []).entries()) {
+          await client.query(
+            `insert into workshop_materials (
+              material_id, workshop_id, title, description, material_type,
+              url, visible, position, updated_at, updated_by
+            ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+            on conflict (material_id) do nothing`,
+            [
+              `material_${hash(`${workshop.workshop_id}|${material.title}|${index + 1}`)}`,
+              workshop.workshop_id,
+              material.title,
+              material.description || '',
+              material.material_type || '',
+              material.url || '',
+              material.visible !== false,
+              material.position || index + 1,
+              now,
+              actor || 'SYSTEM_BOOTSTRAP',
+            ],
+          );
+        }
+      }
+      await insertAuditEvent(client, {
+        action: 'WORKSHOPS_BOOTSTRAPPED',
+        entityType: 'Workshop',
+        entityId: 'workshops',
+        actor: actor || 'SYSTEM_BOOTSTRAP',
+        previousValue: null,
+        newValue: { count: workshops.length },
+        reason: 'Initial workshop baseline created.',
+      });
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async listWorkshops() {
+    const [workshops, agenda, materials] = await Promise.all([
+      this.pool.query(`select * from workshops order by starts_at nulls last, workshop_id`),
+      this.pool.query(`select * from workshop_agenda_items order by workshop_id, position, time_range`),
+      this.pool.query(`select * from workshop_materials order by workshop_id, position, title`),
+    ]);
+    return workshops.rows.map(workshop => ({
+      ...workshop,
+      agenda: agenda.rows.filter(item => item.workshop_id === workshop.workshop_id),
+      materials: materials.rows.filter(item => item.workshop_id === workshop.workshop_id),
+    }));
+  }
+
+  async updateWorkshop(workshopId, payload, { actor, reason } = {}) {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const current = await client.query('select * from workshops where workshop_id = $1 for update', [workshopId]);
+      if (current.rowCount === 0) {
+        const error = new Error('Workshop not found.');
+        error.statusCode = 404;
+        error.code = 'NOT_FOUND';
+        throw error;
+      }
+      const now = new Date().toISOString();
+      const updated = await client.query(
+        `update workshops
+         set title = $2, region = $3, venue = $4, room = $5,
+           starts_at = $6, ends_at = $7, timezone = $8, modality = $9,
+           meet_url = $10, general_info = $11, updated_at = $12, updated_by = $13
+         where workshop_id = $1
+         returning *`,
+        [
+          workshopId,
+          payload.title,
+          payload.region,
+          payload.venue,
+          payload.room,
+          payload.starts_at,
+          payload.ends_at,
+          payload.timezone,
+          payload.modality,
+          payload.meet_url,
+          payload.general_info,
+          now,
+          actor || 'ADMIN_UI',
+        ],
+      );
+      await insertAuditEvent(client, {
+        action: 'WORKSHOP_UPDATED',
+        entityType: 'Workshop',
+        entityId: workshopId,
+        actor,
+        previousValue: current.rows[0],
+        newValue: updated.rows[0],
+        reason,
+      });
+      await client.query('COMMIT');
+      return updated.rows[0];
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async replaceWorkshopAgenda(workshopId, items, { actor, reason } = {}) {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const current = await client.query('select * from workshop_agenda_items where workshop_id = $1 order by position', [workshopId]);
+      await client.query('delete from workshop_agenda_items where workshop_id = $1', [workshopId]);
+      const now = new Date().toISOString();
+      const saved = [];
+      for (const [index, item] of items.entries()) {
+        const result = await client.query(
+          `insert into workshop_agenda_items (
+            agenda_item_id, workshop_id, position, time_range, title,
+            description, updated_at, updated_by
+          ) values ($1,$2,$3,$4,$5,$6,$7,$8)
+          returning *`,
+          [
+            item.agenda_item_id || `agenda_${hash(`${workshopId}|${index + 1}|${item.time_range}|${item.title}|${now}`)}`,
+            workshopId,
+            index + 1,
+            item.time_range,
+            item.title,
+            item.description,
+            now,
+            actor || 'ADMIN_UI',
+          ],
+        );
+        saved.push(result.rows[0]);
+      }
+      await insertAuditEvent(client, {
+        action: 'WORKSHOP_AGENDA_UPDATED',
+        entityType: 'Workshop',
+        entityId: workshopId,
+        actor,
+        previousValue: current.rows,
+        newValue: saved,
+        reason,
+      });
+      await client.query('COMMIT');
+      return saved;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async upsertWorkshopMaterial(workshopId, payload, { actor, reason } = {}) {
+    const now = new Date().toISOString();
+    const materialId = payload.material_id || `material_${hash(`${workshopId}|${payload.title}|${now}`)}`;
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const current = await client.query('select * from workshop_materials where material_id = $1 for update', [materialId]);
+      const result = await client.query(
+        `insert into workshop_materials (
+          material_id, workshop_id, title, description, material_type,
+          url, visible, position, updated_at, updated_by
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        on conflict (material_id) do update set
+          title = excluded.title,
+          description = excluded.description,
+          material_type = excluded.material_type,
+          url = excluded.url,
+          visible = excluded.visible,
+          position = excluded.position,
+          updated_at = excluded.updated_at,
+          updated_by = excluded.updated_by
+        returning *`,
+        [
+          materialId,
+          workshopId,
+          payload.title,
+          payload.description,
+          payload.material_type,
+          payload.url,
+          payload.visible,
+          payload.position,
+          now,
+          actor || 'ADMIN_UI',
+        ],
+      );
+      await insertAuditEvent(client, {
+        action: 'WORKSHOP_MATERIAL_SAVED',
+        entityType: 'WorkshopMaterial',
+        entityId: materialId,
+        actor,
+        previousValue: current.rows[0] || null,
+        newValue: result.rows[0],
+        reason,
+      });
+      await client.query('COMMIT');
+      return result.rows[0];
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async deleteWorkshopMaterial(materialId, { actor, reason } = {}) {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const deleted = await client.query('delete from workshop_materials where material_id = $1 returning *', [materialId]);
+      if (deleted.rowCount > 0) {
+        await insertAuditEvent(client, {
+          action: 'WORKSHOP_MATERIAL_DELETED',
+          entityType: 'WorkshopMaterial',
+          entityId: materialId,
+          actor,
+          previousValue: deleted.rows[0],
+          newValue: null,
+          reason,
+        });
+      }
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async saveWorkshopRegistration(normalized, { actor, reason } = {}) {
+    const now = new Date().toISOString();
+    const registrationId = `wreg_${hash(`workshop-registration|${normalized.registration.source_reference}`)}`;
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const current = await client.query(
+        `select registration_id, source_channel, source_reference, registered_at, updated_at
+         from workshop_registrations
+         where source_reference = $1
+         for update`,
+        [normalized.registration.source_reference],
+      );
+      const effectiveId = current.rows[0]?.registration_id || registrationId;
+      const saved = await client.query(
+        `insert into workshop_registrations (
+          registration_id, source_channel, source_reference, raw_payload,
+          registered_at, first_name, last_names, gender, age_range, phone,
+          email, institution, position_title, province, participant_type,
+          data_consent, image_consent, created_at, updated_at
+        ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$18)
+        on conflict (source_reference) do update set
+          raw_payload = excluded.raw_payload,
+          registered_at = excluded.registered_at,
+          first_name = excluded.first_name,
+          last_names = excluded.last_names,
+          gender = excluded.gender,
+          age_range = excluded.age_range,
+          phone = excluded.phone,
+          email = excluded.email,
+          institution = excluded.institution,
+          position_title = excluded.position_title,
+          province = excluded.province,
+          participant_type = excluded.participant_type,
+          data_consent = excluded.data_consent,
+          image_consent = excluded.image_consent,
+          updated_at = excluded.updated_at
+        returning *`,
+        [
+          effectiveId,
+          normalized.registration.source_channel,
+          normalized.registration.source_reference,
+          JSON.stringify(normalized.registration.raw_payload),
+          normalized.registration.registered_at,
+          normalized.registration.first_name,
+          normalized.registration.last_names,
+          normalized.registration.gender,
+          normalized.registration.age_range,
+          normalized.registration.phone,
+          normalized.registration.email,
+          normalized.registration.institution,
+          normalized.registration.position_title,
+          normalized.registration.province,
+          normalized.registration.participant_type,
+          normalized.registration.data_consent,
+          normalized.registration.image_consent,
+          now,
+        ],
+      );
+
+      await client.query('delete from workshop_registration_participations where registration_id = $1', [effectiveId]);
+      const participations = [];
+      for (const participation of normalized.participations || []) {
+        const inserted = await client.query(
+          `insert into workshop_registration_participations (
+            participation_id, registration_id, workshop_id, modality
+          ) values ($1,$2,$3,$4)
+          returning *`,
+          [
+            `wpart_${hash(`${effectiveId}|${participation.workshop_id}`)}`,
+            effectiveId,
+            participation.workshop_id,
+            participation.modality,
+          ],
+        );
+        participations.push(inserted.rows[0]);
+      }
+
+      await insertAuditEvent(client, {
+        action: current.rowCount > 0 ? 'WORKSHOP_REGISTRATION_REPROCESSED' : 'WORKSHOP_REGISTRATION_RECEIVED',
+        entityType: 'WorkshopRegistration',
+        entityId: effectiveId,
+        actor: actor || 'API_WORKSHOP_REGISTRATION',
+        previousValue: current.rows[0] || null,
+        newValue: {
+          registration_id: effectiveId,
+          workshop_count: participations.length,
+          has_issues: (normalized.issues || []).length > 0,
+        },
+        reason,
+      });
+
+      await client.query('COMMIT');
+      return {
+        status: current.rowCount > 0 ? 'REPROCESSED' : 'REGISTERED',
+        registration: saved.rows[0],
+        participations,
+        issues: normalized.issues || [],
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async listWorkshopRegistrations() {
+    const [registrations, participations] = await Promise.all([
+      this.pool.query(`select * from workshop_registrations order by registered_at desc, last_names, first_name`),
+      this.pool.query(`select * from workshop_registration_participations order by workshop_id, modality`),
+    ]);
+    return registrations.rows.map(registration => ({
+      ...registration,
+      participations: participations.rows.filter(item => item.registration_id === registration.registration_id),
+    }));
+  }
+
+  async getWorkshopRegistrationSummary() {
+    return summarizeWorkshopRegistrations(await this.listWorkshopRegistrations());
+  }
+
   async listAdminSubmissions() {
     const result = await this.pool.query(`
       select
@@ -1713,6 +2118,33 @@ function sanitizeProposalEntryAuditValue(entry) {
     updated_at: entry.updated_at || null,
     updated_by: entry.updated_by || '',
   };
+}
+
+function summarizeWorkshopRegistrations(registrations) {
+  const byWorkshop = new Map();
+  for (const registration of registrations || []) {
+    for (const participation of registration.participations || []) {
+      const current = byWorkshop.get(participation.workshop_id) || {
+        workshop_id: participation.workshop_id,
+        total: 0,
+        presencial: 0,
+        virtual: 0,
+        by_participant_type: {},
+      };
+      current.total += 1;
+      if (participation.modality === 'Presencial') current.presencial += 1;
+      if (participation.modality === 'Virtual') current.virtual += 1;
+      const participantType = registration.participant_type || 'Sin clasificar';
+      current.by_participant_type[participantType] = (current.by_participant_type[participantType] || 0) + 1;
+      byWorkshop.set(participation.workshop_id, current);
+    }
+  }
+  return Array.from(byWorkshop.values()).map(item => ({
+    ...item,
+    by_participant_type: Object.entries(item.by_participant_type)
+      .map(([key, value]) => ({ key, value }))
+      .sort((a, b) => b.value - a.value || a.key.localeCompare(b.key)),
+  }));
 }
 
 function sanitizeAdminUserAuditValue(user) {

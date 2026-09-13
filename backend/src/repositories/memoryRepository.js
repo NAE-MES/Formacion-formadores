@@ -13,6 +13,11 @@ class MemoryRepository {
     this.proposalEntries = new Map();
     this.adminUsers = new Map();
     this.adminSessions = new Map();
+    this.workshops = new Map();
+    this.workshopAgendaItems = new Map();
+    this.workshopMaterials = new Map();
+    this.workshopRegistrations = new Map();
+    this.workshopRegistrationParticipations = new Map();
   }
 
   async saveImportedSubmission(imported) {
@@ -490,6 +495,237 @@ class MemoryRepository {
     };
   }
 
+  async ensureDefaultWorkshops(workshops, defaultMaterials, actor) {
+    if (this.workshops.size > 0) return;
+    const now = new Date().toISOString();
+    for (const workshop of workshops) {
+      this.workshops.set(workshop.workshop_id, {
+        workshop_id: workshop.workshop_id,
+        title: workshop.title,
+        region: workshop.region,
+        venue: workshop.venue,
+        room: workshop.room,
+        starts_at: workshop.starts_at,
+        ends_at: workshop.ends_at,
+        timezone: workshop.timezone,
+        modality: workshop.modality,
+        meet_url: workshop.meet_url,
+        general_info: workshop.general_info,
+        updated_at: now,
+        updated_by: actor || 'SYSTEM_BOOTSTRAP',
+      });
+      for (const [index, item] of (workshop.agenda || []).entries()) {
+        const agendaItem = {
+          agenda_item_id: `agenda_${workshop.workshop_id}_${index + 1}`,
+          workshop_id: workshop.workshop_id,
+          position: index + 1,
+          time_range: item.time_range,
+          title: item.title,
+          description: item.description || '',
+          updated_at: now,
+          updated_by: actor || 'SYSTEM_BOOTSTRAP',
+        };
+        this.workshopAgendaItems.set(agendaItem.agenda_item_id, agendaItem);
+      }
+      for (const [index, material] of (defaultMaterials || []).entries()) {
+        const item = {
+          material_id: `material_${workshop.workshop_id}_${index + 1}`,
+          workshop_id: workshop.workshop_id,
+          title: material.title,
+          description: material.description || '',
+          material_type: material.material_type || '',
+          url: material.url || '',
+          visible: material.visible !== false,
+          position: material.position || index + 1,
+          updated_at: now,
+          updated_by: actor || 'SYSTEM_BOOTSTRAP',
+        };
+        this.workshopMaterials.set(item.material_id, item);
+      }
+    }
+    this.auditEvents.set(
+      `audit_${this.auditEvents.size + 1}`,
+      auditEvent('WORKSHOPS_BOOTSTRAPPED', 'Workshop', 'workshops', actor || 'SYSTEM_BOOTSTRAP', null, { count: workshops.length }, 'Initial workshop baseline created.'),
+    );
+  }
+
+  async listWorkshops() {
+    return Array.from(this.workshops.values())
+      .sort((a, b) => String(a.starts_at || '').localeCompare(String(b.starts_at || '')) || a.workshop_id.localeCompare(b.workshop_id))
+      .map(workshop => ({
+        ...workshop,
+        agenda: Array.from(this.workshopAgendaItems.values())
+          .filter(item => item.workshop_id === workshop.workshop_id)
+          .sort((a, b) => a.position - b.position),
+        materials: Array.from(this.workshopMaterials.values())
+          .filter(item => item.workshop_id === workshop.workshop_id)
+          .sort((a, b) => a.position - b.position || a.title.localeCompare(b.title)),
+      }));
+  }
+
+  async updateWorkshop(workshopId, payload, { actor, reason } = {}) {
+    const current = this.workshops.get(workshopId);
+    if (!current) {
+      const error = new Error('Workshop not found.');
+      error.statusCode = 404;
+      error.code = 'NOT_FOUND';
+      throw error;
+    }
+    const updated = {
+      ...current,
+      ...payload,
+      workshop_id: workshopId,
+      updated_at: new Date().toISOString(),
+      updated_by: actor || 'ADMIN_UI',
+    };
+    this.workshops.set(workshopId, updated);
+    this.auditEvents.set(
+      `audit_${this.auditEvents.size + 1}`,
+      auditEvent('WORKSHOP_UPDATED', 'Workshop', workshopId, actor, current, updated, reason),
+    );
+    return updated;
+  }
+
+  async replaceWorkshopAgenda(workshopId, items, { actor, reason } = {}) {
+    if (!this.workshops.has(workshopId)) {
+      const error = new Error('Workshop not found.');
+      error.statusCode = 404;
+      error.code = 'NOT_FOUND';
+      throw error;
+    }
+    const previous = Array.from(this.workshopAgendaItems.values()).filter(item => item.workshop_id === workshopId);
+    for (const item of previous) this.workshopAgendaItems.delete(item.agenda_item_id);
+    const now = new Date().toISOString();
+    const saved = items.map((item, index) => ({
+      agenda_item_id: item.agenda_item_id || `agenda_${workshopId}_${index + 1}_${Date.now()}`,
+      workshop_id: workshopId,
+      position: index + 1,
+      time_range: item.time_range,
+      title: item.title,
+      description: item.description || '',
+      updated_at: now,
+      updated_by: actor || 'ADMIN_UI',
+    }));
+    for (const item of saved) this.workshopAgendaItems.set(item.agenda_item_id, item);
+    this.auditEvents.set(
+      `audit_${this.auditEvents.size + 1}`,
+      auditEvent('WORKSHOP_AGENDA_UPDATED', 'Workshop', workshopId, actor, previous, saved, reason),
+    );
+    return saved;
+  }
+
+  async upsertWorkshopMaterial(workshopId, payload, { actor, reason } = {}) {
+    if (!this.workshops.has(workshopId)) {
+      const error = new Error('Workshop not found.');
+      error.statusCode = 404;
+      error.code = 'NOT_FOUND';
+      throw error;
+    }
+    const materialId = payload.material_id || `material_${workshopId}_${Date.now()}`;
+    const previous = this.workshopMaterials.get(materialId) || null;
+    const saved = {
+      ...previous,
+      ...payload,
+      material_id: materialId,
+      workshop_id: workshopId,
+      updated_at: new Date().toISOString(),
+      updated_by: actor || 'ADMIN_UI',
+    };
+    this.workshopMaterials.set(materialId, saved);
+    this.auditEvents.set(
+      `audit_${this.auditEvents.size + 1}`,
+      auditEvent('WORKSHOP_MATERIAL_SAVED', 'WorkshopMaterial', materialId, actor, previous, saved, reason),
+    );
+    return saved;
+  }
+
+  async deleteWorkshopMaterial(materialId, { actor, reason } = {}) {
+    const previous = this.workshopMaterials.get(materialId);
+    this.workshopMaterials.delete(materialId);
+    if (previous) {
+      this.auditEvents.set(
+        `audit_${this.auditEvents.size + 1}`,
+        auditEvent('WORKSHOP_MATERIAL_DELETED', 'WorkshopMaterial', materialId, actor, previous, null, reason),
+      );
+    }
+  }
+
+  async saveWorkshopRegistration(normalized, { actor, reason } = {}) {
+    const now = new Date().toISOString();
+    const existing = Array.from(this.workshopRegistrations.values())
+      .find(item => item.source_reference === normalized.registration.source_reference);
+    const registrationId = existing?.registration_id || `wreg_${stableHash(normalized.registration.source_reference)}`;
+    const previousValue = existing ? sanitizeWorkshopRegistrationAuditValue(existing) : null;
+    const registration = {
+      ...existing,
+      ...normalized.registration,
+      registration_id: registrationId,
+      created_at: existing?.created_at || now,
+      updated_at: now,
+    };
+    this.workshopRegistrations.set(registrationId, registration);
+
+    for (const participation of Array.from(this.workshopRegistrationParticipations.values())) {
+      if (participation.registration_id === registrationId) {
+        this.workshopRegistrationParticipations.delete(participation.participation_id);
+      }
+    }
+    for (const participation of normalized.participations || []) {
+      const saved = {
+        participation_id: `wpart_${stableHash(`${registrationId}|${participation.workshop_id}`)}`,
+        registration_id: registrationId,
+        workshop_id: participation.workshop_id,
+        modality: participation.modality,
+      };
+      this.workshopRegistrationParticipations.set(saved.participation_id, saved);
+    }
+
+    this.auditEvents.set(
+      `audit_${this.auditEvents.size + 1}`,
+      auditEvent(
+        existing ? 'WORKSHOP_REGISTRATION_REPROCESSED' : 'WORKSHOP_REGISTRATION_RECEIVED',
+        'WorkshopRegistration',
+        registrationId,
+        actor || 'API_WORKSHOP_REGISTRATION',
+        previousValue,
+        {
+          registration_id: registrationId,
+          workshop_count: (normalized.participations || []).length,
+          has_issues: (normalized.issues || []).length > 0,
+        },
+        reason,
+      ),
+    );
+
+    return {
+      status: existing ? 'REPROCESSED' : 'REGISTERED',
+      registration,
+      participations: await this.listWorkshopRegistrationParticipations(registrationId),
+      issues: normalized.issues || [],
+    };
+  }
+
+  async listWorkshopRegistrationParticipations(registrationId) {
+    return Array.from(this.workshopRegistrationParticipations.values())
+      .filter(item => item.registration_id === registrationId)
+      .sort((a, b) => a.workshop_id.localeCompare(b.workshop_id));
+  }
+
+  async listWorkshopRegistrations() {
+    return Array.from(this.workshopRegistrations.values())
+      .sort((a, b) => String(b.registered_at).localeCompare(String(a.registered_at)))
+      .map(registration => ({
+        ...registration,
+        participations: Array.from(this.workshopRegistrationParticipations.values())
+          .filter(item => item.registration_id === registration.registration_id)
+          .sort((a, b) => a.workshop_id.localeCompare(b.workshop_id)),
+      }));
+  }
+
+  async getWorkshopRegistrationSummary() {
+    return summarizeWorkshopRegistrations(await this.listWorkshopRegistrations());
+  }
+
   async getSubmission(submissionId) {
     return this.submissions.get(submissionId) || null;
   }
@@ -852,6 +1088,52 @@ function sanitizeProposalEntryAuditValue(entry) {
     updated_at: entry.updated_at || null,
     updated_by: entry.updated_by || '',
   };
+}
+
+function sanitizeWorkshopRegistrationAuditValue(registration) {
+  return {
+    registration_id: registration.registration_id,
+    source_channel: registration.source_channel,
+    source_reference: registration.source_reference,
+    registered_at: registration.registered_at,
+    updated_at: registration.updated_at || null,
+  };
+}
+
+function summarizeWorkshopRegistrations(registrations) {
+  const byWorkshop = new Map();
+  for (const registration of registrations || []) {
+    for (const participation of registration.participations || []) {
+      const current = byWorkshop.get(participation.workshop_id) || {
+        workshop_id: participation.workshop_id,
+        total: 0,
+        presencial: 0,
+        virtual: 0,
+        by_participant_type: {},
+      };
+      current.total += 1;
+      if (participation.modality === 'Presencial') current.presencial += 1;
+      if (participation.modality === 'Virtual') current.virtual += 1;
+      const participantType = registration.participant_type || 'Sin clasificar';
+      current.by_participant_type[participantType] = (current.by_participant_type[participantType] || 0) + 1;
+      byWorkshop.set(participation.workshop_id, current);
+    }
+  }
+  return Array.from(byWorkshop.values()).map(item => ({
+    ...item,
+    by_participant_type: Object.entries(item.by_participant_type)
+      .map(([key, value]) => ({ key, value }))
+      .sort((a, b) => b.value - a.value || a.key.localeCompare(b.key)),
+  }));
+}
+
+function stableHash(value) {
+  let hashValue = 0;
+  const source = String(value || '');
+  for (let index = 0; index < source.length; index += 1) {
+    hashValue = ((hashValue << 5) - hashValue + source.charCodeAt(index)) | 0;
+  }
+  return Math.abs(hashValue).toString(16).padStart(8, '0');
 }
 
 function latestEligibility(items) {

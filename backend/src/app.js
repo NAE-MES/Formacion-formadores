@@ -16,6 +16,14 @@ const {
   summarizeEvaluation,
   validateEvaluationValidationStatus,
 } = require('./evaluation');
+const {
+  DEFAULT_MATERIALS,
+  DEFAULT_WORKSHOPS,
+  sanitizeAgendaPayload,
+  sanitizeMaterialPayload,
+  sanitizeWorkshopPayload,
+  normalizeWorkshopRegistrationPayload,
+} = require('./workshops');
 
 const BUSINESS_TIME_ZONE = 'America/Havana';
 const OPERATIONAL_RANKING_CUTOFF_DATE = '2026-08-26';
@@ -28,7 +36,7 @@ function createApp({ config, repository }) {
       }
 
       if ((req.method === 'GET' || req.method === 'HEAD') && req.url === '/') {
-        return redirect(res, '/login');
+        return redirect(res, '/talleres');
       }
 
       if ((req.method === 'GET' || req.method === 'HEAD') && (req.url === '/login' || req.url === '/login/')) {
@@ -49,6 +57,21 @@ function createApp({ config, repository }) {
       if (req.method === 'GET' && req.url.startsWith('/home/')) {
         const relativePath = req.url.replace(/^\/home\//, '') || 'index.html';
         return sendHomeAsset(res, relativePath);
+      }
+      if ((req.method === 'GET' || req.method === 'HEAD') && (req.url === '/talleres' || req.url === '/talleres/')) {
+        return sendStatic(res, path.join(__dirname, '..', 'public', 'talleres', 'index.html'), 'text/html; charset=utf-8');
+      }
+
+      if ((req.method === 'GET' || req.method === 'HEAD') && (req.url === '/talleres/admin' || req.url === '/talleres/admin/')) {
+        const admin = await authorizeAdminForPage(req, config, repository);
+        if (!admin) return redirect(res, '/login');
+        if (!['ADMIN', 'REVIEWER'].includes(admin.role)) return redirect(res, '/talleres');
+        return sendStatic(res, path.join(__dirname, '..', 'public', 'talleres', 'index.html'), 'text/html; charset=utf-8');
+      }
+
+      if (req.method === 'GET' && req.url.startsWith('/talleres/')) {
+        const relativePath = req.url.replace(/^\/talleres\//, '') || 'index.html';
+        return sendWorkshopAsset(res, relativePath);
       }
 
       if ((req.method === 'GET' || req.method === 'HEAD') && (req.url === '/admin' || req.url === '/admin/')) {
@@ -116,6 +139,105 @@ function createApp({ config, repository }) {
         const stats = await buildHomeStats(repository, admin);
         const pdf = executiveReportPdf(stats.executive_report, stats);
         return sendPdf(res, `fdf-2026-reporte-ejecutivo-${stats.executive_report.report_date}.pdf`, pdf);
+      }
+
+      if (req.method === 'GET' && req.url === '/api/public/workshops') {
+        await ensureWorkshopBaseline(repository);
+        const summary = repository.getWorkshopRegistrationSummary
+          ? await repository.getWorkshopRegistrationSummary()
+          : [];
+        return sendJson(res, 200, { workshops: publicWorkshops(await repository.listWorkshops(), summary) });
+      }
+
+      if (req.method === 'GET' && req.url === '/api/workshops') {
+        await authorizeAdmin(req, config, repository);
+        await ensureWorkshopBaseline(repository);
+        const summary = repository.getWorkshopRegistrationSummary
+          ? await repository.getWorkshopRegistrationSummary()
+          : [];
+        return sendJson(res, 200, { workshops: attachWorkshopRegistrationSummary(await repository.listWorkshops(), summary) });
+      }
+
+      if (req.method === 'POST' && req.url === '/api/workshop-registrations/google-form') {
+        authorize(req, config);
+        await ensureWorkshopBaseline(repository);
+        const normalized = normalizeWorkshopRegistrationPayload(await readJson(req));
+        if (normalized.issues.length) {
+          return sendJson(res, 422, {
+            error: 'INVALID_WORKSHOP_REGISTRATION',
+            issues: normalized.issues,
+          });
+        }
+        const saved = await repository.saveWorkshopRegistration(normalized, {
+          actor: 'API_WORKSHOP_REGISTRATION',
+          reason: 'Workshop registration received from Google Forms.',
+        });
+        return sendJson(res, saved.status === 'REGISTERED' ? 201 : 200, {
+          status: saved.status,
+          registration_id: saved.registration.registration_id,
+          workshop_count: saved.participations.length,
+        });
+      }
+
+      if (req.method === 'GET' && req.url === '/api/admin/workshop-registrations') {
+        await authorizeAdmin(req, config, repository, ['ADMIN', 'REVIEWER', 'INTAKE']);
+        await ensureWorkshopBaseline(repository);
+        return sendJson(res, 200, { registrations: await repository.listWorkshopRegistrations() });
+      }
+
+      if (req.method === 'GET' && req.url === '/api/admin/workshop-registrations.csv') {
+        await authorizeAdmin(req, config, repository, ['ADMIN', 'REVIEWER', 'INTAKE']);
+        await ensureWorkshopBaseline(repository);
+        return sendCsv(
+          res,
+          'fdf-2026-registros-talleres.csv',
+          workshopRegistrationsCsv(await repository.listWorkshopRegistrations()),
+        );
+      }
+
+      if (req.method === 'PUT' && req.url.startsWith('/api/admin/workshops/') && !req.url.includes('/agenda')) {
+        const admin = await authorizeAdmin(req, config, repository, ['ADMIN', 'REVIEWER']);
+        await ensureWorkshopBaseline(repository);
+        const workshopId = decodeURIComponent(req.url.slice('/api/admin/workshops/'.length));
+        const payload = sanitizeWorkshopPayload(await readJson(req));
+        const workshop = await repository.updateWorkshop(workshopId, payload, {
+          actor: admin.username || 'ADMIN_UI',
+          reason: 'Workshop information updated.',
+        });
+        return sendJson(res, 200, { workshop });
+      }
+
+      if (req.method === 'PUT' && req.url.startsWith('/api/admin/workshops/') && req.url.endsWith('/agenda')) {
+        const admin = await authorizeAdmin(req, config, repository, ['ADMIN', 'REVIEWER']);
+        await ensureWorkshopBaseline(repository);
+        const workshopId = decodeURIComponent(req.url.slice('/api/admin/workshops/'.length, -'/agenda'.length));
+        const payload = await readJson(req);
+        const agenda = await repository.replaceWorkshopAgenda(workshopId, sanitizeAgendaPayload(payload.items), {
+          actor: admin.username || 'ADMIN_UI',
+          reason: 'Workshop agenda updated.',
+        });
+        return sendJson(res, 200, { agenda });
+      }
+
+      if (req.method === 'POST' && req.url.startsWith('/api/admin/workshops/') && req.url.endsWith('/materials')) {
+        const admin = await authorizeAdmin(req, config, repository, ['ADMIN', 'REVIEWER']);
+        await ensureWorkshopBaseline(repository);
+        const workshopId = decodeURIComponent(req.url.slice('/api/admin/workshops/'.length, -'/materials'.length));
+        const material = await repository.upsertWorkshopMaterial(workshopId, sanitizeMaterialPayload(await readJson(req)), {
+          actor: admin.username || 'ADMIN_UI',
+          reason: 'Workshop material saved.',
+        });
+        return sendJson(res, 200, { material });
+      }
+
+      if (req.method === 'DELETE' && req.url.startsWith('/api/admin/workshop-materials/')) {
+        const admin = await authorizeAdmin(req, config, repository, ['ADMIN', 'REVIEWER']);
+        const materialId = decodeURIComponent(req.url.slice('/api/admin/workshop-materials/'.length));
+        await repository.deleteWorkshopMaterial(materialId, {
+          actor: admin.username || 'ADMIN_UI',
+          reason: 'Workshop material removed.',
+        });
+        return sendJson(res, 200, { status: 'ok' });
       }
 
       if (req.method === 'GET' && req.url === '/api/admin/users') {
@@ -468,6 +590,63 @@ function adminOfflineJsonPayload(payload, actor) {
   };
 }
 
+async function ensureWorkshopBaseline(repository) {
+  if (repository.ensureDefaultWorkshops) {
+    await repository.ensureDefaultWorkshops(DEFAULT_WORKSHOPS, DEFAULT_MATERIALS, 'SYSTEM_BOOTSTRAP');
+  }
+}
+
+function attachWorkshopRegistrationSummary(workshops, registrationSummary = []) {
+  const summaryByWorkshop = new Map((registrationSummary || []).map(item => [item.workshop_id, item]));
+  return (workshops || []).map(workshop => ({
+    ...workshop,
+    registration_summary: summaryByWorkshop.get(workshop.workshop_id) || emptyWorkshopRegistrationSummary(workshop.workshop_id),
+  }));
+}
+
+function publicWorkshops(workshops, registrationSummary = []) {
+  const summaryByWorkshop = new Map((registrationSummary || []).map(item => [item.workshop_id, item]));
+  return (workshops || []).map(workshop => ({
+    workshop_id: workshop.workshop_id,
+    title: workshop.title,
+    region: workshop.region,
+    venue: workshop.venue,
+    room: workshop.room,
+    starts_at: workshop.starts_at,
+    ends_at: workshop.ends_at,
+    timezone: workshop.timezone,
+    modality: workshop.modality,
+    meet_url: workshop.meet_url,
+    general_info: workshop.general_info,
+    registration_summary: summaryByWorkshop.get(workshop.workshop_id) || emptyWorkshopRegistrationSummary(workshop.workshop_id),
+    agenda: (workshop.agenda || []).map(item => ({
+      time_range: item.time_range,
+      title: item.title,
+      description: item.description,
+    })),
+    materials: (workshop.materials || [])
+      .filter(material => material.visible !== false)
+      .map(material => ({
+        material_id: material.material_id,
+        title: material.title,
+        description: material.description,
+        material_type: material.material_type,
+        url: material.url,
+        position: material.position,
+      })),
+  }));
+}
+
+function emptyWorkshopRegistrationSummary(workshopId) {
+  return {
+    workshop_id: workshopId,
+    total: 0,
+    presencial: 0,
+    virtual: 0,
+    by_participant_type: [],
+  };
+}
+
 function fieldCatalogFromConfig(publicSchema = {}) {
   return (publicSchema.fields || []).map(field => ({
     code: field.code,
@@ -692,13 +871,32 @@ function sendHomeAsset(res, relativePath) {
 
   return sendStaticAsset(res, filePath, relativePath);
 }
+function sendWorkshopAsset(res, relativePath) {
+  if (relativePath.includes('..') || path.isAbsolute(relativePath)) {
+    return sendJson(res, 404, { error: 'NOT_FOUND' });
+  }
+
+  if (relativePath === 'banner.jpg.jpeg') {
+    return sendStaticAsset(res, path.join(__dirname, '..', '..', 'image', 'banner.jpg.jpeg'), relativePath);
+  }
+
+  const basePath = path.join(__dirname, '..', 'public', 'talleres');
+  const filePath = path.join(basePath, relativePath);
+  if (!filePath.startsWith(basePath)) return sendJson(res, 404, { error: 'NOT_FOUND' });
+
+  return sendStaticAsset(res, filePath, relativePath);
+}
 
 function sendStaticAsset(res, filePath, relativePath) {
   const contentType = relativePath.endsWith('.css')
     ? 'text/css; charset=utf-8'
     : relativePath.endsWith('.js')
       ? 'text/javascript; charset=utf-8'
-      : 'application/octet-stream';
+      : relativePath.endsWith('.jpg') || relativePath.endsWith('.jpeg')
+        ? 'image/jpeg'
+        : relativePath.endsWith('.png')
+          ? 'image/png'
+          : 'application/octet-stream';
   return sendStatic(res, filePath, contentType);
 }
 
@@ -2068,6 +2266,57 @@ function selectionPolicyCsv(rows) {
     policy_alerts: (row.policy_alerts || []).join(' | '),
   }));
   return rowsCsv(headers, expandedRows);
+}
+
+function workshopRegistrationsCsv(rows) {
+  const flattened = [];
+  for (const row of rows || []) {
+    const participations = row.participations && row.participations.length
+      ? row.participations
+      : [{ workshop_id: '', modality: '' }];
+    for (const participation of participations) {
+      flattened.push({
+        registration_id: row.registration_id,
+        registered_at: row.registered_at,
+        source_channel: row.source_channel,
+        source_reference: row.source_reference,
+        first_name: row.first_name,
+        last_names: row.last_names,
+        email: row.email,
+        phone: row.phone,
+        province: row.province,
+        institution: row.institution,
+        position_title: row.position_title,
+        participant_type: row.participant_type,
+        gender: row.gender,
+        age_range: row.age_range,
+        data_consent: row.data_consent,
+        image_consent: row.image_consent,
+        workshop_id: participation.workshop_id,
+        modality: participation.modality,
+      });
+    }
+  }
+  return rowsCsv([
+    'registration_id',
+    'registered_at',
+    'source_channel',
+    'source_reference',
+    'first_name',
+    'last_names',
+    'email',
+    'phone',
+    'province',
+    'institution',
+    'position_title',
+    'participant_type',
+    'gender',
+    'age_range',
+    'data_consent',
+    'image_consent',
+    'workshop_id',
+    'modality',
+  ], flattened);
 }
 
 function selectionPolicyExcel(analysis) {

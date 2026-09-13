@@ -162,6 +162,76 @@ create table if not exists proposal_entries (
   updated_by text not null
 );
 
+create table if not exists workshops (
+  workshop_id text primary key,
+  title text not null,
+  region text not null,
+  venue text not null default '',
+  room text not null default '',
+  starts_at timestamptz,
+  ends_at timestamptz,
+  timezone text not null default 'America/Havana',
+  modality text not null default 'Presencial y virtual',
+  meet_url text not null default '',
+  general_info text not null default '',
+  updated_at timestamptz not null,
+  updated_by text not null default ''
+);
+
+create table if not exists workshop_agenda_items (
+  agenda_item_id text primary key,
+  workshop_id text not null references workshops(workshop_id) on delete cascade,
+  position integer not null,
+  time_range text not null default '',
+  title text not null,
+  description text not null default '',
+  updated_at timestamptz not null,
+  updated_by text not null default ''
+);
+
+create table if not exists workshop_materials (
+  material_id text primary key,
+  workshop_id text not null references workshops(workshop_id) on delete cascade,
+  title text not null,
+  description text not null default '',
+  material_type text not null default '',
+  url text not null default '',
+  visible boolean not null default true,
+  position integer not null default 0,
+  updated_at timestamptz not null,
+  updated_by text not null default ''
+);
+
+create table if not exists workshop_registrations (
+  registration_id text primary key,
+  source_channel text not null,
+  source_reference text not null unique,
+  raw_payload jsonb not null,
+  registered_at timestamptz not null,
+  first_name text not null default '',
+  last_names text not null default '',
+  gender text not null default '',
+  age_range text not null default '',
+  phone text not null default '',
+  email text not null default '',
+  institution text not null default '',
+  position_title text not null default '',
+  province text not null default '',
+  participant_type text not null default '',
+  data_consent text not null default '',
+  image_consent text not null default '',
+  created_at timestamptz not null,
+  updated_at timestamptz not null
+);
+
+create table if not exists workshop_registration_participations (
+  participation_id text primary key,
+  registration_id text not null references workshop_registrations(registration_id) on delete cascade,
+  workshop_id text not null references workshops(workshop_id) on delete cascade,
+  modality text not null,
+  unique (registration_id, workshop_id)
+);
+
 create index if not exists idx_submissions_candidate_id on submissions(candidate_id);
 create index if not exists idx_candidate_responses_candidate_id on candidate_responses(candidate_id);
 create index if not exists idx_documents_candidate_id on documents(candidate_id);
@@ -177,6 +247,11 @@ create index if not exists idx_admin_sessions_user_id on admin_sessions(admin_us
 create index if not exists idx_proposal_entries_submission_id on proposal_entries(submission_id);
 create index if not exists idx_proposal_entries_candidate_id on proposal_entries(candidate_id);
 create index if not exists idx_proposal_entries_evaluation_result_id on proposal_entries(evaluation_result_id);
+create index if not exists idx_workshop_agenda_items_workshop_id on workshop_agenda_items(workshop_id);
+create index if not exists idx_workshop_materials_workshop_id on workshop_materials(workshop_id);
+create index if not exists idx_workshop_registrations_email on workshop_registrations(email);
+create index if not exists idx_workshop_registrations_registered_at on workshop_registrations(registered_at);
+create index if not exists idx_workshop_registration_participations_workshop_id on workshop_registration_participations(workshop_id);
 
 alter table documents add column if not exists reviewed_at timestamptz;
 alter table documents add column if not exists reviewed_by text not null default '';

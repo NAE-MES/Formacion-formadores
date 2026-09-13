@@ -173,7 +173,7 @@ test('serves dedicated login, home stats page and protects admin console', async
   await withServer(t, async ({ port }) => {
     const root = await adminRawRequest(port, 'GET', '/', '');
     assert.equal(root.statusCode, 302);
-    assert.equal(root.headers.location, '/login');
+    assert.equal(root.headers.location, '/talleres');
 
     const loginPage = await adminRawRequest(port, 'GET', '/login', '');
     assert.equal(loginPage.statusCode, 200);
@@ -209,6 +209,138 @@ test('serves dedicated login, home stats page and protects admin console', async
     const viewerAdmin = await rawRequestWithHeaders(port, 'GET', '/admin', undefined, { cookie: viewerCookie });
     assert.equal(viewerAdmin.statusCode, 302);
     assert.equal(viewerAdmin.headers.location, '/home');
+  });
+});
+
+test('workshops page and API expose manageable workshop information', async (t) => {
+  await withServer(t, async ({ port }) => {
+    const publicPage = await adminRawRequest(port, 'GET', '/talleres', '');
+    assert.equal(publicPage.statusCode, 200);
+    assert.match(publicPage.body, /Talleres territoriales/);
+
+    const publicApi = await adminRequest(port, 'GET', '/api/public/workshops', '');
+    assert.equal(publicApi.statusCode, 200);
+    assert.equal(publicApi.body.workshops.length, 4);
+    assert.equal(publicApi.body.workshops.find(item => item.workshop_id === 'oriente').meet_url, 'https://meet.google.com/fto-fpji-dsi');
+
+    const adminPageWithoutSession = await adminRawRequest(port, 'GET', '/talleres/admin', '');
+    assert.equal(adminPageWithoutSession.statusCode, 302);
+    assert.equal(adminPageWithoutSession.headers.location, '/login');
+
+    const cookie = await loginCookie(port, 'admin', 'admin-password');
+    const page = await rawRequestWithHeaders(port, 'GET', '/talleres/admin', undefined, { cookie });
+    assert.equal(page.statusCode, 200);
+    assert.match(page.body, /Talleres territoriales/);
+
+    const list = await rawRequestWithHeaders(port, 'GET', '/api/workshops', undefined, { cookie });
+    assert.equal(list.statusCode, 200);
+    const listed = JSON.parse(list.body);
+    assert.equal(listed.workshops.length, 4);
+    assert.equal(listed.workshops.find(item => item.workshop_id === 'centro').room, 'Salon Rosa Elena Simeon Negrin');
+
+    const updated = await rawRequestWithHeaders(port, 'PUT', '/api/admin/workshops/habana', {
+      title: 'Taller FdF La Habana',
+      region: 'Habana',
+      venue: 'Hotel Parque Central, La Habana',
+      room: 'Salon confirmado',
+      starts_at: '2026-09-15T12:30:00.000Z',
+      ends_at: '2026-09-15T21:00:00.000Z',
+      timezone: 'America/Havana',
+      modality: 'Presencial y virtual',
+      meet_url: 'https://meet.google.com/skt-dtcg-tac',
+      general_info: 'Informacion actualizada.',
+    }, { cookie, 'content-type': 'application/json' });
+    assert.equal(updated.statusCode, 200);
+    assert.equal(JSON.parse(updated.body).workshop.room, 'Salon confirmado');
+
+    const material = await rawRequestWithHeaders(port, 'POST', '/api/admin/workshops/habana/materials', {
+      title: 'Agenda Habana',
+      material_type: 'PDF',
+      url: 'https://example.test/agenda.pdf',
+      description: 'Material sintetico de prueba.',
+      visible: true,
+    }, { cookie, 'content-type': 'application/json' });
+    assert.equal(material.statusCode, 200);
+    assert.equal(JSON.parse(material.body).material.title, 'Agenda Habana');
+  });
+});
+
+test('workshop registration API ingests Google Form payload and keeps admin-only participant list', async (t) => {
+  await withServer(t, async ({ port, repository }) => {
+    const payload = {
+      sourceReference: 'workshop-registration-google-1',
+      registeredAt: '2026-09-13T12:00:00.000Z',
+      responses: {
+        'Consentimiento para el tratamiento de datos personales': 'Acepto',
+        Nombre: 'Laura',
+        Apellidos: 'Rodriguez Perez',
+        'Género': 'Femenino',
+        'Rango de edad': '35 a 44',
+        'Teléfono': '+5355550000',
+        'Correo electrónico': 'LAURA.RODRIGUEZ@example.test',
+        'Nombre de la institución, organización o empresa': 'Entidad sintetica',
+        Cargo: 'Especialista',
+        Provincia: 'La Habana',
+        'Tipo de participante': 'Formador',
+        'Consentimiento para el tratamiento de imagen personal': 'Si autorizo',
+        'Participación en el taller Habana': 'Presencial',
+        'Participación en el taller Occidente': 'No participa',
+        'Participación en el taller Centro': 'Virtual',
+        'Participación en el taller Oriente': 'No participa',
+      },
+    };
+
+    const created = await request(port, 'POST', '/api/workshop-registrations/google-form', payload);
+    assert.equal(created.statusCode, 201);
+    assert.equal(created.body.status, 'REGISTERED');
+    assert.equal(created.body.workshop_count, 2);
+    assert.equal(repository.workshopRegistrations.size, 1);
+    assert.equal(repository.workshopRegistrationParticipations.size, 2);
+
+    const repeated = await request(port, 'POST', '/api/workshop-registrations/google-form', {
+      ...payload,
+      responses: {
+        ...payload.responses,
+        'Participación en el taller Centro': 'No participa',
+      },
+    });
+    assert.equal(repeated.statusCode, 200);
+    assert.equal(repeated.body.status, 'REPROCESSED');
+    assert.equal(repository.workshopRegistrations.size, 1);
+    assert.equal(repository.workshopRegistrationParticipations.size, 1);
+
+    const publicApi = await adminRequest(port, 'GET', '/api/public/workshops', '');
+    assert.equal(publicApi.statusCode, 200);
+    const habana = publicApi.body.workshops.find(item => item.workshop_id === 'habana');
+    assert.equal(habana.registration_summary.total, 1);
+    assert.doesNotMatch(JSON.stringify(publicApi.body), /Laura|RODRIGUEZ|5555/);
+
+    const adminList = await adminRequest(port, 'GET', '/api/admin/workshop-registrations');
+    assert.equal(adminList.statusCode, 200);
+    assert.equal(adminList.body.registrations.length, 1);
+    assert.equal(adminList.body.registrations[0].email, 'laura.rodriguez@example.test');
+    assert.equal(adminList.body.registrations[0].participations[0].workshop_id, 'habana');
+
+    const csv = await adminRawRequest(port, 'GET', '/api/admin/workshop-registrations.csv');
+    assert.equal(csv.statusCode, 200);
+    assert.match(csv.headers['content-type'], /text\/csv/);
+    assert.match(csv.body, /registration_id,registered_at,source_channel/);
+    assert.match(csv.body, /laura\.rodriguez@example\.test/);
+  });
+});
+
+test('workshop registration API rejects incomplete registration without saving it', async (t) => {
+  await withServer(t, async ({ port, repository }) => {
+    const response = await request(port, 'POST', '/api/workshop-registrations/google-form', {
+      sourceReference: 'workshop-registration-invalid',
+      responses: {
+        Nombre: 'Dato sintetico',
+      },
+    });
+    assert.equal(response.statusCode, 422);
+    assert.equal(response.body.error, 'INVALID_WORKSHOP_REGISTRATION');
+    assert.ok(response.body.issues.length > 0);
+    assert.equal(repository.workshopRegistrations.size, 0);
   });
 });
 

@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FdF 2026 · Talleres</title>
+    <link rel="stylesheet" href="/talleres/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <strong>FdF 2026</strong>
+        <span>Talleres territoriales</span>
+      </div>
+      <nav>
+        <a href="#agenda">Agenda</a>
+        <a href="#materiales">Materiales</a>
+        <a class="admin-only hidden" href="#registros">Registros</a>
+        <a class="admin-link" href="/talleres/admin">Administrar</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="banner" aria-label="Banner del proyecto">
+        <img src="/talleres/banner.jpg.jpeg" alt="Banner del proyecto" />
+      </section>
+
+      <section class="intro">
+        <div>
+          <p class="eyebrow">Información operativa</p>
+          <h1>Talleres de Formación de Formadores</h1>
+          <p>Consulte sedes, horarios, enlaces de videoconferencia, agenda y materiales de cada taller territorial.</p>
+        </div>
+        <div class="user-card" id="adminBadgeCard" hidden>
+          <span>Administración</span>
+          <strong id="userBadge">Cargando...</strong>
+        </div>
+      </section>
+
+      <section class="tabs" id="workshopTabs" aria-label="Talleres"></section>
+
+      <section class="layout" id="agenda">
+        <article class="panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Taller seleccionado</p>
+              <h2 id="workshopTitle">Cargando...</h2>
+            </div>
+            <button id="editWorkshopButton" type="button" class="primary hidden">Editar</button>
+          </div>
+          <dl class="details" id="workshopDetails"></dl>
+          <div class="summary-strip" id="registrationSummary"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Programa</p>
+              <h2>Agenda</h2>
+            </div>
+            <button id="editAgendaButton" type="button" class="secondary hidden">Editar agenda</button>
+          </div>
+          <div class="agenda" id="agendaList"></div>
+        </article>
+      </section>
+
+      <section class="panel materials-section" id="materiales">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Documentos</p>
+            <h2>Materiales</h2>
+          </div>
+          <button id="addMaterialButton" type="button" class="secondary hidden">Agregar material</button>
+        </div>
+        <div class="materials" id="materialsList"></div>
+      </section>
+
+      <section class="panel registrations-section hidden" id="registros">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Registro</p>
+            <h2>Participantes registrados</h2>
+          </div>
+          <a class="button secondary" href="/api/admin/workshop-registrations.csv">Exportar CSV</a>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Tipo</th>
+                <th>Modalidad</th>
+                <th>Provincia</th>
+                <th>Institución</th>
+                <th>Contacto</th>
+                <th>Imagen</th>
+              </tr>
+            </thead>
+            <tbody id="registrationsBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <dialog id="workshopDialog">
+      <form method="dialog" id="workshopForm" class="modal-form">
+        <h2>Editar taller</h2>
+        <label>Título <input name="title" required /></label>
+        <label>Región <input name="region" required /></label>
+        <label>Sede <input name="venue" /></label>
+        <label>Local / salón <input name="room" /></label>
+        <div class="two-cols">
+          <label>Inicio <input name="starts_at" type="datetime-local" /></label>
+          <label>Fin <input name="ends_at" type="datetime-local" /></label>
+        </div>
+        <label>Modalidad <input name="modality" /></label>
+        <label>Enlace Meet <input name="meet_url" type="url" /></label>
+        <label>Información general <textarea name="general_info" rows="4"></textarea></label>
+        <menu>
+          <button type="button" class="ghost" data-close>Cerrar</button>
+          <button type="submit" class="primary">Guardar</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="agendaDialog">
+      <form method="dialog" id="agendaForm" class="modal-form wide-modal">
+        <h2>Editar agenda</h2>
+        <p class="hint">Una línea por bloque, con el formato: hora | título | descripción</p>
+        <textarea name="agenda" rows="16"></textarea>
+        <menu>
+          <button type="button" class="ghost" data-close>Cerrar</button>
+          <button type="submit" class="primary">Guardar</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="materialDialog">
+      <form method="dialog" id="materialForm" class="modal-form">
+        <h2>Material</h2>
+        <input type="hidden" name="material_id" />
+        <label>Título <input name="title" required /></label>
+        <label>Tipo <input name="material_type" placeholder="PDF, DOCX, enlace, carpeta" /></label>
+        <label>URL o referencia <input name="url" /></label>
+        <label>Descripción <textarea name="description" rows="3"></textarea></label>
+        <label class="check"><input name="visible" type="checkbox" checked /> Visible</label>
+        <menu>
+          <button type="button" class="ghost" data-close>Cerrar</button>
+          <button type="submit" class="primary">Guardar</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <script src="/talleres/app.js"></script>
+  </body>
+</html>
