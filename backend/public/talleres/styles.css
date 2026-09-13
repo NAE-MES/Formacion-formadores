@@ -43,7 +43,7 @@ h2 { font-size: 20px; color: var(--blue-dark); margin-bottom: 0; }
 .panel-heading { display: flex; justify-content: space-between; align-items: start; gap: 12px; margin-bottom: 16px; }
 .details { display: grid; gap: 0; margin: 0; }
 .details div { display: grid; grid-template-columns: 120px 1fr; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
-.details dt { color: var(--muted); font-weight: 700; }
+.details dt { color: var(--muted); font-weight: 700; padding-right: 4px; }
 .details dd { margin: 0; }
 .details a, .material a { color: var(--blue); font-weight: 700; text-decoration: none; }
 .summary-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 16px; }
