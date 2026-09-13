@@ -244,7 +244,7 @@ test('workshops page and API expose manageable workshop information', async (t) 
       venue: 'Hotel Parque Central, La Habana',
       room: 'Salon confirmado',
       starts_at: '2026-09-15T12:30:00.000Z',
-      ends_at: '2026-09-15T21:00:00.000Z',
+      ends_at: '2026-09-15T20:00:00.000Z',
       timezone: 'America/Havana',
       modality: 'Presencial y virtual',
       meet_url: 'https://meet.google.com/skt-dtcg-tac',
