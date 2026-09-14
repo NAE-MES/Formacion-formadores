@@ -212,6 +212,10 @@ test('serves dedicated login, home stats page and protects admin console', async
     assert.equal(loginPage.statusCode, 200);
     assert.match(loginPage.body, /Acceso al sistema/);
 
+    const loginPageWithNext = await adminRawRequest(port, 'GET', '/login?next=/talleres/admin', '');
+    assert.equal(loginPageWithNext.statusCode, 200);
+    assert.match(loginPageWithNext.body, /Acceso al sistema/);
+
     const homeWithoutSession = await adminRawRequest(port, 'GET', '/home', '');
     assert.equal(homeWithoutSession.statusCode, 302);
     assert.equal(homeWithoutSession.headers.location, '/login');

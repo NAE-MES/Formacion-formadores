@@ -40,7 +40,7 @@ function createApp({ config, repository }) {
         return redirect(res, '/talleres');
       }
 
-      if ((req.method === 'GET' || req.method === 'HEAD') && (req.url === '/login' || req.url === '/login/')) {
+      if ((req.method === 'GET' || req.method === 'HEAD') && isLoginPage(req.url)) {
         return sendStatic(res, path.join(__dirname, '..', 'public', 'login', 'index.html'), 'text/html; charset=utf-8');
       }
 
@@ -916,6 +916,10 @@ function sendStaticAsset(res, filePath, relativePath) {
           ? 'image/png'
           : 'application/octet-stream';
   return sendStatic(res, filePath, contentType);
+}
+
+function isLoginPage(url) {
+  return /^\/login\/?(?:[?#].*)?$/.test(url || '');
 }
 
 function isAdminExpedientesPage(url) {
