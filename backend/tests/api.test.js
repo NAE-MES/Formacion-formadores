@@ -269,7 +269,7 @@ test('workshops page and API expose manageable workshop information', async (t) 
     assert.equal(list.statusCode, 200);
     const listed = JSON.parse(list.body);
     assert.equal(listed.workshops.length, 4);
-    assert.equal(listed.workshops.find(item => item.workshop_id === 'centro').room, 'Salon Rosa Elena Simeon Negrin');
+    assert.equal(listed.workshops.find(item => item.workshop_id === 'centro').room, 'Salón Rosa Elena Simeón Negrín');
 
     const updated = await rawRequestWithHeaders(port, 'PUT', '/api/admin/workshops/habana', {
       title: 'Taller FdF La Habana',
