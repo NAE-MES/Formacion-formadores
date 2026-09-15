@@ -890,19 +890,28 @@ function sendHomeAsset(res, relativePath) {
   return sendStaticAsset(res, filePath, relativePath);
 }
 function sendWorkshopAsset(res, relativePath) {
-  if (relativePath.includes('..') || path.isAbsolute(relativePath)) {
+  const decodedRelativePath = safeDecodePath(relativePath);
+  if (!decodedRelativePath || decodedRelativePath.includes('..') || path.isAbsolute(decodedRelativePath)) {
     return sendJson(res, 404, { error: 'NOT_FOUND' });
   }
 
-  if (relativePath === 'banner.jpg.jpeg') {
+  if (decodedRelativePath === 'banner.jpg.jpeg') {
     return sendStaticAsset(res, path.join(__dirname, '..', '..', 'image', 'banner.jpg.jpeg'), relativePath);
   }
 
   const basePath = path.join(__dirname, '..', 'public', 'talleres');
-  const filePath = path.join(basePath, relativePath);
+  const filePath = path.join(basePath, decodedRelativePath);
   if (!filePath.startsWith(basePath)) return sendJson(res, 404, { error: 'NOT_FOUND' });
 
   return sendStaticAsset(res, filePath, relativePath);
+}
+
+function safeDecodePath(value) {
+  try {
+    return decodeURIComponent(String(value || ''));
+  } catch (_) {
+    return '';
+  }
 }
 
 function sendStaticAsset(res, filePath, relativePath) {
@@ -914,7 +923,15 @@ function sendStaticAsset(res, filePath, relativePath) {
         ? 'image/jpeg'
         : relativePath.endsWith('.png')
           ? 'image/png'
-          : 'application/octet-stream';
+          : relativePath.endsWith('.pdf')
+            ? 'application/pdf'
+            : relativePath.endsWith('.docx')
+              ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+              : relativePath.endsWith('.xlsx')
+                ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                : relativePath.endsWith('.pptx')
+                  ? 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+                  : 'application/octet-stream';
   return sendStatic(res, filePath, contentType);
 }
 

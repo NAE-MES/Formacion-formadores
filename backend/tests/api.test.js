@@ -259,6 +259,13 @@ test('workshops page and API expose manageable workshop information', async (t) 
     assert.equal(publicApi.statusCode, 200);
     assert.equal(publicApi.body.workshops.length, 4);
     assert.equal(publicApi.body.workshops.find(item => item.workshop_id === 'oriente').meet_url, 'https://meet.google.com/fto-fpji-dsi');
+    const publicMaterial = publicApi.body.workshops[0].materials.find(item => item.url.includes('/talleres/bibliografia/'));
+    assert.ok(publicMaterial);
+    assert.match(publicMaterial.description, /Bibliografía común/);
+
+    const materialDownload = await adminRawRequest(port, 'GET', publicMaterial.url, '');
+    assert.equal(materialDownload.statusCode, 200);
+    assert.match(materialDownload.headers['content-type'], /application\//);
 
     const adminPageWithoutSession = await adminRawRequest(port, 'GET', '/talleres/admin', '');
     assert.equal(adminPageWithoutSession.statusCode, 302);

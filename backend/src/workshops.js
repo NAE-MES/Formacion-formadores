@@ -1,4 +1,8 @@
+const fs = require('node:fs');
+const path = require('node:path');
+
 const WORKSHOP_IDS = ['habana', 'occidente', 'centro', 'oriente'];
+const BIBLIOGRAPHY_ROOT = path.join(__dirname, '..', 'public', 'talleres', 'bibliografia');
 
 const REGIONAL_AGENDA = [
   {
@@ -179,6 +183,7 @@ const DEFAULT_MATERIALS = [
     visible: true,
     position: 1,
   },
+  ...bibliographyMaterials(),
 ];
 
 const REGISTRATION_FIELDS = {
@@ -311,6 +316,46 @@ function toIso(value) {
 
 function bounded(value, max) {
   return String(value || '').trim().slice(0, max);
+}
+
+function bibliographyMaterials() {
+  if (!fs.existsSync(BIBLIOGRAPHY_ROOT)) return [];
+  return walkBibliography(BIBLIOGRAPHY_ROOT)
+    .sort((a, b) => a.localeCompare(b, 'es'))
+    .map((relativePath, index) => {
+      const segments = relativePath.split(path.sep);
+      const filename = segments.at(-1);
+      const folder = segments.slice(0, -1).join(' / ');
+      return {
+        title: filename.replace(/\.[^.]+$/, ''),
+        description: folder ? `Bibliografía común - ${folder}` : 'Bibliografía común',
+        material_type: materialType(filename),
+        url: `/talleres/bibliografia/${segments.map(segment => encodeURIComponent(segment)).join('/')}`,
+        visible: true,
+        position: 100 + index,
+      };
+    });
+}
+
+function walkBibliography(directory) {
+  const entries = fs.readdirSync(directory, { withFileTypes: true });
+  return entries.flatMap(entry => {
+    const fullPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      return walkBibliography(fullPath).map(child => path.join(entry.name, child));
+    }
+    if (!entry.isFile()) return [];
+    return [entry.name];
+  });
+}
+
+function materialType(filename) {
+  const extension = path.extname(filename).slice(1).toUpperCase();
+  if (extension === 'PDF') return 'PDF';
+  if (extension === 'DOC' || extension === 'DOCX') return 'DOCX';
+  if (extension === 'XLS' || extension === 'XLSX') return 'XLSX';
+  if (extension === 'PPT' || extension === 'PPTX') return 'PPTX';
+  return extension || 'Archivo';
 }
 
 module.exports = {
