@@ -132,21 +132,7 @@ function renderSelectedWorkshop() {
     `).join('')
     : '<p class="empty">Agenda pendiente.</p>';
   const materials = (workshop.materials || []).filter(material => material.visible !== false || canManage());
-  materialsList.innerHTML = materials.length
-    ? materials.map(material => `
-      <article class="material">
-        <div>
-          <small>${escapeHtml(material.material_type || 'Material')}</small>
-          <h3>${escapeHtml(material.title)}</h3>
-          <p>${escapeHtml(material.description || '')}</p>
-        </div>
-        <div class="material-actions">
-          ${material.url ? `<a href="${escapeAttr(material.url)}" target="_blank" rel="noopener">Abrir</a>` : '<span class="empty">Referencia pendiente</span>'}
-          ${canManage() ? `<button class="ghost" type="button" data-edit-material="${escapeAttr(material.material_id)}">Editar</button><button class="ghost danger" type="button" data-delete-material="${escapeAttr(material.material_id)}">Quitar</button>` : ''}
-        </div>
-      </article>
-    `).join('')
-    : '<p class="empty">No hay materiales publicados.</p>';
+  materialsList.innerHTML = renderMaterials(materials);
   materialsList.querySelectorAll('[data-edit-material]').forEach(button => {
     button.addEventListener('click', () => openMaterialDialog(materials.find(item => item.material_id === button.dataset.editMaterial)));
   });
@@ -158,6 +144,48 @@ function renderSelectedWorkshop() {
     });
   });
   renderRegistrations();
+}
+
+function renderMaterials(materials) {
+  if (!materials.length) return '<p class="empty">No hay materiales publicados.</p>';
+  return materialGroups(materials).map(group => `
+    <section class="material-group">
+      <h3>${escapeHtml(group.name)}</h3>
+      <div class="material-list">
+        ${group.items.map(material => `
+          <article class="material">
+            <div>
+              <small>${escapeHtml(material.material_type || 'Material')}</small>
+              <h4>${escapeHtml(material.title)}</h4>
+              ${group.isGeneral ? `<p>${escapeHtml(material.description || '')}</p>` : ''}
+            </div>
+            <div class="material-actions">
+              ${material.url ? `<a href="${escapeAttr(material.url)}" target="_blank" rel="noopener">Abrir</a>` : '<span class="empty">Referencia pendiente</span>'}
+              ${canManage() ? `<button class="ghost" type="button" data-edit-material="${escapeAttr(material.material_id)}">Editar</button><button class="ghost danger" type="button" data-delete-material="${escapeAttr(material.material_id)}">Quitar</button>` : ''}
+            </div>
+          </article>
+        `).join('')}
+      </div>
+    </section>
+  `).join('');
+}
+
+function materialGroups(materials) {
+  const groups = new Map();
+  for (const material of materials) {
+    const description = material.description || '';
+    const isBibliography = description.startsWith('Bibliografía común - ');
+    const name = isBibliography ? description.replace('Bibliografía común - ', '') : 'Materiales generales';
+    const key = isBibliography ? name : '00-general';
+    if (!groups.has(key)) {
+      groups.set(key, { name, isGeneral: !isBibliography, items: [] });
+    }
+    groups.get(key).items.push(material);
+  }
+  return Array.from(groups.values()).sort((a, b) => {
+    if (a.isGeneral !== b.isGeneral) return a.isGeneral ? -1 : 1;
+    return a.name.localeCompare(b.name, 'es');
+  });
 }
 
 function renderRegistrationSummary(workshop) {
