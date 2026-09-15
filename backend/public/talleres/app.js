@@ -2,6 +2,7 @@ let currentUser = null;
 let workshops = [];
 let registrations = [];
 let selectedWorkshopId = 'habana';
+let materialPath = [];
 
 const isAdminMode = window.location.pathname.replace(/\/$/, '') === '/talleres/admin';
 const userBadge = document.querySelector('#userBadge');
@@ -99,6 +100,7 @@ function renderTabs() {
   workshopTabs.querySelectorAll('.tab').forEach(button => {
     button.addEventListener('click', () => {
       selectedWorkshopId = button.dataset.id;
+      materialPath = [];
       renderTabs();
       renderSelectedWorkshop();
     });
@@ -133,6 +135,19 @@ function renderSelectedWorkshop() {
     : '<p class="empty">Agenda pendiente.</p>';
   const materials = (workshop.materials || []).filter(material => material.visible !== false || canManage());
   materialsList.innerHTML = renderMaterials(materials);
+  materialsList.querySelectorAll('[data-open-folder]').forEach(button => {
+    button.addEventListener('click', () => {
+      materialPath = button.dataset.openFolder ? button.dataset.openFolder.split('/') : [];
+      renderSelectedWorkshop();
+      document.querySelector('#materiales')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+  materialsList.querySelectorAll('[data-folder-back]').forEach(button => {
+    button.addEventListener('click', () => {
+      materialPath = materialPath.slice(0, -1);
+      renderSelectedWorkshop();
+    });
+  });
   materialsList.querySelectorAll('[data-edit-material]').forEach(button => {
     button.addEventListener('click', () => openMaterialDialog(materials.find(item => item.material_id === button.dataset.editMaterial)));
   });
@@ -148,44 +163,106 @@ function renderSelectedWorkshop() {
 
 function renderMaterials(materials) {
   if (!materials.length) return '<p class="empty">No hay materiales publicados.</p>';
-  return materialGroups(materials).map(group => `
-    <section class="material-group">
-      <h3>${escapeHtml(group.name)}</h3>
-      <div class="material-list">
-        ${group.items.map(material => `
-          <article class="material">
-            <div>
-              <small>${escapeHtml(material.material_type || 'Material')}</small>
-              <h4>${escapeHtml(material.title)}</h4>
-              ${group.isGeneral ? `<p>${escapeHtml(material.description || '')}</p>` : ''}
-            </div>
-            <div class="material-actions">
-              ${material.url ? `<a href="${escapeAttr(material.url)}" target="_blank" rel="noopener">Abrir</a>` : '<span class="empty">Referencia pendiente</span>'}
-              ${canManage() ? `<button class="ghost" type="button" data-edit-material="${escapeAttr(material.material_id)}">Editar</button><button class="ghost danger" type="button" data-delete-material="${escapeAttr(material.material_id)}">Quitar</button>` : ''}
-            </div>
-          </article>
-        `).join('')}
+  const tree = materialTree(materials);
+  const node = nodeAtPath(tree, materialPath);
+  const folders = Array.from(node.folders.entries())
+    .map(([name, child]) => ({ name, child }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  const files = node.files.slice().sort((a, b) => a.title.localeCompare(b.title, 'es'));
+  const breadcrumb = ['Materiales', ...materialPath].map((segment, index) => {
+    const partialPath = materialPath.slice(0, index);
+    return index === materialPath.length
+      ? `<strong>${escapeHtml(segment)}</strong>`
+      : `<button type="button" class="breadcrumb-link" data-open-folder="${escapeAttr(partialPath.join('/'))}">${escapeHtml(segment)}</button>`;
+  }).join('<span>/</span>');
+
+  return `
+    <div class="material-browser">
+      <div class="material-browser-head">
+        <div class="breadcrumbs">${breadcrumb}</div>
+        ${materialPath.length ? '<button type="button" class="ghost" data-folder-back>Volver</button>' : ''}
       </div>
-    </section>
-  `).join('');
+      ${folders.length ? `
+        <div class="folder-grid">
+          ${folders.map(folder => {
+            const nextPath = [...materialPath, folder.name].join('/');
+            return `
+              <button type="button" class="folder-card" data-open-folder="${escapeAttr(nextPath)}">
+                <span class="folder-icon" aria-hidden="true"></span>
+                <span>
+                  <strong>${escapeHtml(folder.name)}</strong>
+                  <small>${folderCount(folder.child)}</small>
+                </span>
+              </button>
+            `;
+          }).join('')}
+        </div>
+      ` : ''}
+      ${files.length ? `
+        <div class="material-list">
+          ${files.map(material => `
+            <article class="material">
+              <div>
+                <small>${escapeHtml(material.material_type || 'Material')}</small>
+                <h4>${escapeHtml(material.title)}</h4>
+                ${material.description && !material.description.startsWith('Bibliografía común') ? `<p>${escapeHtml(material.description)}</p>` : ''}
+              </div>
+              <div class="material-actions">
+                ${material.url ? `<a href="${escapeAttr(material.url)}" target="_blank" rel="noopener">Abrir</a>` : '<span class="empty">Referencia pendiente</span>'}
+                ${canManage() ? `<button class="ghost" type="button" data-edit-material="${escapeAttr(material.material_id)}">Editar</button><button class="ghost danger" type="button" data-delete-material="${escapeAttr(material.material_id)}">Quitar</button>` : ''}
+              </div>
+            </article>
+          `).join('')}
+        </div>
+      ` : ''}
+    </div>
+  `;
 }
 
-function materialGroups(materials) {
-  const groups = new Map();
+function materialTree(materials) {
+  const root = { folders: new Map(), files: [] };
   for (const material of materials) {
-    const description = material.description || '';
-    const isBibliography = description.startsWith('Bibliografía común - ');
-    const name = isBibliography ? description.replace('Bibliografía común - ', '') : 'Materiales generales';
-    const key = isBibliography ? name : '00-general';
-    if (!groups.has(key)) {
-      groups.set(key, { name, isGeneral: !isBibliography, items: [] });
+    const parts = materialFolderParts(material);
+    let node = root;
+    for (const part of parts) {
+      if (!node.folders.has(part)) node.folders.set(part, { folders: new Map(), files: [] });
+      node = node.folders.get(part);
     }
-    groups.get(key).items.push(material);
+    node.files.push(material);
   }
-  return Array.from(groups.values()).sort((a, b) => {
-    if (a.isGeneral !== b.isGeneral) return a.isGeneral ? -1 : 1;
-    return a.name.localeCompare(b.name, 'es');
-  });
+  return root;
+}
+
+function nodeAtPath(tree, pathParts) {
+  let node = tree;
+  for (const part of pathParts) {
+    node = node.folders.get(part);
+    if (!node) return tree;
+  }
+  return node;
+}
+
+function materialFolderParts(material) {
+  const description = material.description || '';
+  if (description.startsWith('Bibliografía común - ')) {
+    return description.replace('Bibliografía común - ', '').split(' / ').filter(Boolean);
+  }
+  return ['Materiales generales'];
+}
+
+function folderCount(node) {
+  const fileCount = countFiles(node);
+  const folderCount = node.folders.size;
+  const parts = [];
+  if (folderCount) parts.push(`${folderCount} ${folderCount === 1 ? 'carpeta' : 'carpetas'}`);
+  if (fileCount) parts.push(`${fileCount} ${fileCount === 1 ? 'archivo' : 'archivos'}`);
+  return parts.join(' · ') || 'Vacía';
+}
+
+function countFiles(node) {
+  let total = node.files.length;
+  for (const child of node.folders.values()) total += countFiles(child);
+  return total;
 }
 
 function renderRegistrationSummary(workshop) {

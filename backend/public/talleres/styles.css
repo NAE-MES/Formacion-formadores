@@ -63,8 +63,18 @@ h2 { font-size: 20px; color: var(--blue-dark); margin-bottom: 0; }
 .filters input, .filters select { min-height: 38px; background: #fff; }
 .filter-count { min-height: 38px; display: inline-flex; align-items: center; justify-content: center; padding: 0 12px; border: 1px solid var(--line); border-radius: 6px; color: var(--blue-dark); font-weight: 700; white-space: nowrap; background: #f8fbfd; }
 .materials { display: grid; gap: 16px; }
-.material-group { display: grid; gap: 10px; }
-.material-group h3 { margin: 0; color: var(--text); font-size: 1rem; }
+.material-browser { display: grid; gap: 14px; }
+.material-browser-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); padding-bottom: 12px; }
+.breadcrumbs { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
+.breadcrumbs strong { color: var(--blue-dark); }
+.breadcrumb-link { border: 0; background: transparent; color: var(--blue); font: inherit; font-weight: 700; padding: 0; cursor: pointer; }
+.folder-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.folder-card { min-height: 88px; border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 14px; display: grid; grid-template-columns: 42px 1fr; gap: 12px; align-items: center; text-align: left; cursor: pointer; }
+.folder-card:hover { border-color: var(--blue); background: #f8fbfd; }
+.folder-card strong { display: block; color: var(--blue-dark); font-size: 15px; }
+.folder-card small { display: block; color: var(--muted); margin-top: 4px; }
+.folder-icon { width: 40px; height: 30px; border-radius: 5px; background: #f0b84f; position: relative; box-shadow: inset 0 -7px 0 rgba(0,0,0,.08); }
+.folder-icon::before { content: ""; position: absolute; left: 4px; top: -7px; width: 18px; height: 9px; border-radius: 4px 4px 0 0; background: #f5c866; }
 .material-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .material { border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: grid; gap: 8px; min-height: 112px; }
 .material small { color: var(--muted); font-weight: 700; }
