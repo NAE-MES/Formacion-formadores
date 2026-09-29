@@ -2,6 +2,7 @@ const http = require('node:http');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const AdmZip = require('adm-zip');
 const {
   importGoogleFormSubmission,
   importOfflineJsonSubmission,
@@ -68,6 +69,10 @@ function createApp({ config, repository }) {
         if (!admin) return redirect(res, '/login?next=/talleres/admin');
         if (!['ADMIN', 'REVIEWER'].includes(admin.role)) return redirect(res, '/talleres');
         return sendStatic(res, path.join(__dirname, '..', 'public', 'talleres', 'index.html'), 'text/html; charset=utf-8');
+      }
+
+      if (req.method === 'GET' && req.url.startsWith('/api/public/workshop-materials-folder.zip')) {
+        return sendWorkshopMaterialsFolderZip(req, res);
       }
 
       if (req.method === 'GET' && req.url.startsWith('/talleres/')) {
@@ -890,7 +895,7 @@ function sendHomeAsset(res, relativePath) {
   return sendStaticAsset(res, filePath, relativePath);
 }
 function sendWorkshopAsset(res, relativePath) {
-  const decodedRelativePath = safeDecodePath(relativePath);
+  const decodedRelativePath = safeDecodePath(relativePath).split('?')[0];
   if (!decodedRelativePath || decodedRelativePath.includes('..') || path.isAbsolute(decodedRelativePath)) {
     return sendJson(res, 404, { error: 'NOT_FOUND' });
   }
@@ -903,7 +908,34 @@ function sendWorkshopAsset(res, relativePath) {
   const filePath = path.join(basePath, decodedRelativePath);
   if (!filePath.startsWith(basePath)) return sendJson(res, 404, { error: 'NOT_FOUND' });
 
-  return sendStaticAsset(res, filePath, relativePath);
+  return sendStaticAsset(res, filePath, decodedRelativePath);
+}
+
+function sendWorkshopMaterialsFolderZip(req, res) {
+  const requestUrl = new URL(req.url, 'http://localhost');
+  const relativeFolder = safeDecodePath(requestUrl.searchParams.get('path') || '').replace(/\\/g, '/');
+  if (!relativeFolder || relativeFolder.includes('..') || path.isAbsolute(relativeFolder)) {
+    return sendJson(res, 400, { error: 'INVALID_MATERIAL_FOLDER' });
+  }
+
+  const basePath = path.resolve(__dirname, '..', 'public', 'talleres', 'bibliografia');
+  const folderPath = path.resolve(basePath, ...relativeFolder.split('/').filter(Boolean));
+  if (!folderPath.startsWith(`${basePath}${path.sep}`) || !fs.existsSync(folderPath) || !fs.statSync(folderPath).isDirectory()) {
+    return sendJson(res, 404, { error: 'MATERIAL_FOLDER_NOT_FOUND' });
+  }
+
+  const zip = new AdmZip();
+  zip.addLocalFolder(folderPath);
+  const filename = `${downloadFilename(path.basename(folderPath))}.zip`;
+  return sendZip(res, filename, zip.toBuffer());
+}
+
+function downloadFilename(value) {
+  return String(value || 'materiales')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9._-]+/g, '_')
+    .replace(/^_+|_+$/g, '') || 'materiales';
 }
 
 function safeDecodePath(value) {
@@ -1824,6 +1856,17 @@ function sendXlsx(res, filename, content) {
   const body = Buffer.isBuffer(content) ? content : Buffer.from(content);
   res.writeHead(200, {
     'content-type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'content-disposition': `attachment; filename="${filename}"`,
+    'content-length': body.length,
+    'cache-control': 'no-store',
+  });
+  res.end(body);
+}
+
+function sendZip(res, filename, content) {
+  const body = Buffer.isBuffer(content) ? content : Buffer.from(content);
+  res.writeHead(200, {
+    'content-type': 'application/zip',
     'content-disposition': `attachment; filename="${filename}"`,
     'content-length': body.length,
     'cache-control': 'no-store',

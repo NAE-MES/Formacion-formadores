@@ -267,6 +267,28 @@ test('workshops page and API expose manageable workshop information', async (t) 
     assert.equal(materialDownload.statusCode, 200);
     assert.match(materialDownload.headers['content-type'], /application\//);
 
+    const folderDownload = await adminBufferRequest(
+      port,
+      'GET',
+      '/api/public/workshop-materials-folder.zip?path=3_Caja%20de%20Herramientas',
+      '',
+    );
+    assert.equal(folderDownload.statusCode, 200);
+    assert.equal(folderDownload.headers['content-type'], 'application/zip');
+    assert.match(folderDownload.headers['content-disposition'], /3_Caja_de_Herramientas\.zip/);
+    assert.ok(folderDownload.body.length > 1000);
+    const downloadedFolder = new AdmZip(folderDownload.body);
+    const downloadedNames = downloadedFolder.getEntries().map(entry => entry.entryName.normalize('NFC'));
+    assert.ok(downloadedNames.some(name => name.includes('K02_Diagnóstico Empresarial.xlsx')));
+
+    const invalidFolderDownload = await adminRawRequest(
+      port,
+      'GET',
+      '/api/public/workshop-materials-folder.zip?path=..%2F..',
+      '',
+    );
+    assert.equal(invalidFolderDownload.statusCode, 400);
+
     const adminPageWithoutSession = await adminRawRequest(port, 'GET', '/talleres/admin', '');
     assert.equal(adminPageWithoutSession.statusCode, 302);
     assert.equal(adminPageWithoutSession.headers.location, '/login?next=/talleres/admin');

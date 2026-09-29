@@ -180,20 +180,26 @@ function renderMaterials(materials) {
     <div class="material-browser">
       <div class="material-browser-head">
         <div class="breadcrumbs">${breadcrumb}</div>
-        ${materialPath.length ? '<button type="button" class="ghost" data-folder-back>Volver</button>' : ''}
+        <div class="folder-toolbar">
+          ${materialPath.length ? `<a class="folder-download" href="${folderDownloadUrl(materialPath)}">Descargar carpeta ZIP</a>` : ''}
+          ${materialPath.length ? '<button type="button" class="ghost" data-folder-back>Volver</button>' : ''}
+        </div>
       </div>
       ${folders.length ? `
         <div class="folder-grid">
           ${folders.map(folder => {
             const nextPath = [...materialPath, folder.name].join('/');
             return `
-              <button type="button" class="folder-card" data-open-folder="${escapeAttr(nextPath)}">
-                <span class="folder-icon" aria-hidden="true"></span>
-                <span>
-                  <strong>${escapeHtml(folder.name)}</strong>
-                  <small>${folderCount(folder.child)}</small>
-                </span>
-              </button>
+              <article class="folder-card">
+                <button type="button" class="folder-open" data-open-folder="${escapeAttr(nextPath)}">
+                  <span class="folder-icon" aria-hidden="true"></span>
+                  <span>
+                    <strong>${escapeHtml(folder.name)}</strong>
+                    <small>${folderCount(folder.child)}</small>
+                  </span>
+                </button>
+                <a class="folder-download" href="${folderDownloadUrl(nextPath.split('/'))}">Descargar ZIP</a>
+              </article>
             `;
           }).join('')}
         </div>
@@ -217,6 +223,10 @@ function renderMaterials(materials) {
       ` : ''}
     </div>
   `;
+}
+
+function folderDownloadUrl(pathParts) {
+  return `/api/public/workshop-materials-folder.zip?path=${encodeURIComponent(pathParts.join('/'))}`;
 }
 
 function materialTree(materials) {
